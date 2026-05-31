@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Nexo Finanzas",
+    "slug": "nexo-finanzas",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0A0A0F"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nexofinanzas.app",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "Usa Face ID para acceder de forma segura a Nexo Finanzas"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0F"
+      },
+      "package": "com.nexofinanzas.app"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-font",
+        {
+          "fonts": []
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "scheme": "nexofinanzas",
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id"
+      }
+    }
+  }
+}

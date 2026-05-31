@@ -1,0 +1,26 @@
+{
+  "name": "nexo-finanzas",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Nexo Finanzas - Personal Financial Intelligence Platform",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "api": "yarn workspace @nexo/api start:dev",
+    "mobile": "yarn workspace @nexo/mobile start",
+    "build:api": "yarn workspace @nexo/api build",
+    "test:api": "yarn workspace @nexo/api test",
+    "test:mobile": "yarn workspace @nexo/mobile test",
+    "lint": "yarn workspaces run lint",
+    "format": "yarn workspaces run format"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "yarn": ">=1.22.0"
+  }
+}
