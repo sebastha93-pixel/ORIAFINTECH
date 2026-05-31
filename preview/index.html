@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Nexo Finanzas — Preview</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #070B14;
+      --surface:    #0F172A;
+      --elevated:   #162033;
+      --mid:        #1E2A3E;
+      --border:     #1E2D45;
+      --border-l:   #243553;
+      --primary:    #1E3A8A;
+      --blue:       #2563EB;
+      --blue-g:     #3B82F6;
+      --green:      #22C55E;
+      --green-d:    #16A34A;
+      --text:       #F8FAFC;
+      --text-2:     #94A3B8;
+      --text-m:     #64748B;
+      --danger:     #EF4444;
+      --warning:    #F59E0B;
+      --success:    #22C55E;
+      --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px; --r-full: 9999px;
+    }
+
+    html, body { height: 100%; background: #1a1a2e; font-family: 'Inter', sans-serif; color: var(--text); }
+
+    /* ── Phone frame ── */
+    .scene {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      padding: 40px 20px;
+      flex-wrap: wrap;
+      background: radial-gradient(ellipse at 20% 30%, #0f2563 0%, transparent 50%),
+                  radial-gradient(ellipse at 80% 70%, #052e16 0%, transparent 50%),
+                  #070B14;
+    }
+
+    .phone {
+      width: 390px;
+      height: 844px;
+      background: var(--bg);
+      border-radius: 44px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 10px #1a1a2e,
+        0 0 0 12px #2a2a3a,
+        0 40px 80px rgba(0,0,0,0.7);
+      position: relative;
+      flex-shrink: 0;
+    }
+
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-width: none;
+    }
+    .phone-screen::-webkit-scrollbar { display: none; }
+
+    /* ── Label ── */
+    .phone-label {
+      text-align: center;
+      color: var(--text-m);
+      font-size: 13px;
+      margin-top: 12px;
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* ─────────────────────────── HEADER ─────────────────────────── */
+    .header {
+      background: linear-gradient(180deg, #0D1B3E 0%, var(--bg) 100%);
+      padding: 56px 20px 20px;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .logo-row { display: flex; align-items: center; gap: 10px; }
+
+    .logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, #3B82F6, #22C55E);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Poppins', sans-serif; font-weight: 800; font-size: 18px; color: #fff;
+    }
+
+    .logo-text-wrap { line-height: 1; }
+    .logo-brand { font-family: 'Poppins', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: 3px; color: var(--text); }
+    .logo-sub   { font-size: 8px; letter-spacing: 4px; color: var(--text-m); margin-top: 1px; }
+
+    .bell-btn {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--elevated); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      position: relative; cursor: pointer;
+    }
+    .bell-dot {
+      position: absolute; top: 7px; right: 7px;
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--danger); border: 1.5px solid var(--bg);
+    }
+
+    .greeting    { color: var(--text-2); font-size: 16px; margin-bottom: 2px; }
+    .greeting b  { color: var(--text); font-weight: 700; }
+    .greeting-sub{ color: var(--text-m); font-size: 13px; margin-bottom: 20px; }
+
+    /* Hero card */
+    .hero-card {
+      background: linear-gradient(135deg, #162033, #0F1A2E);
+      border-radius: var(--r-xl);
+      border: 1px solid var(--border-l);
+      padding: 20px;
+      box-shadow: 0 4px 24px rgba(37,99,235,0.2);
+    }
+    .hero-top    { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .hero-label  { color: var(--text-2); font-size: 13px; }
+    .hero-amount { font-family: 'Poppins', sans-serif; font-weight: 800; font-size: 38px; letter-spacing: -1px; color: var(--text); margin-bottom: 10px; }
+    .hero-pill   {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: rgba(34,197,94,0.12); border-radius: var(--r-full);
+      padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--green);
+    }
+    .hero-pill.neg { background: rgba(239,68,68,0.12); color: var(--danger); }
+
+    /* Sparkline */
+    .sparkline { margin-top: 12px; }
+
+    /* ─────────────────────────── STATS ─────────────────────────── */
+    .stats-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px; padding: 16px 20px 0;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #162033, #0F172A);
+      border-radius: var(--r-lg);
+      border: 1px solid var(--border);
+      padding: 12px;
+    }
+    .stat-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 8px; font-size: 15px;
+    }
+    .stat-value { font-weight: 700; font-size: 15px; color: var(--text); margin-bottom: 2px; }
+    .stat-label { font-size: 10px; color: var(--text-m); margin-bottom: 6px; }
+    .stat-pct   { font-size: 10px; font-weight: 600; display: flex; align-items: center; gap: 3px; }
+    .up   { color: var(--green); }
+    .down { color: var(--danger); }
+
+    /* ─────────────────────────── SECTION ─────────────────────────── */
+    .section { padding: 24px 20px 0; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .section-title  { font-size: 17px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .section-action { font-size: 13px; color: var(--green); font-weight: 500; cursor: pointer; }
+
+    /* ─────────────────────────── DONUT CHART ─────────────────────────── */
+    .donut-card {
+      background: linear-gradient(135deg, #162033, #0F172A);
+      border-radius: var(--r-xl);
+      border: 1px solid var(--border);
+      padding: 20px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .donut-wrap { position: relative; flex-shrink: 0; }
+    .donut-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .donut-center-label { font-size: 11px; color: var(--text-m); }
+    .donut-center-value { font-size: 13px; font-weight: 700; color: var(--text); }
+
+    .legend { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+    .legend-row { display: flex; align-items: center; gap: 7px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend-name { flex: 1; font-size: 12px; color: var(--text-2); }
+    .legend-right { text-align: right; }
+    .legend-pct  { font-size: 12px; font-weight: 600; color: var(--text); display: block; }
+    .legend-amt  { font-size: 10px; color: var(--text-m); }
+
+    /* ─────────────────────────── ACCOUNTS ─────────────────────────── */
+    .accounts-scroll {
+      display: flex; gap: 10px;
+      overflow-x: auto; padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+    .accounts-scroll::-webkit-scrollbar { display: none; }
+
+    .account-card {
+      flex-shrink: 0; width: 140px; border-radius: var(--r-lg);
+      padding: 14px; overflow: hidden; position: relative;
+    }
+    .account-card::before {
+      content: ''; position: absolute; inset: 0;
+      background: inherit; filter: brightness(1.1);
+      z-index: 0;
+    }
+    .account-card > * { position: relative; z-index: 1; }
+    .acc-top { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .acc-icon {
+      width: 28px; height: 28px; border-radius: 8px;
+      background: rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center; font-size: 14px;
+    }
+    .acc-type  { font-size: 11px; color: rgba(255,255,255,0.7); }
+    .acc-inst  { font-size: 11px; color: rgba(255,255,255,0.5); margin-bottom: 2px; }
+    .acc-name  { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    .acc-bal   { font-size: 15px; font-weight: 700; color: #fff; }
+
+    .add-account {
+      flex-shrink: 0; width: 110px; border-radius: var(--r-lg);
+      border: 1.5px dashed rgba(34,197,94,0.4);
+      padding: 14px; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      cursor: pointer;
+    }
+    .add-account-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: rgba(34,197,94,0.12);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; color: var(--green);
+    }
+    .add-account-text { font-size: 11px; color: var(--text-m); text-align: center; line-height: 1.4; }
+
+    /* ─────────────────────────── GOALS ─────────────────────────── */
+    .goal-card {
+      background: linear-gradient(135deg, #162033, #0F172A);
+      border-radius: var(--r-xl); border: 1px solid var(--border);
+      padding: 16px; margin-bottom: 10px;
+    }
+    .goal-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .goal-icon {
+      width: 40px; height: 40px; border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .goal-info { flex: 1; }
+    .goal-name { font-size: 15px; font-weight: 600; color: var(--text); }
+    .goal-type { font-size: 11px; color: var(--text-m); }
+    .goal-pct  { font-size: 20px; font-weight: 700; }
+    .progress-bg   { height: 8px; background: var(--mid); border-radius: var(--r-full); overflow: hidden; margin-bottom: 8px; }
+    .progress-fill { height: 100%; border-radius: var(--r-full); }
+    .goal-footer { display: flex; align-items: center; gap: 6px; }
+    .goal-amounts  { font-size: 12px; color: var(--text); font-weight: 600; }
+    .goal-sep      { font-size: 12px; color: var(--text-m); }
+    .goal-target   { font-size: 12px; color: var(--text-m); flex: 1; }
+    .time-chip {
+      display: flex; align-items: center; gap: 4px;
+      background: var(--mid); border-radius: var(--r-full);
+      padding: 3px 10px; font-size: 10px; color: var(--text-m);
+    }
+
+    /* ─────────────────────────── INSIGHTS ─────────────────────────── */
+    .insight-card {
+      display: flex; margin-bottom: 10px;
+      background: var(--surface); border-radius: var(--r-xl);
+      border: 1px solid var(--border); overflow: hidden;
+    }
+    .insight-accent { width: 4px; flex-shrink: 0; }
+    .insight-body { flex: 1; padding: 14px; }
+    .insight-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      border-radius: var(--r-full); padding: 3px 10px;
+      font-size: 10px; font-weight: 600; margin-bottom: 8px;
+    }
+    .insight-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+    .insight-desc  { font-size: 12px; color: var(--text-2); line-height: 1.5; margin-bottom: 8px; }
+    .insight-footer{ display: flex; align-items: center; gap: 4px; font-size: 11px; }
+    .insight-ai    { color: var(--green); font-weight: 500; flex: 1; }
+    .insight-arrow { color: var(--blue-g); }
+
+    /* ─────────────────────────── TRANSACTIONS ─────────────────────────── */
+    .tx-card {
+      background: var(--surface); border-radius: var(--r-xl);
+      border: 1px solid var(--border); overflow: hidden;
+    }
+    .tx-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tx-row:last-child { border-bottom: none; }
+    .tx-icon {
+      width: 40px; height: 40px; border-radius: var(--r-md);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .tx-info { flex: 1; }
+    .tx-name { font-size: 13px; font-weight: 500; color: var(--text); }
+    .tx-meta { font-size: 11px; color: var(--text-m); margin-top: 2px; }
+    .tx-right { text-align: right; }
+    .tx-amount { font-size: 14px; font-weight: 700; }
+    .tx-cat    { font-size: 11px; color: var(--text-m); margin-top: 2px; }
+
+    /* ─────────────────────────── TAB BAR ─────────────────────────── */
+    .tab-bar {
+      position: sticky; bottom: 0;
+      background: linear-gradient(180deg, #0D1628, #070B14);
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center;
+      padding: 10px 8px 28px;
+    }
+    .tab-item {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; gap: 4px; cursor: pointer;
+    }
+    .tab-icon-wrap {
+      width: 40px; height: 30px; border-radius: var(--r-full);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tab-icon-wrap.active { background: rgba(34,197,94,0.15); }
+    .tab-label { font-size: 10px; color: var(--text-m); font-weight: 500; }
+    .tab-label.active { color: var(--green); font-weight: 600; }
+    .tab-icon  { font-size: 22px; }
+    .tab-icon.active { filter: brightness(0) saturate(100%) invert(68%) sepia(42%) saturate(500%) hue-rotate(93deg) brightness(104%) contrast(96%); }
+
+    .tab-fab-wrap { flex: 1; display: flex; justify-content: center; margin-top: -22px; }
+    .tab-fab {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: linear-gradient(135deg, #22C55E, #16A34A);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; color: #fff; font-weight: 300;
+      border: 3px solid var(--bg);
+      box-shadow: 0 4px 16px rgba(34,197,94,0.4);
+      cursor: pointer;
+    }
+
+    /* ── AI Screen ── */
+    .ai-screen { display: flex; flex-direction: column; height: 100%; }
+
+    .ai-header {
+      background: linear-gradient(180deg, #0D1B3E, var(--bg));
+      padding: 56px 20px 16px;
+      display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+    }
+    .ai-avatar {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: linear-gradient(135deg, #3B82F6, #22C55E);
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Poppins', sans-serif; font-weight: 800; font-size: 18px; color: #fff;
+      flex-shrink: 0;
+    }
+    .ai-header-info { flex: 1; }
+    .ai-title-row { display: flex; align-items: center; gap: 6px; }
+    .ai-title { font-size: 17px; font-weight: 700; color: var(--text); }
+    .beta-chip {
+      background: rgba(34,197,94,0.2); border-radius: var(--r-full);
+      padding: 2px 8px; font-size: 10px; font-weight: 600; color: var(--green);
+    }
+    .ai-online { display: flex; align-items: center; gap: 5px; margin-top: 2px; }
+    .online-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); }
+    .online-text { font-size: 12px; color: var(--text-m); }
+    .new-chat { width: 32px; height: 32px; border-radius: 50%; background: var(--elevated); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+
+    .ai-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .ai-messages::-webkit-scrollbar { display: none; }
+
+    .msg-row { display: flex; gap: 10px; align-items: flex-end; }
+    .msg-row.user { flex-direction: row-reverse; }
+    .msg-avatar-sm {
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      background: linear-gradient(135deg, #3B82F6, #22C55E);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 700; color: #fff;
+    }
+    .bubble {
+      max-width: 78%; border-radius: 16px; padding: 12px 14px;
+      font-size: 14px; line-height: 1.55;
+    }
+    .bubble.user {
+      background: #3B82F6; color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .bubble.bot {
+      background: var(--surface); color: var(--text);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+    }
+
+    .ai-input-bar {
+      display: flex; align-items: flex-end; gap: 10px;
+      padding: 14px 16px 34px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .ai-input {
+      flex: 1; background: var(--elevated); border-radius: 22px;
+      border: 1px solid var(--border);
+      padding: 12px 16px; font-size: 14px;
+      color: var(--text-2); font-family: 'Inter', sans-serif;
+    }
+    .send-btn {
+      width: 44px; height: 44px; border-radius: 50%;
+      background: linear-gradient(135deg, #22C55E, #16A34A);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(34,197,94,0.3);
+    }
+
+    /* ── SVG sparkline ── */
+    svg { display: block; overflow: visible; }
+
+    /* ── Scrollbar ── */
+    .phone-screen::-webkit-scrollbar { display: none; }
+
+    /* ── Padding bottom ── */
+    .scroll-pad { height: 100px; }
+
+    /* ── Scene title ── */
+    .scene-title {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.3); font-size: 13px; letter-spacing: 2px;
+      text-transform: uppercase; pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div class="scene">
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PHONE 1: DASHBOARD                          -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div>
+    <div class="phone">
+      <div class="phone-screen">
+
+        <!-- HEADER -->
+        <div class="header">
+          <div class="top-bar">
+            <div class="logo-row">
+              <div class="logo-icon">N</div>
+              <div class="logo-text-wrap">
+                <div class="logo-brand">NEXO</div>
+                <div class="logo-sub">FINANZAS</div>
+              </div>
+            </div>
+            <div class="bell-btn">
+              🔔
+              <div class="bell-dot"></div>
+            </div>
+          </div>
+
+          <div class="greeting">Hola, <b>Sebastián 👋</b></div>
+          <div class="greeting-sub">Resumen de hoy</div>
+
+          <!-- Hero card -->
+          <div class="hero-card">
+            <div class="hero-top">
+              <span class="hero-label">Patrimonio neto</span>
+              <span style="color:var(--text-m);font-size:18px;">👁</span>
+            </div>
+            <div class="hero-amount">$25.800.000</div>
+            <div>
+              <span class="hero-pill">↗ +12.5% vs mes anterior</span>
+            </div>
+            <!-- Sparkline SVG -->
+            <div class="sparkline">
+              <svg width="100%" height="56" viewBox="0 0 350 56" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="spark-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#22C55E" stop-opacity="0.3"/>
+                    <stop offset="100%" stop-color="#22C55E" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,48 L44,42 L88,38 L132,32 L176,28 L220,22 L264,16 L308,10 L350,6"
+                      stroke="#22C55E" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M0,48 L44,42 L88,38 L132,32 L176,28 L220,22 L264,16 L308,10 L350,6 L350,56 L0,56 Z"
+                      fill="url(#spark-grad)"/>
+                <circle cx="350" cy="6" r="4" fill="#22C55E"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <!-- STATS ROW -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(34,197,94,0.12)">📥</div>
+            <div class="stat-value">$15.4M</div>
+            <div class="stat-label">Ingresos</div>
+            <div class="stat-pct up">↗ +8.2%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(239,68,68,0.12)">📤</div>
+            <div class="stat-value">$7.85M</div>
+            <div class="stat-label">Gastos</div>
+            <div class="stat-pct down">↗ +4.1%</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(59,130,246,0.12)">💰</div>
+            <div class="stat-value">$7.55M</div>
+            <div class="stat-label">Ahorro del mes</div>
+            <div class="stat-pct up">↗ +16.3%</div>
+          </div>
+        </div>
+
+        <!-- GASTOS POR CATEGORÍA -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Gastos por categoría</div>
+            <div class="section-action">Ver todas</div>
+          </div>
+          <div class="donut-card">
+            <div class="donut-wrap">
+              <svg width="120" height="120" viewBox="0 0 120 120">
+                <!-- Background ring -->
+                <circle cx="60" cy="60" r="46" fill="none" stroke="#1E2A3E" stroke-width="18"/>
+                <!-- Vivienda 31% -->
+                <circle cx="60" cy="60" r="46" fill="none" stroke="#22C55E"  stroke-width="18" stroke-dasharray="89.7 199.3" stroke-dashoffset="0"       stroke-linecap="butt" transform="rotate(-90 60 60)"/>
+                <!-- Alimentación 21% -->
+                <circle cx="60" cy="60" r="46" fill="none" stroke="#3B82F6"  stroke-width="18" stroke-dasharray="60.8 228.2" stroke-dashoffset="-89.7"   stroke-linecap="butt" transform="rotate(-90 60 60)"/>
+                <!-- Transporte 16% -->
+                <circle cx="60" cy="60" r="46" fill="none" stroke="#F59E0B"  stroke-width="18" stroke-dasharray="46.3 242.7" stroke-dashoffset="-150.5"  stroke-linecap="butt" transform="rotate(-90 60 60)"/>
+                <!-- Entretenimiento 13% -->
+                <circle cx="60" cy="60" r="46" fill="none" stroke="#8B5CF6"  stroke-width="18" stroke-dasharray="37.6 251.4" stroke-dashoffset="-196.8"  stroke-linecap="butt" transform="rotate(-90 60 60)"/>
+                <!-- Salud 10% -->
+                <circle cx="60" cy="60" r="46" fill="none" stroke="#EC4899"  stroke-width="18" stroke-dasharray="28.9 260.1" stroke-dashoffset="-234.4"  stroke-linecap="butt" transform="rotate(-90 60 60)"/>
+                <!-- Otros 9% -->
+                <circle cx="60" cy="60" r="46" fill="none" stroke="#64748B"  stroke-width="18" stroke-dasharray="26.0 263.0" stroke-dashoffset="-263.3"  stroke-linecap="butt" transform="rotate(-90 60 60)"/>
+              </svg>
+              <div class="donut-center">
+                <span class="donut-center-label">Total</span>
+                <span class="donut-center-value">$7.85M</span>
+              </div>
+            </div>
+            <div class="legend">
+              <div class="legend-row">
+                <div class="legend-dot" style="background:#22C55E"></div>
+                <span class="legend-name">Vivienda</span>
+                <div class="legend-right"><span class="legend-pct">31%</span><span class="legend-amt">$2.450.000</span></div>
+              </div>
+              <div class="legend-row">
+                <div class="legend-dot" style="background:#3B82F6"></div>
+                <span class="legend-name">Alimentación</span>
+                <div class="legend-right"><span class="legend-pct">21%</span><span class="legend-amt">$1.680.000</span></div>
+              </div>
+              <div class="legend-row">
+                <div class="legend-dot" style="background:#F59E0B"></div>
+                <span class="legend-name">Transporte</span>
+                <div class="legend-right"><span class="legend-pct">16%</span><span class="legend-amt">$1.250.000</span></div>
+              </div>
+              <div class="legend-row">
+                <div class="legend-dot" style="background:#8B5CF6"></div>
+                <span class="legend-name">Entretenim.</span>
+                <div class="legend-right"><span class="legend-pct">13%</span><span class="legend-amt">$1.020.000</span></div>
+              </div>
+              <div class="legend-row">
+                <div class="legend-dot" style="background:#EC4899"></div>
+                <span class="legend-name">Salud</span>
+                <div class="legend-right"><span class="legend-pct">10%</span><span class="legend-amt">$750.000</span></div>
+              </div>
+              <div class="legend-row">
+                <div class="legend-dot" style="background:#64748B"></div>
+                <span class="legend-name">Otros</span>
+                <div class="legend-right"><span class="legend-pct">9%</span><span class="legend-amt">$700.000</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- CUENTAS -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Mis cuentas</div>
+            <div class="section-action">Ver todas</div>
+          </div>
+          <div class="accounts-scroll">
+            <div class="account-card" style="background:linear-gradient(135deg,#1d4ed8,#1e3a8a)">
+              <div class="acc-top">
+                <div class="acc-icon">🏦</div>
+                <span class="acc-type">Ahorros</span>
+              </div>
+              <div class="acc-inst">Bancolombia</div>
+              <div class="acc-name">Cuenta Ahorros</div>
+              <div class="acc-bal">$12.500.000</div>
+            </div>
+            <div class="account-card" style="background:linear-gradient(135deg,#15803d,#14532d)">
+              <div class="acc-top">
+                <div class="acc-icon">💳</div>
+                <span class="acc-type">Corriente</span>
+              </div>
+              <div class="acc-inst">Davivienda</div>
+              <div class="acc-name">Cuenta Nómina</div>
+              <div class="acc-bal">$8.200.000</div>
+            </div>
+            <div class="account-card" style="background:linear-gradient(135deg,#9333ea,#6b21a8)">
+              <div class="acc-top">
+                <div class="acc-icon">📈</div>
+                <span class="acc-type">Inversión</span>
+              </div>
+              <div class="acc-inst">Fondo FIC</div>
+              <div class="acc-name">Portafolio</div>
+              <div class="acc-bal">$5.100.000</div>
+            </div>
+            <div class="add-account">
+              <div class="add-account-icon">+</div>
+              <div class="add-account-text">Agregar cuenta</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- METAS -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">🚩 Mis metas</div>
+            <div class="section-action">Ver todas</div>
+          </div>
+
+          <div class="goal-card">
+            <div class="goal-header">
+              <div class="goal-icon" style="background:rgba(34,197,94,0.15)">🛡️</div>
+              <div class="goal-info">
+                <div class="goal-name">Fondo de emergencia</div>
+                <div class="goal-type">Fondo emergencia</div>
+              </div>
+              <div class="goal-pct" style="color:#22C55E">65%</div>
+            </div>
+            <div class="progress-bg">
+              <div class="progress-fill" style="width:65%;background:#22C55E"></div>
+            </div>
+            <div class="goal-footer">
+              <span class="goal-amounts">$6.500.000</span>
+              <span class="goal-sep">/</span>
+              <span class="goal-target">$10.000.000</span>
+              <div class="time-chip">⏱ 6 meses</div>
+            </div>
+          </div>
+
+          <div class="goal-card">
+            <div class="goal-header">
+              <div class="goal-icon" style="background:rgba(245,158,11,0.15)">✈️</div>
+              <div class="goal-info">
+                <div class="goal-name">Viaje a Europa</div>
+                <div class="goal-type">Viaje</div>
+              </div>
+              <div class="goal-pct" style="color:#F59E0B">38%</div>
+            </div>
+            <div class="progress-bg">
+              <div class="progress-fill" style="width:38%;background:#F59E0B"></div>
+            </div>
+            <div class="goal-footer">
+              <span class="goal-amounts">$3.800.000</span>
+              <span class="goal-sep">/</span>
+              <span class="goal-target">$10.000.000</span>
+              <div class="time-chip">⏱ 12 meses</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- INSIGHTS -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">✨ Nexo IA</div>
+            <div class="section-action">Ver todo</div>
+          </div>
+
+          <div class="insight-card">
+            <div class="insight-accent" style="background:#22C55E"></div>
+            <div class="insight-body">
+              <div class="insight-chip" style="background:rgba(34,197,94,0.1);color:#22C55E">↗ Positivo</div>
+              <div class="insight-title">¡Excelente tasa de ahorro!</div>
+              <div class="insight-desc">Estás ahorrando el 49% de tus ingresos este mes. Muy por encima del 20% recomendado.</div>
+              <div class="insight-footer">
+                <span class="insight-ai">✨ Nexo IA</span>
+                <span class="insight-arrow">Ver análisis completo →</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="insight-card">
+            <div class="insight-accent" style="background:#F59E0B"></div>
+            <div class="insight-body">
+              <div class="insight-chip" style="background:rgba(245,158,11,0.1);color:#F59E0B">⚠ Atención</div>
+              <div class="insight-title">Restaurantes +18% este mes</div>
+              <div class="insight-desc">Gastaste $850.000 en restaurantes, un 18% más que el mes anterior. Considera cocinar más en casa.</div>
+              <div class="insight-footer">
+                <span class="insight-ai">✨ Nexo IA</span>
+                <span class="insight-arrow">Ver análisis completo →</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ÚLTIMOS MOVIMIENTOS -->
+        <div class="section">
+          <div class="section-header">
+            <div class="section-title">Últimos movimientos</div>
+            <div class="section-action">Ver todos</div>
+          </div>
+          <div class="tx-card">
+            <div class="tx-row">
+              <div class="tx-icon" style="background:rgba(34,197,94,0.12)">💼</div>
+              <div class="tx-info">
+                <div class="tx-name">Salario mayo</div>
+                <div class="tx-meta">Bancolombia · 1 May</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount" style="color:#22C55E">+$7.500.000</div>
+                <div class="tx-cat">Salario</div>
+              </div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:rgba(239,68,68,0.12)">🍽️</div>
+              <div class="tx-info">
+                <div class="tx-name">Restaurante El Cielo</div>
+                <div class="tx-meta">Davivienda · 29 Abr</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount" style="color:#EF4444">-$185.000</div>
+                <div class="tx-cat">Restaurantes</div>
+              </div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:rgba(59,130,246,0.12)">🔁</div>
+              <div class="tx-info">
+                <div class="tx-name">Transferencia ahorro</div>
+                <div class="tx-meta">Bancolombia · 28 Abr</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount" style="color:#3B82F6">$1.000.000</div>
+                <div class="tx-cat">Transferencia</div>
+              </div>
+            </div>
+            <div class="tx-row">
+              <div class="tx-icon" style="background:rgba(245,158,11,0.12)">🚗</div>
+              <div class="tx-info">
+                <div class="tx-name">Gasolina</div>
+                <div class="tx-meta">Davivienda · 27 Abr</div>
+              </div>
+              <div class="tx-right">
+                <div class="tx-amount" style="color:#EF4444">-$95.000</div>
+                <div class="tx-cat">Transporte</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="scroll-pad"></div>
+
+        <!-- TAB BAR -->
+        <div class="tab-bar">
+          <div class="tab-item">
+            <div class="tab-icon-wrap active"><span class="tab-icon active">🏠</span></div>
+            <span class="tab-label active">Inicio</span>
+          </div>
+          <div class="tab-item">
+            <div class="tab-icon-wrap"><span class="tab-icon">↔️</span></div>
+            <span class="tab-label">Movimientos</span>
+          </div>
+          <div class="tab-fab-wrap">
+            <div class="tab-fab">+</div>
+          </div>
+          <div class="tab-item">
+            <div class="tab-icon-wrap"><span class="tab-icon">🚩</span></div>
+            <span class="tab-label">Metas</span>
+          </div>
+          <div class="tab-item">
+            <div class="tab-icon-wrap"><span class="tab-icon">✨</span></div>
+            <span class="tab-label">Nexo IA</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="phone-label">Dashboard</div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- PHONE 2: IA CHAT                            -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div>
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="ai-screen">
+
+          <!-- AI Header -->
+          <div class="ai-header">
+            <div class="ai-avatar">N</div>
+            <div class="ai-header-info">
+              <div class="ai-title-row">
+                <span class="ai-title">IA Financiera</span>
+                <span class="beta-chip">Beta</span>
+              </div>
+              <div class="ai-online">
+                <div class="online-dot"></div>
+                <span class="online-text">Tu CFO personal · en línea</span>
+              </div>
+            </div>
+            <div class="new-chat">✏️</div>
+          </div>
+
+          <!-- Messages -->
+          <div class="ai-messages">
+            <div class="msg-row user">
+              <div class="bubble user">¿Cuánto gasté en restaurantes este mes?</div>
+            </div>
+            <div class="msg-row">
+              <div class="msg-avatar-sm">N</div>
+              <div class="bubble bot">
+                Gastaste <b>$850.000</b> en restaurantes este mes, un <b style="color:#EF4444">18% más</b> que el mes anterior ($720.000). 🍽️<br><br>
+                Esto representa el <b>10.8%</b> de tus gastos totales. Si reduces a $600.000 mensuales, podrías ahorrar <b style="color:#22C55E">$3M adicionales al año</b>.
+              </div>
+            </div>
+            <div class="msg-row" style="justify-content:flex-end;margin-left:40px;">
+              <div style="background:var(--elevated);border:1px solid var(--border);border-radius:16px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--green);">
+                Ver análisis completo →
+              </div>
+            </div>
+            <div class="msg-row user">
+              <div class="bubble user">¿Cuándo alcanzo mi fondo de emergencia?</div>
+            </div>
+            <div class="msg-row">
+              <div class="msg-avatar-sm">N</div>
+              <div class="bubble bot">
+                Llevas <b>$6.500.000</b> de $10.000.000 — vas al <b style="color:#22C55E">65%</b>. 🛡️<br><br>
+                Con tu aporte mensual actual de <b>$583.000</b>, alcanzarás tu meta en aproximadamente <b style="color:#22C55E">6 meses</b> (noviembre 2026).<br><br>
+                Si aumentas tu aporte a <b>$800.000/mes</b> llegarías en solo <b>4 meses</b>. ¿Te ayudo a ajustar el plan?
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick chips -->
+          <div style="display:flex;gap:8px;padding:8px 16px;overflow-x:auto;scrollbar-width:none;">
+            <div style="flex-shrink:0;background:var(--surface);border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:6px 12px;font-size:12px;color:var(--green);white-space:nowrap;cursor:pointer;">¿Cómo mejorar mi ahorro?</div>
+            <div style="flex-shrink:0;background:var(--surface);border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:6px 12px;font-size:12px;color:var(--green);white-space:nowrap;cursor:pointer;">¿Estoy mejor que antes?</div>
+            <div style="flex-shrink:0;background:var(--surface);border:1px solid rgba(34,197,94,0.3);border-radius:20px;padding:6px 12px;font-size:12px;color:var(--green);white-space:nowrap;cursor:pointer;">¿Mis gastos son normales?</div>
+          </div>
+
+          <!-- Input -->
+          <div class="ai-input-bar">
+            <div class="ai-input">Escribe tu pregunta...</div>
+            <div class="send-btn">➤</div>
+          </div>
+
+        </div>
+
+        <!-- TAB BAR -->
+        <div class="tab-bar">
+          <div class="tab-item">
+            <div class="tab-icon-wrap"><span class="tab-icon">🏠</span></div>
+            <span class="tab-label">Inicio</span>
+          </div>
+          <div class="tab-item">
+            <div class="tab-icon-wrap"><span class="tab-icon">↔️</span></div>
+            <span class="tab-label">Movimientos</span>
+          </div>
+          <div class="tab-fab-wrap">
+            <div class="tab-fab">+</div>
+          </div>
+          <div class="tab-item">
+            <div class="tab-icon-wrap"><span class="tab-icon">🚩</span></div>
+            <span class="tab-label">Metas</span>
+          </div>
+          <div class="tab-item">
+            <div class="tab-icon-wrap active"><span class="tab-icon active">✨</span></div>
+            <span class="tab-label active">Nexo IA</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="phone-label">Chat IA</div>
+  </div>
+
+</div>
+</body>
+</html>
