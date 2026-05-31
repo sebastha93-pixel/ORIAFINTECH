@@ -134,7 +134,7 @@ export class TransactionsService {
     const categoryBreakdown = transactions
       .filter(t => t.transaction_type === 'expense')
       .reduce((acc, t) => {
-        const cat = (t.category as { name: string; icon: string; color: string } | null);
+        const cat = (t.category as unknown as { name: string; icon: string; color: string } | null);
         const key = cat?.name || 'Sin categoría';
         acc[key] = (acc[key] || 0) + Number(t.amount);
         return acc;

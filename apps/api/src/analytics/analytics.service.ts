@@ -64,7 +64,10 @@ export class AnalyticsService {
     await this.saveNetWorthSnapshot(userId, totalAssets, totalLiabilities, accounts);
 
     // Category spending breakdown
-    const categorySpending = this.computeCategorySpending(currentTrans.filter(t => t.transaction_type === 'expense'), monthlyExpenses);
+    const categorySpending = this.computeCategorySpending(
+      currentTrans.filter(t => t.transaction_type === 'expense') as unknown as Array<{ amount: number; category_id: string | null; category: { name: string; icon: string; color: string } | null }>,
+      monthlyExpenses,
+    );
 
     // Goals with progress
     const goalsWithProgress = (goalsRes.data || []).map(g => ({
