@@ -1,101 +1,141 @@
 // ============================================================
-// NEXO FINANZAS - Design System
+// NEXO FINANZAS — Design System (v2 — Brand Oficial)
+// Paleta: #0F172A · #1E3A8A · #22C55E · #F8FAFC · #64748B
+// Tipografía: Poppins (headers) / Inter (body)
 // ============================================================
 
 export const Colors = {
-  // Brand
-  primary: '#6C63FF',
-  primaryLight: '#8B84FF',
-  primaryDark: '#4D44DF',
+  // ── Brand ──────────────────────────────────────────────
+  primary: '#1E3A8A',       // Azul profundo — confianza
+  primaryLight: '#2563EB',  // Azul medio
+  primaryGlow: '#3B82F6',   // Azul brillante (botones)
+  accent: '#22C55E',        // Verde — crecimiento / positivo
+  accentLight: '#4ADE80',
+  accentDark: '#16A34A',
 
-  // Semantic
-  success: '#10B981',
+  // ── Fondos ─────────────────────────────────────────────
+  background: '#070B14',    // Negro azulado profundo
+  surface: '#0F172A',       // Superficie de cards
+  surfaceElevated: '#162033',
+  surfaceMid: '#1E2A3E',
+  border: '#1E2D45',
+  borderLight: '#243553',
+
+  // ── Texto ──────────────────────────────────────────────
+  textPrimary: '#F8FAFC',
+  textSecondary: '#94A3B8',
+  textMuted: '#64748B',
+  textInverse: '#0F172A',
+
+  // ── Semánticos ─────────────────────────────────────────
+  success: '#22C55E',
+  successBg: '#052E16',
   warning: '#F59E0B',
+  warningBg: '#1C1003',
   danger: '#EF4444',
+  dangerBg: '#1F0808',
   info: '#3B82F6',
+  infoBg: '#0C1A35',
 
-  // Neutrals
-  background: '#0A0A0F',
-  surface: '#12121A',
-  surfaceElevated: '#1A1A26',
-  border: '#2A2A3A',
+  // ── Gradientes (arrays para LinearGradient) ────────────
+  gradientBrand: ['#1E3A8A', '#0F2563'] as [string, string],
+  gradientAccent: ['#22C55E', '#16A34A'] as [string, string],
+  gradientCard: ['#162033', '#0F172A'] as [string, string],
+  gradientHero: ['#0F2563', '#070B14'] as [string, string],
 
-  // Text
-  textPrimary: '#FFFFFF',
-  textSecondary: '#9CA3AF',
-  textMuted: '#6B7280',
+  // ── Gráficas ───────────────────────────────────────────
+  chart: [
+    '#22C55E', // Vivienda — verde
+    '#3B82F6', // Alimentación — azul
+    '#F59E0B', // Transporte — amarillo
+    '#8B5CF6', // Entretenimiento — violeta
+    '#EC4899', // Salud — rosa
+    '#06B6D4', // Educación — cyan
+    '#F97316', // Ropa — naranja
+    '#64748B', // Otros — gris
+  ],
 
-  // Chart colors
-  chart: ['#6C63FF', '#10B981', '#F59E0B', '#EF4444', '#3B82F6', '#EC4899', '#14B8A6', '#F97316'],
-
-  // Account type colors
+  // ── Tipos de cuenta ────────────────────────────────────
   accounts: {
     checking: '#3B82F6',
-    savings: '#10B981',
+    savings: '#22C55E',
     credit_card: '#EF4444',
     investment: '#8B5CF6',
     crypto: '#F59E0B',
-    cash: '#6B7280',
+    cash: '#64748B',
     loan: '#DC2626',
-    other: '#6C63FF',
+    other: '#1E3A8A',
   },
 } as const;
 
 export const Spacing = {
+  xxs: 2,
   xs: 4,
   sm: 8,
   md: 16,
   lg: 24,
   xl: 32,
   xxl: 48,
+  xxxl: 64,
 } as const;
 
 export const BorderRadius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
+  xs: 6,
+  sm: 10,
+  md: 14,
+  lg: 18,
   xl: 24,
+  xxl: 32,
   full: 9999,
 } as const;
 
 export const Typography = {
-  // Font sizes
+  // Tamaños
   xs: 11,
   sm: 13,
   base: 15,
   md: 17,
   lg: 20,
   xl: 24,
-  xxl: 32,
-  display: 40,
+  xxl: 30,
+  display: 38,
+  hero: 46,
 
-  // Weights
+  // Pesos
   regular: '400' as const,
   medium: '500' as const,
   semibold: '600' as const,
   bold: '700' as const,
+  extrabold: '800' as const,
+
+  // Familias (se cargan con expo-font)
+  fontHeader: 'Poppins-Bold',
+  fontHeaderSemi: 'Poppins-SemiBold',
+  fontBody: 'Inter-Regular',
+  fontBodyMedium: 'Inter-Medium',
+  fontBodyBold: 'Inter-Bold',
 } as const;
 
 export const Shadows = {
-  sm: {
-    shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  md: {
-    shadowColor: '#6C63FF',
+  card: {
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
     elevation: 6,
   },
-  lg: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
+  glow: {
+    shadowColor: '#22C55E',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  glowBlue: {
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowRadius: 16,
+    elevation: 8,
   },
 } as const;

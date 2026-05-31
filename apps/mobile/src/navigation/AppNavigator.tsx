@@ -1,90 +1,139 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAppSelector } from '../store';
-import { Colors, Typography } from '../theme';
+import { Colors, Typography, BorderRadius, Shadows } from '../theme';
 
-import { LoginScreen } from '../screens/auth/LoginScreen';
+// Screens
+import { LoginScreen }    from '../screens/auth/LoginScreen';
 import { RegisterScreen } from '../screens/auth/RegisterScreen';
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
-import { AiChatScreen } from '../screens/ai/AiChatScreen';
+import { AiChatScreen }   from '../screens/ai/AiChatScreen';
 
 const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+const Tab   = createBottomTabNavigator();
 
+// ─────────────────────────────────────────────
+// CUSTOM TAB BAR
+// ─────────────────────────────────────────────
+function NexoTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  return (
+    <View style={tb.wrapper}>
+      <LinearGradient
+        colors={['#0D1628', '#070B14']}
+        style={tb.container}
+      >
+        {state.routes.map((route, index) => {
+          const focused = state.index === index;
+          const { options } = descriptors[route.key];
+          const isFab = route.name === 'AddTransaction';
+
+          const onPress = () => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!focused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
+
+          if (isFab) {
+            return (
+              <TouchableOpacity key={route.key} style={tb.fabWrap} onPress={onPress} activeOpacity={0.85}>
+                <LinearGradient
+                  colors={[Colors.accent, Colors.accentDark]}
+                  style={[tb.fab, Shadows.glow]}
+                >
+                  <Ionicons name="add" size={28} color="#fff" />
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          }
+
+          const label = (options.tabBarLabel as string) || route.name;
+          const icon  = TAB_ICONS[route.name] || 'ellipsis-horizontal';
+
+          return (
+            <TouchableOpacity
+              key={route.key}
+              style={tb.tab}
+              onPress={onPress}
+              activeOpacity={0.7}
+            >
+              <View style={[tb.iconWrap, focused && tb.iconActive]}>
+                <Ionicons
+                  name={(focused ? icon : `${icon}-outline`) as 'home'}
+                  size={22}
+                  color={focused ? Colors.accent : Colors.textMuted}
+                />
+              </View>
+              <Text style={[tb.label, focused && tb.labelActive]}>
+                {label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </LinearGradient>
+    </View>
+  );
+}
+
+const TAB_ICONS: Record<string, string> = {
+  Dashboard:    'home',
+  Transactions: 'swap-horizontal',
+  Patrimony:    'trending-up',
+  Goals:        'flag',
+  More:         'ellipsis-horizontal',
+  AI:           'sparkles',
+};
+
+// ─────────────────────────────────────────────
+// MAIN TABS
+// ─────────────────────────────────────────────
 function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#12121A',
-          borderTopColor: '#2A2A3A',
-          borderTopWidth: 1,
-          height: 85,
-          paddingBottom: 25,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarLabelStyle: { fontSize: Typography.xs, fontWeight: Typography.medium },
-      }}
+      tabBar={(props) => <NexoTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
     >
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
-        options={{
-          tabBarLabel: 'Inicio',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
-        }}
+        options={{ tabBarLabel: 'Inicio' }}
       />
       <Tab.Screen
         name="Transactions"
-        component={PlaceholderScreen}
-        options={{
-          tabBarLabel: 'Movimientos',
-          tabBarIcon: ({ color, size }) => <Ionicons name="swap-horizontal" size={size} color={color} />,
-        }}
+        component={Placeholder}
+        options={{ tabBarLabel: 'Movimientos' }}
       />
       <Tab.Screen
         name="AddTransaction"
-        component={PlaceholderScreen}
-        options={{
-          tabBarLabel: '',
-          tabBarIcon: () => (
-            <View style={styles.addBtn}>
-              <Ionicons name="add" size={28} color="#FFFFFF" />
-            </View>
-          ),
-        }}
+        component={Placeholder}
+        options={{ tabBarLabel: '' }}
       />
       <Tab.Screen
-        name="Patrimony"
-        component={PlaceholderScreen}
-        options={{
-          tabBarLabel: 'Patrimonio',
-          tabBarIcon: ({ color, size }) => <Ionicons name="trending-up" size={size} color={color} />,
-        }}
+        name="Goals"
+        component={Placeholder}
+        options={{ tabBarLabel: 'Metas' }}
       />
       <Tab.Screen
         name="AI"
         component={AiChatScreen}
-        options={{
-          tabBarLabel: 'Nexo IA',
-          tabBarIcon: ({ color, size }) => <Ionicons name="sparkles" size={size} color={color} />,
-        }}
+        options={{ tabBarLabel: 'Nexo IA' }}
       />
     </Tab.Navigator>
   );
 }
 
-function PlaceholderScreen() {
+function Placeholder() {
   return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
 }
 
+// ─────────────────────────────────────────────
+// ROOT NAVIGATOR
+// ─────────────────────────────────────────────
 export function AppNavigator() {
   const user = useAppSelector((s) => s.auth.user);
 
@@ -93,7 +142,7 @@ export function AppNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!user ? (
           <>
-            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Login"    component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
         ) : (
@@ -104,19 +153,53 @@ export function AppNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  addBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
+// ─────────────────────────────────────────────
+// TAB BAR STYLES
+// ─────────────────────────────────────────────
+const tb = StyleSheet.create({
+  wrapper: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  container: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
+    paddingTop: 10,
+    paddingHorizontal: 8,
+  },
+  tab: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3,
+  },
+  iconWrap: {
+    width: 40, height: 30,
+    justifyContent: 'center', alignItems: 'center',
+    borderRadius: BorderRadius.full,
+  },
+  iconActive: {
+    backgroundColor: Colors.accent + '18',
+  },
+  label: {
+    fontSize: 10, color: Colors.textMuted,
+    fontWeight: Typography.medium,
+  },
+  labelActive: {
+    color: Colors.accent,
+    fontWeight: Typography.semibold,
+  },
+
+  // FAB
+  fabWrap: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    marginTop: -20,
+  },
+  fab: {
+    width: 56, height: 56,
+    borderRadius: 28,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 3,
+    borderColor: Colors.background,
   },
 });

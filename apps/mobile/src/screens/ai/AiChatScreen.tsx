@@ -16,171 +16,210 @@ import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { api } from '../../services/api';
 import { AiMessage } from '@nexo/shared';
 
-const SUGGESTED_PROMPTS = [
+const QUICK_PROMPTS = [
+  '¿Cuánto gasté en restaurantes este mes?',
   '¿Cómo está mi patrimonio?',
-  '¿En qué estoy gastando más?',
   '¿Cuándo alcanzo mi meta?',
-  '¿Cómo mejorar mi ahorro?',
-  '¿Estoy mejor que hace un año?',
+  '¿En qué puedo ahorrar más?',
+  '¿Estoy mejor que el mes pasado?',
 ];
 
+// ─────────────────────────────────────────────
 export function AiChatScreen() {
-  const [messages, setMessages] = useState<AiMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | undefined>();
-  const [suggestions, setSuggestions] = useState<string[]>(SUGGESTED_PROMPTS);
+  const [messages, setMessages]         = useState<AiMessage[]>([]);
+  const [input, setInput]               = useState('');
+  const [isLoading, setIsLoading]       = useState(false);
+  const [conversationId, setConvId]     = useState<string | undefined>();
+  const [suggestions, setSuggestions]   = useState<string[]>(QUICK_PROMPTS);
   const listRef = useRef<FlatList>(null);
 
-  const sendMessage = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
 
-    const userMsg: AiMessage = { role: 'user', content: text, timestamp: new Date().toISOString() };
+    const userMsg: AiMessage = {
+      role: 'user',
+      content: text,
+      timestamp: new Date().toISOString(),
+    };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await api.chat(text, conversationId);
-      const assistantMsg: AiMessage = {
+      const res = await api.chat(text, conversationId);
+      const botMsg: AiMessage = {
         role: 'assistant',
-        content: response.reply,
+        content: res.reply,
         timestamp: new Date().toISOString(),
       };
-      setMessages(prev => [...prev, assistantMsg]);
-      setConversationId(response.conversation_id);
-      if (response.suggestions?.length) setSuggestions(response.suggestions);
+      setMessages(prev => [...prev, botMsg]);
+      setConvId(res.conversation_id);
+      if (res.suggestions?.length) setSuggestions(res.suggestions);
     } catch {
-      const errorMsg: AiMessage = {
-        role: 'assistant',
-        content: 'Lo siento, ocurrió un error. Por favor intenta de nuevo.',
-        timestamp: new Date().toISOString(),
-      };
-      setMessages(prev => [...prev, errorMsg]);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: 'Ocurrió un error. Por favor intenta de nuevo.', timestamp: new Date().toISOString() },
+      ]);
     } finally {
       setIsLoading(false);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 120);
     }
   }, [isLoading, conversationId]);
 
-  const renderMessage = ({ item }: { item: AiMessage }) => (
-    <View style={[styles.messageBubble, item.role === 'user' ? styles.userBubble : styles.assistantBubble]}>
-      {item.role === 'assistant' && (
-        <View style={styles.assistantAvatar}>
-          <LinearGradient colors={[Colors.primary, Colors.primaryDark]} style={styles.avatarGradient}>
-            <Text style={styles.avatarText}>N</Text>
-          </LinearGradient>
-        </View>
-      )}
-      <View style={[styles.messageContent, item.role === 'user' ? styles.userContent : styles.assistantContent]}>
-        <Text style={[styles.messageText, item.role === 'user' ? styles.userText : styles.assistantText]}>
-          {item.content}
-        </Text>
-      </View>
-    </View>
-  );
+  // ─────────────────────────────────────────
+  const renderMsg = ({ item, index }: { item: AiMessage; index: number }) => {
+    const isUser = item.role === 'user';
+    return (
+      <View style={[styles.msgRow, isUser ? styles.msgRowUser : styles.msgRowBot]}>
+        {!isUser && (
+          <View style={styles.avatar}>
+            <LinearGradient colors={[Colors.primaryGlow, Colors.accent]} style={styles.avatarGrad}>
+              <Text style={styles.avatarLetter}>N</Text>
+            </LinearGradient>
+          </View>
+        )}
 
+        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleBot]}>
+          <Text style={[styles.bubbleText, isUser ? styles.bubbleTextUser : styles.bubbleTextBot]}>
+            {item.content}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  // ─────────────────────────────────────────
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={90}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       {/* Header */}
-      <LinearGradient colors={['#1A1A2E', Colors.background]} style={styles.header}>
-        <View style={styles.headerContent}>
-          <LinearGradient colors={[Colors.primary, Colors.primaryDark]} style={styles.nexoIcon}>
-            <Text style={styles.nexoIconText}>N</Text>
+      <LinearGradient colors={['#0D1B3E', Colors.background]} style={styles.header}>
+        <View style={styles.headerRow}>
+          {/* Avatar */}
+          <LinearGradient colors={[Colors.primaryGlow, Colors.accent]} style={styles.headerAvatar}>
+            <Text style={styles.headerAvatarLetter}>N</Text>
           </LinearGradient>
-          <View>
-            <Text style={styles.headerTitle}>Nexo IA</Text>
-            <Text style={styles.headerSubtitle}>Tu CFO personal</Text>
+
+          <View style={styles.headerInfo}>
+            <View style={styles.headerTitleRow}>
+              <Text style={styles.headerTitle}>IA Financiera</Text>
+              <View style={styles.betaChip}>
+                <Text style={styles.betaText}>Beta</Text>
+              </View>
+            </View>
+            <View style={styles.onlineRow}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineText}>Tu CFO personal · en línea</Text>
+            </View>
           </View>
+
+          {/* New chat */}
+          <TouchableOpacity
+            style={styles.newChatBtn}
+            onPress={() => { setMessages([]); setConvId(undefined); }}
+          >
+            <Ionicons name="add" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      {/* Messages */}
-      {messages.length === 0 ? (
-        <View style={styles.emptyState}>
-          <LinearGradient colors={[Colors.primary + '20', Colors.primaryDark + '10']} style={styles.emptyIcon}>
-            <Ionicons name="chatbubble-ellipses" size={40} color={Colors.primary} />
+      {/* ── EMPTY STATE ── */}
+      {messages.length === 0 && (
+        <View style={styles.empty}>
+          <LinearGradient
+            colors={[Colors.accent + '20', Colors.primaryGlow + '10']}
+            style={styles.emptyIcon}
+          >
+            <Ionicons name="chatbubble-ellipses" size={36} color={Colors.accent} />
           </LinearGradient>
-          <Text style={styles.emptyTitle}>Tu CFO personal está listo</Text>
-          <Text style={styles.emptySubtitle}>Pregúntame sobre tu situación financiera, metas, o pídeme consejos personalizados.</Text>
-          <View style={styles.suggestions}>
-            {suggestions.map((s, i) => (
-              <TouchableOpacity key={i} style={styles.suggestionChip} onPress={() => sendMessage(s)}>
-                <Text style={styles.suggestionText}>{s}</Text>
+          <Text style={styles.emptyTitle}>Pregúntame cualquier cosa</Text>
+          <Text style={styles.emptySub}>
+            Analizo tu situación financiera en tiempo real y te doy consejos personalizados.
+          </Text>
+
+          <View style={styles.promptGrid}>
+            {QUICK_PROMPTS.map((p, i) => (
+              <TouchableOpacity
+                key={i}
+                style={styles.promptChip}
+                onPress={() => send(p)}
+              >
+                <Text style={styles.promptText}>{p}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
-      ) : (
+      )}
+
+      {/* ── MESSAGES ── */}
+      {messages.length > 0 && (
         <FlatList
           ref={listRef}
           data={messages}
-          renderItem={renderMessage}
+          renderItem={renderMsg}
           keyExtractor={(_, i) => i.toString()}
-          contentContainerStyle={styles.messagesList}
+          contentContainerStyle={styles.msgList}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
+          showsVerticalScrollIndicator={false}
         />
       )}
 
-      {/* Loading indicator */}
+      {/* Typing indicator */}
       {isLoading && (
-        <View style={styles.typingIndicator}>
-          <View style={styles.assistantAvatar}>
-            <LinearGradient colors={[Colors.primary, Colors.primaryDark]} style={styles.avatarGradient}>
-              <Text style={styles.avatarText}>N</Text>
+        <View style={styles.typing}>
+          <View style={styles.avatar}>
+            <LinearGradient colors={[Colors.primaryGlow, Colors.accent]} style={styles.avatarGrad}>
+              <Text style={styles.avatarLetter}>N</Text>
             </LinearGradient>
           </View>
-          <View style={styles.typingDots}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+          <View style={styles.typingBubble}>
+            <ActivityIndicator size="small" color={Colors.accent} />
             <Text style={styles.typingText}>Nexo está analizando...</Text>
           </View>
         </View>
       )}
 
-      {/* Quick suggestions after conversation */}
+      {/* Quick suggestions (after conversation starts) */}
       {messages.length > 0 && !isLoading && (
-        <View style={styles.quickSuggestions}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={suggestions.slice(0, 3)}
-            keyExtractor={(_, i) => i.toString()}
-            renderItem={({ item }) => (
-              <TouchableOpacity style={styles.quickChip} onPress={() => sendMessage(item)}>
-                <Text style={styles.quickChipText}>{item}</Text>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={{ paddingHorizontal: Spacing.lg, gap: Spacing.sm }}
-          />
-        </View>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={suggestions.slice(0, 3)}
+          keyExtractor={(_, i) => i.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.suggChip} onPress={() => send(item)}>
+              <Text style={styles.suggText}>{item}</Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={styles.suggRow}
+          style={styles.suggList}
+        />
       )}
 
-      {/* Input */}
-      <View style={styles.inputContainer}>
+      {/* ── INPUT ── */}
+      <View style={styles.inputBar}>
         <TextInput
           style={styles.input}
           value={input}
           onChangeText={setInput}
-          placeholder="Pregúntale a Nexo IA..."
+          placeholder="Escribe tu pregunta..."
           placeholderTextColor={Colors.textMuted}
           multiline
           maxLength={500}
-          onSubmitEditing={() => sendMessage(input)}
         />
         <TouchableOpacity
-          style={[styles.sendBtn, (!input.trim() || isLoading) && styles.sendBtnDisabled]}
-          onPress={() => sendMessage(input)}
+          style={[styles.sendBtn, !input.trim() && styles.sendBtnOff]}
+          onPress={() => send(input)}
           disabled={!input.trim() || isLoading}
         >
           <LinearGradient
-            colors={input.trim() ? [Colors.primary, Colors.primaryDark] : [Colors.border, Colors.border]}
-            style={styles.sendBtnGradient}
+            colors={input.trim() ? Colors.gradientAccent : [Colors.border, Colors.border]}
+            style={styles.sendGrad}
           >
-            <Ionicons name="send" size={18} color={Colors.textPrimary} />
+            <Ionicons name="send" size={17} color={input.trim() ? '#fff' : Colors.textMuted} />
           </LinearGradient>
         </TouchableOpacity>
       </View>
@@ -188,76 +227,103 @@ export function AiChatScreen() {
   );
 }
 
+// ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  root: { flex: 1, backgroundColor: Colors.background },
 
-  header: { paddingTop: 60, paddingBottom: Spacing.lg, paddingHorizontal: Spacing.lg },
-  headerContent: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  nexoIcon: { width: 44, height: 44, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
-  nexoIconText: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold },
+  // Header
+  header: { paddingTop: Platform.OS === 'ios' ? 56 : 36, paddingBottom: Spacing.md, paddingHorizontal: Spacing.lg },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  headerAvatar: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center' },
+  headerAvatarLetter: { color: '#fff', fontSize: Typography.md, fontWeight: Typography.bold },
+  headerInfo: { flex: 1 },
+  headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   headerTitle: { color: Colors.textPrimary, fontSize: Typography.md, fontWeight: Typography.bold },
-  headerSubtitle: { color: Colors.textSecondary, fontSize: Typography.xs },
-
-  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  emptyIcon: { width: 80, height: 80, borderRadius: 40, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
-  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold, textAlign: 'center', marginBottom: Spacing.sm },
-  emptySubtitle: { color: Colors.textSecondary, fontSize: Typography.base, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl },
-  suggestions: { gap: Spacing.sm, width: '100%' },
-  suggestionChip: {
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
+  betaChip: {
+    backgroundColor: Colors.accent + '25', borderRadius: BorderRadius.full,
+    paddingHorizontal: 8, paddingVertical: 2,
   },
-  suggestionText: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center' },
+  betaText: { color: Colors.accent, fontSize: 10, fontWeight: Typography.semibold },
+  onlineRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: Colors.success },
+  onlineText: { color: Colors.textMuted, fontSize: Typography.xs },
+  newChatBtn: { padding: Spacing.xs },
 
-  messagesList: { padding: Spacing.lg, gap: Spacing.md },
-  messageBubble: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
-  userBubble: { justifyContent: 'flex-end' },
-  assistantBubble: { justifyContent: 'flex-start' },
-  assistantAvatar: { alignSelf: 'flex-end' },
-  avatarGradient: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: Typography.bold },
-  messageContent: { maxWidth: '80%', borderRadius: BorderRadius.lg, padding: Spacing.md },
-  userContent: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
-  assistantContent: { backgroundColor: Colors.surfaceElevated, borderBottomLeftRadius: 4, borderWidth: 1, borderColor: Colors.border },
-  messageText: { fontSize: Typography.base, lineHeight: 22 },
-  userText: { color: Colors.textPrimary },
-  assistantText: { color: Colors.textPrimary },
+  // Empty
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
+  emptyIcon: { width: 76, height: 76, borderRadius: 38, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
+  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold, textAlign: 'center', marginBottom: Spacing.xs },
+  emptySub: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl },
+  promptGrid: { width: '100%', gap: Spacing.sm },
+  promptChip: {
+    backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
+    padding: Spacing.md, borderWidth: 1, borderColor: Colors.border,
+  },
+  promptText: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center' },
 
-  typingIndicator: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
-  typingDots: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.surfaceElevated, borderRadius: BorderRadius.lg, padding: Spacing.sm },
+  // Messages
+  msgList: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: Spacing.xl },
+  msgRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
+  msgRowUser: { justifyContent: 'flex-end' },
+  msgRowBot:  { justifyContent: 'flex-start' },
+
+  avatar: { alignSelf: 'flex-end' },
+  avatarGrad: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
+  avatarLetter: { color: '#fff', fontSize: Typography.xs, fontWeight: Typography.bold },
+
+  bubble: { maxWidth: '78%', borderRadius: BorderRadius.lg, padding: Spacing.md },
+  bubbleUser: {
+    backgroundColor: Colors.primaryGlow,
+    borderBottomRightRadius: BorderRadius.xs,
+  },
+  bubbleBot: {
+    backgroundColor: Colors.surface,
+    borderBottomLeftRadius: BorderRadius.xs,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  bubbleText: { fontSize: Typography.base, lineHeight: 22 },
+  bubbleTextUser: { color: '#fff' },
+  bubbleTextBot:  { color: Colors.textPrimary },
+
+  // Typing
+  typing: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xs },
+  typingBubble: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
+    padding: Spacing.sm, borderWidth: 1, borderColor: Colors.border,
+  },
   typingText: { color: Colors.textSecondary, fontSize: Typography.xs },
 
-  quickSuggestions: { paddingVertical: Spacing.xs },
-  quickChip: { backgroundColor: Colors.surfaceElevated, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderWidth: 1, borderColor: Colors.primary + '40' },
-  quickChipText: { color: Colors.primary, fontSize: Typography.xs },
+  // Suggestions
+  suggList: { maxHeight: 44 },
+  suggRow: { paddingHorizontal: Spacing.lg, gap: Spacing.sm, paddingBottom: Spacing.xs },
+  suggChip: {
+    backgroundColor: Colors.surface, borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs,
+    borderWidth: 1, borderColor: Colors.accent + '40',
+  },
+  suggText: { color: Colors.accent, fontSize: Typography.xs },
 
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+  // Input bar
+  inputBar: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm,
     padding: Spacing.md,
     paddingBottom: Platform.OS === 'ios' ? 34 : Spacing.md,
-    gap: Spacing.sm,
     backgroundColor: Colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopWidth: 1, borderTopColor: Colors.border,
   },
   input: {
-    flex: 1,
-    backgroundColor: Colors.surfaceElevated,
+    flex: 1, backgroundColor: Colors.surfaceElevated,
     borderRadius: BorderRadius.xl,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    color: Colors.textPrimary,
-    fontSize: Typography.base,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
+    color: Colors.textPrimary, fontSize: Typography.base,
     maxHeight: 120,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderWidth: 1, borderColor: Colors.border,
   },
   sendBtn: { alignSelf: 'flex-end' },
-  sendBtnDisabled: { opacity: 0.5 },
-  sendBtnGradient: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  sendBtnOff: { opacity: 0.5 },
+  sendGrad: {
+    width: 44, height: 44, borderRadius: 22,
+    justifyContent: 'center', alignItems: 'center',
+  },
 });

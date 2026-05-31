@@ -7,240 +7,528 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Image,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchDashboard } from '../../store/slices/dashboardSlice';
-import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
-import { formatCurrency, formatPercentage, getChangeColor } from '../../utils/format';
-import { NetWorthCard } from '../../components/cards/NetWorthCard';
+import { Colors, Spacing, Typography, BorderRadius, Shadows } from '../../theme';
+import {
+  formatCurrency,
+  formatPercentage,
+  getChangeColor,
+  getChangeIcon,
+} from '../../utils/format';
 import { InsightCard } from '../../components/cards/InsightCard';
 import { GoalProgressCard } from '../../components/cards/GoalProgressCard';
-import { SpendingChart } from '../../components/charts/SpendingChart';
-import { RecentTransactionItem } from '../../components/common/RecentTransactionItem';
+import { DonutChart } from '../../components/charts/DonutChart';
+import { NetWorthLineChart } from '../../components/charts/NetWorthLineChart';
+import { TransactionRow } from '../../components/common/TransactionRow';
+import { AccountCard } from '../../components/cards/AccountCard';
 
-export function DashboardScreen({ navigation }: { navigation: { navigate: (screen: string) => void } }) {
+type Nav = { navigate: (s: string) => void };
+
+// ─────────────────────────────────────────────
+// MAIN SCREEN
+// ─────────────────────────────────────────────
+export function DashboardScreen({ navigation }: { navigation: Nav }) {
   const dispatch = useAppDispatch();
   const { data, isLoading } = useAppSelector((s) => s.dashboard);
   const profile = useAppSelector((s) => s.auth.profile);
 
   const load = useCallback(() => { dispatch(fetchDashboard()); }, [dispatch]);
-
   useEffect(() => { load(); }, [load]);
+
+  const currency = profile?.currency_code || 'COP';
+  const name = profile?.full_name?.split(' ')[0] || 'Sebastián';
 
   if (isLoading && !data) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-        <Text style={styles.loadingText}>Cargando tu resumen financiero...</Text>
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={Colors.accent} />
+        <Text style={styles.loaderText}>Cargando tu resumen...</Text>
       </View>
     );
   }
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return 'Buenos días';
-    if (h < 18) return 'Buenas tardes';
-    return 'Buenas noches';
-  };
+  const netWorth      = data?.net_worth ?? 0;
+  const netWorthPct   = data?.net_worth_change_percentage ?? 0;
+  const monthIncome   = data?.monthly_income ?? 0;
+  const monthExpenses = data?.monthly_expenses ?? 0;
+  const monthSavings  = data?.monthly_savings ?? 0;
+  const savingsRate   = (data?.savings_rate ?? 0) * 100;
+  const incomePct     = data?.vs_previous_month?.income_change_pct ?? 0;
+  const expensePct    = data?.vs_previous_month?.expense_change_pct ?? 0;
+  const savingsPct    = savingsRate;                                       // simplificado
 
   return (
     <ScrollView
-      style={styles.container}
+      style={styles.root}
       showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={isLoading} onRefresh={load} tintColor={Colors.primary} />}
+      refreshControl={
+        <RefreshControl
+          refreshing={isLoading}
+          onRefresh={load}
+          tintColor={Colors.accent}
+          colors={[Colors.accent]}
+        />
+      }
     >
-      {/* Header */}
-      <LinearGradient colors={['#1A1A2E', '#0A0A0F']} style={styles.header}>
-        <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.greeting}>{greeting()},</Text>
-            <Text style={styles.userName}>{profile?.full_name?.split(' ')[0] || 'Usuario'}</Text>
+      {/* ── HEADER ── */}
+      <LinearGradient
+        colors={['#0D1B3E', Colors.background]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 0, y: 1 }}
+        style={styles.header}
+      >
+        {/* Top bar */}
+        <View style={styles.topBar}>
+          {/* Logo */}
+          <View style={styles.logoRow}>
+            <View style={styles.logoIconWrap}>
+              <LinearGradient
+                colors={[Colors.primaryGlow, Colors.accent]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.logoGradient}
+              >
+                <Text style={styles.logoLetter}>N</Text>
+              </LinearGradient>
+            </View>
+            <View>
+              <Text style={styles.logoBrand}>NEXO</Text>
+              <Text style={styles.logoSub}>FINANZAS</Text>
+            </View>
           </View>
-          <TouchableOpacity style={styles.notifBtn} onPress={() => navigation.navigate('Notifications')}>
-            <Ionicons name="notifications-outline" size={24} color={Colors.textPrimary} />
-            {(data?.insights?.length ?? 0) > 0 && <View style={styles.notifDot} />}
+
+          {/* Bell */}
+          <TouchableOpacity
+            style={styles.bellBtn}
+            onPress={() => navigation.navigate('Notifications')}
+          >
+            <Ionicons name="notifications-outline" size={22} color={Colors.textPrimary} />
+            {(data?.insights?.length ?? 0) > 0 && <View style={styles.bellDot} />}
           </TouchableOpacity>
         </View>
 
-        {/* Net Worth Hero */}
-        <View style={styles.heroCard}>
-          <Text style={styles.heroLabel}>Tu patrimonio neto</Text>
-          <Text style={styles.heroAmount}>
-            {formatCurrency(data?.net_worth || 0, profile?.currency_code || 'COP')}
-          </Text>
-          <View style={styles.heroChange}>
-            <Ionicons
-              name={((data?.net_worth_change || 0) >= 0 ? 'trending-up' : 'trending-down') as 'trending-up' | 'trending-down'}
-              size={16}
-              color={getChangeColor(data?.net_worth_change || 0)}
-            />
-            <Text style={[styles.heroChangePct, { color: getChangeColor(data?.net_worth_change || 0) }]}>
-              {formatPercentage(data?.net_worth_change_percentage || 0)} este mes
+        {/* Greeting */}
+        <Text style={styles.greeting}>
+          Hola, <Text style={styles.greetingName}>{name} 👋</Text>
+        </Text>
+        <Text style={styles.greetingSub}>Resumen de hoy</Text>
+
+        {/* ── PATRIMONIO HERO CARD ── */}
+        <View style={[styles.heroCard, Shadows.glowBlue]}>
+          <LinearGradient
+            colors={['#162033', '#0F1A2E']}
+            style={styles.heroGradient}
+          >
+            {/* Label + eye */}
+            <View style={styles.heroTop}>
+              <Text style={styles.heroLabel}>Patrimonio neto</Text>
+              <Ionicons name="eye-outline" size={18} color={Colors.textMuted} />
+            </View>
+
+            {/* Amount */}
+            <Text style={styles.heroAmount}>
+              {formatCurrency(netWorth, currency)}
             </Text>
-          </View>
+
+            {/* Change */}
+            <View style={styles.heroChange}>
+              <View style={[
+                styles.changePill,
+                { backgroundColor: netWorthPct >= 0 ? Colors.successBg : Colors.dangerBg },
+              ]}>
+                <Ionicons
+                  name={netWorthPct >= 0 ? 'trending-up' : 'trending-down'}
+                  size={13}
+                  color={netWorthPct >= 0 ? Colors.success : Colors.danger}
+                />
+                <Text style={[
+                  styles.changePillText,
+                  { color: netWorthPct >= 0 ? Colors.success : Colors.danger },
+                ]}>
+                  {netWorthPct >= 0 ? '+' : ''}{netWorthPct.toFixed(1)}% vs mes anterior
+                </Text>
+              </View>
+            </View>
+
+            {/* Mini sparkline */}
+            {(data?.net_worth_history?.length ?? 0) > 1 && (
+              <View style={styles.sparklineWrap}>
+                <NetWorthLineChart
+                  history={data!.net_worth_history}
+                  height={56}
+                  color={netWorthPct >= 0 ? Colors.accent : Colors.danger}
+                  compact
+                />
+              </View>
+            )}
+          </LinearGradient>
         </View>
       </LinearGradient>
 
-      {/* Monthly Stats Row */}
+      {/* ── STATS ROW ── */}
       <View style={styles.statsRow}>
         <StatCard
           label="Ingresos"
-          value={formatCurrency(data?.monthly_income || 0, profile?.currency_code, true)}
+          value={formatCurrency(monthIncome, currency, true)}
+          pct={incomePct}
           icon="arrow-down-circle"
           color={Colors.success}
+          bg={Colors.successBg}
         />
         <StatCard
           label="Gastos"
-          value={formatCurrency(data?.monthly_expenses || 0, profile?.currency_code, true)}
+          value={formatCurrency(monthExpenses, currency, true)}
+          pct={expensePct}
           icon="arrow-up-circle"
           color={Colors.danger}
+          bg={Colors.dangerBg}
+          invertPct
         />
         <StatCard
-          label="Ahorro"
-          value={`${((data?.savings_rate || 0) * 100).toFixed(0)}%`}
+          label="Ahorro del mes"
+          value={formatCurrency(monthSavings, currency, true)}
+          pct={savingsPct}
           icon="wallet"
-          color={Colors.primary}
+          color={Colors.primaryGlow}
+          bg={Colors.infoBg}
+          suffix="%"
         />
       </View>
 
-      {/* AI Insights */}
-      {(data?.insights?.length ?? 0) > 0 && (
-        <View style={styles.section}>
-          <SectionHeader title="Insights de Nexo IA" onSeeAll={() => navigation.navigate('AI')} />
-          {data?.insights?.slice(0, 2).map(insight => (
-            <InsightCard key={insight.id} insight={insight} />
-          ))}
-        </View>
-      )}
-
-      {/* Spending Chart */}
+      {/* ── GASTOS POR CATEGORÍA ── */}
       {(data?.spending_by_category?.length ?? 0) > 0 && (
-        <View style={styles.section}>
-          <SectionHeader title="Gastos por categoría" onSeeAll={() => navigation.navigate('Transactions')} />
-          <SpendingChart
-            data={data?.spending_by_category || []}
-            currency={profile?.currency_code || 'COP'}
-          />
-        </View>
+        <Section
+          title="Gastos por categoría"
+          actionLabel="Ver todas"
+          onAction={() => navigation.navigate('Transactions')}
+        >
+          <View style={styles.donutCard}>
+            <LinearGradient colors={Colors.gradientCard} style={styles.donutGradient}>
+              <DonutChart
+                data={data!.spending_by_category}
+                currency={currency}
+              />
+            </LinearGradient>
+          </View>
+        </Section>
       )}
 
-      {/* Active Goals */}
+      {/* ── IA INSIGHTS ── */}
+      {(data?.insights?.length ?? 0) > 0 && (
+        <Section
+          title="Nexo IA"
+          actionLabel="Ver todo"
+          onAction={() => navigation.navigate('AI')}
+          icon="sparkles"
+          iconColor={Colors.accent}
+        >
+          {data!.insights.slice(0, 2).map(ins => (
+            <InsightCard key={ins.id} insight={ins} />
+          ))}
+        </Section>
+      )}
+
+      {/* ── CUENTAS ── */}
+      {(data?.accounts?.length ?? 0) > 0 && (
+        <Section
+          title="Mis cuentas"
+          actionLabel="Ver todas"
+          onAction={() => navigation.navigate('Accounts')}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.accountsRow}
+          >
+            {data!.accounts.map(acc => (
+              <AccountCard key={acc.id} account={acc} currency={currency} />
+            ))}
+            <AddAccountCard onPress={() => navigation.navigate('AddAccount')} />
+          </ScrollView>
+        </Section>
+      )}
+
+      {/* ── METAS ACTIVAS ── */}
       {(data?.active_goals?.length ?? 0) > 0 && (
-        <View style={styles.section}>
-          <SectionHeader title="Metas activas" onSeeAll={() => navigation.navigate('Goals')} />
-          {data?.active_goals?.map(goal => (
-            <GoalProgressCard key={goal.id} goal={goal} currency={profile?.currency_code || 'COP'} />
+        <Section
+          title="Mis metas"
+          actionLabel="Ver todas"
+          onAction={() => navigation.navigate('Goals')}
+          icon="flag"
+          iconColor={Colors.warning}
+        >
+          {data!.active_goals.slice(0, 2).map(goal => (
+            <GoalProgressCard key={goal.id} goal={goal} currency={currency} />
           ))}
-        </View>
+        </Section>
       )}
 
-      {/* Net Worth Card */}
-      {(data?.net_worth_history?.length ?? 0) > 1 && (
-        <View style={styles.section}>
-          <SectionHeader title="Evolución patrimonial" onSeeAll={() => navigation.navigate('Patrimony')} />
-          <NetWorthCard
-            history={data?.net_worth_history || []}
-            currency={profile?.currency_code || 'COP'}
-          />
-        </View>
-      )}
-
-      {/* Recent Transactions */}
+      {/* ── ÚLTIMOS MOVIMIENTOS ── */}
       {(data?.recent_transactions?.length ?? 0) > 0 && (
-        <View style={styles.section}>
-          <SectionHeader title="Últimos movimientos" onSeeAll={() => navigation.navigate('Transactions')} />
-          {data?.recent_transactions?.map(t => (
-            <RecentTransactionItem key={t.id} transaction={t} currency={profile?.currency_code || 'COP'} />
-          ))}
-        </View>
+        <Section
+          title="Últimos movimientos"
+          actionLabel="Ver todos"
+          onAction={() => navigation.navigate('Transactions')}
+        >
+          <View style={styles.txCard}>
+            {data!.recent_transactions.map((tx, i) => (
+              <View key={tx.id}>
+                <TransactionRow transaction={tx} currency={currency} />
+                {i < data!.recent_transactions.length - 1 && (
+                  <View style={styles.txDivider} />
+                )}
+              </View>
+            ))}
+          </View>
+        </Section>
       )}
 
-      {/* Empty State */}
-      {!isLoading && !data?.recent_transactions?.length && (
-        <View style={styles.emptyState}>
-          <Ionicons name="wallet-outline" size={64} color={Colors.textMuted} />
-          <Text style={styles.emptyTitle}>Comienza tu viaje financiero</Text>
-          <Text style={styles.emptySubtitle}>Agrega tus cuentas y comienza a registrar tus movimientos para ver tu resumen aquí.</Text>
-          <TouchableOpacity style={styles.emptyBtn} onPress={() => navigation.navigate('Accounts')}>
-            <Text style={styles.emptyBtnText}>Agregar cuenta</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      {/* ── EMPTY STATE ── */}
+      {!isLoading && !data && <EmptyState onPress={() => navigation.navigate('Accounts')} />}
 
-      <View style={{ height: 100 }} />
+      <View style={{ height: 110 }} />
     </ScrollView>
   );
 }
 
-function StatCard({ label, value, icon, color }: { label: string; value: string; icon: string; color: string }) {
+// ─────────────────────────────────────────────
+// SUB-COMPONENTS
+// ─────────────────────────────────────────────
+
+function StatCard({
+  label, value, pct, icon, color, bg, invertPct = false, suffix = '%',
+}: {
+  label: string; value: string; pct: number;
+  icon: string; color: string; bg: string;
+  invertPct?: boolean; suffix?: string;
+}) {
+  const good = invertPct ? pct <= 0 : pct >= 0;
+  const displayPct = Math.abs(pct);
+  const sign = pct >= 0 ? '+' : '-';
+
   return (
     <View style={styles.statCard}>
-      <Ionicons name={icon as 'wallet'} size={20} color={color} />
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <LinearGradient colors={Colors.gradientCard} style={styles.statGradient}>
+        <View style={[styles.statIcon, { backgroundColor: bg }]}>
+          <Ionicons name={icon as 'wallet'} size={16} color={color} />
+        </View>
+        <Text style={styles.statValue} numberOfLines={1}>{value}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+        <View style={styles.statPctRow}>
+          <Ionicons
+            name={good ? 'trending-up' : 'trending-down'}
+            size={11}
+            color={good ? Colors.success : Colors.danger}
+          />
+          <Text style={[styles.statPct, { color: good ? Colors.success : Colors.danger }]}>
+            {sign}{displayPct.toFixed(1)}{suffix}
+          </Text>
+        </View>
+      </LinearGradient>
     </View>
   );
 }
 
-function SectionHeader({ title, onSeeAll }: { title: string; onSeeAll: () => void }) {
+function Section({
+  title, actionLabel, onAction, icon, iconColor, children,
+}: {
+  title: string; actionLabel?: string; onAction?: () => void;
+  icon?: string; iconColor?: string; children: React.ReactNode;
+}) {
   return (
-    <View style={styles.sectionHeader}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <TouchableOpacity onPress={onSeeAll}>
-        <Text style={styles.seeAll}>Ver todo</Text>
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <View style={styles.sectionTitleRow}>
+          {icon && (
+            <Ionicons name={icon as 'sparkles'} size={16} color={iconColor || Colors.textSecondary} style={{ marginRight: 6 }} />
+          )}
+          <Text style={styles.sectionTitle}>{title}</Text>
+        </View>
+        {actionLabel && onAction && (
+          <TouchableOpacity onPress={onAction}>
+            <Text style={styles.sectionAction}>{actionLabel}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      {children}
+    </View>
+  );
+}
+
+function AddAccountCard({ onPress }: { onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.addAccountCard} onPress={onPress}>
+      <View style={styles.addAccountInner}>
+        <View style={styles.addAccountIcon}>
+          <Ionicons name="add" size={22} color={Colors.accent} />
+        </View>
+        <Text style={styles.addAccountText}>Agregar{'\n'}cuenta</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function EmptyState({ onPress }: { onPress: () => void }) {
+  return (
+    <View style={styles.empty}>
+      <LinearGradient
+        colors={[Colors.accent + '15', Colors.primaryGlow + '10']}
+        style={styles.emptyIcon}
+      >
+        <Ionicons name="wallet-outline" size={44} color={Colors.accent} />
+      </LinearGradient>
+      <Text style={styles.emptyTitle}>Comienza tu viaje financiero</Text>
+      <Text style={styles.emptySub}>
+        Agrega tus cuentas y registra tus movimientos para ver aquí tu resumen financiero personalizado.
+      </Text>
+      <TouchableOpacity onPress={onPress} style={styles.emptyBtnWrap}>
+        <LinearGradient colors={Colors.gradientAccent} style={styles.emptyBtn}>
+          <Ionicons name="add" size={18} color="#fff" />
+          <Text style={styles.emptyBtnText}>Agregar primera cuenta</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
 }
 
+// ─────────────────────────────────────────────
+// STYLES
+// ─────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-  loadingText: { color: Colors.textSecondary, marginTop: Spacing.md, fontSize: Typography.base },
+  root: { flex: 1, backgroundColor: Colors.background },
 
-  header: { paddingTop: 60, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.lg },
-  greeting: { color: Colors.textSecondary, fontSize: Typography.sm },
-  userName: { color: Colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.bold },
-  notifBtn: { position: 'relative', padding: Spacing.xs },
-  notifDot: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.danger },
+  // Loader
+  loader: {
+    flex: 1, backgroundColor: Colors.background,
+    justifyContent: 'center', alignItems: 'center', gap: Spacing.md,
+  },
+  loaderText: { color: Colors.textSecondary, fontSize: Typography.sm },
 
+  // Header
+  header: { paddingTop: Platform.OS === 'ios' ? 56 : 36, paddingBottom: Spacing.lg },
+
+  topBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: Spacing.lg, marginBottom: Spacing.lg,
+  },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  logoIconWrap: { borderRadius: BorderRadius.sm, overflow: 'hidden' },
+  logoGradient: { width: 36, height: 36, justifyContent: 'center', alignItems: 'center' },
+  logoLetter: {
+    color: '#fff', fontSize: Typography.md, fontWeight: Typography.bold,
+    fontFamily: 'System',
+  },
+  logoBrand: {
+    color: Colors.textPrimary, fontSize: 15, fontWeight: Typography.extrabold,
+    letterSpacing: 2,
+  },
+  logoSub: {
+    color: Colors.textMuted, fontSize: 8, fontWeight: Typography.medium,
+    letterSpacing: 3, marginTop: -2,
+  },
+  bellBtn: { position: 'relative', padding: Spacing.xs },
+  bellDot: {
+    position: 'absolute', top: 6, right: 6,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.danger,
+    borderWidth: 1.5, borderColor: Colors.background,
+  },
+
+  greeting: {
+    color: Colors.textSecondary, fontSize: Typography.md,
+    paddingHorizontal: Spacing.lg, marginBottom: 2,
+  },
+  greetingName: { color: Colors.textPrimary, fontWeight: Typography.bold },
+  greetingSub: {
+    color: Colors.textMuted, fontSize: Typography.sm,
+    paddingHorizontal: Spacing.lg, marginBottom: Spacing.lg,
+  },
+
+  // Hero card
   heroCard: {
-    backgroundColor: Colors.surfaceElevated,
+    marginHorizontal: Spacing.lg,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.borderLight,
   },
-  heroLabel: { color: Colors.textSecondary, fontSize: Typography.sm, marginBottom: Spacing.xs },
-  heroAmount: { color: Colors.textPrimary, fontSize: Typography.display, fontWeight: Typography.bold, letterSpacing: -1 },
-  heroChange: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.xs, gap: Spacing.xs },
-  heroChangePct: { fontSize: Typography.sm, fontWeight: Typography.medium },
+  heroGradient: { padding: Spacing.lg },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
+  heroLabel: { color: Colors.textSecondary, fontSize: Typography.sm },
+  heroAmount: {
+    color: Colors.textPrimary, fontSize: Typography.display,
+    fontWeight: Typography.extrabold, letterSpacing: -1,
+    marginBottom: Spacing.sm,
+  },
+  heroChange: { marginBottom: Spacing.sm },
+  changePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    alignSelf: 'flex-start', borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm, paddingVertical: 4,
+  },
+  changePillText: { fontSize: Typography.xs, fontWeight: Typography.semibold },
+  sparklineWrap: { marginTop: Spacing.sm },
 
-  statsRow: { flexDirection: 'row', paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, gap: Spacing.sm },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+  // Stats row
+  statsRow: {
+    flexDirection: 'row', gap: Spacing.sm,
+    paddingHorizontal: Spacing.lg, marginTop: Spacing.lg,
+  },
+  statCard: { flex: 1, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
+  statGradient: { padding: Spacing.sm, gap: 4 },
+  statIcon: { width: 28, height: 28, borderRadius: BorderRadius.xs, justifyContent: 'center', alignItems: 'center' },
+  statValue: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: Typography.bold, marginTop: 2 },
+  statLabel: { color: Colors.textMuted, fontSize: 10 },
+  statPctRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
+  statPct: { fontSize: 10, fontWeight: Typography.semibold },
+
+  // Section
+  section: { paddingHorizontal: Spacing.lg, marginTop: Spacing.xl },
+  sectionHeader: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  sectionTitle: { color: Colors.textPrimary, fontSize: Typography.md, fontWeight: Typography.bold },
+  sectionAction: { color: Colors.accent, fontSize: Typography.sm, fontWeight: Typography.medium },
+
+  // Donut card
+  donutCard: { borderRadius: BorderRadius.xl, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
+  donutGradient: { padding: Spacing.lg },
+
+  // Accounts horizontal scroll
+  accountsRow: { gap: Spacing.sm, paddingRight: Spacing.sm },
+  addAccountCard: {
+    width: 110, borderRadius: BorderRadius.lg,
+    borderWidth: 1.5, borderColor: Colors.accent + '40',
+    borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center',
     padding: Spacing.md,
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: Colors.border,
   },
-  statValue: { color: Colors.textPrimary, fontSize: Typography.md, fontWeight: Typography.bold },
-  statLabel: { color: Colors.textSecondary, fontSize: Typography.xs },
+  addAccountInner: { alignItems: 'center', gap: Spacing.xs },
+  addAccountIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: Colors.accent + '15', justifyContent: 'center', alignItems: 'center',
+  },
+  addAccountText: { color: Colors.textMuted, fontSize: Typography.xs, textAlign: 'center', lineHeight: 16 },
 
-  section: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  sectionTitle: { color: Colors.textPrimary, fontSize: Typography.md, fontWeight: Typography.semibold },
-  seeAll: { color: Colors.primary, fontSize: Typography.sm },
+  // Transactions card
+  txCard: {
+    backgroundColor: Colors.surface, borderRadius: BorderRadius.xl,
+    borderWidth: 1, borderColor: Colors.border, overflow: 'hidden',
+  },
+  txDivider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
 
-  emptyState: { alignItems: 'center', padding: Spacing.xxl, gap: Spacing.md },
-  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.semibold, textAlign: 'center' },
-  emptySubtitle: { color: Colors.textSecondary, fontSize: Typography.base, textAlign: 'center', lineHeight: 22 },
-  emptyBtn: { backgroundColor: Colors.primary, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
-  emptyBtnText: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: Typography.semibold },
+  // Empty state
+  empty: { alignItems: 'center', padding: Spacing.xl, gap: Spacing.md, marginTop: Spacing.xl },
+  emptyIcon: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center' },
+  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold, textAlign: 'center' },
+  emptySub: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center', lineHeight: 22 },
+  emptyBtnWrap: { width: '100%', borderRadius: BorderRadius.full, overflow: 'hidden', marginTop: Spacing.xs },
+  emptyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.md },
+  emptyBtnText: { color: '#fff', fontSize: Typography.base, fontWeight: Typography.bold },
 });
