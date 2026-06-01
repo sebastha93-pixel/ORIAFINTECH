@@ -9,8 +9,20 @@ async function bootstrap() {
   });
 
   // CORS
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? [
+    'http://localhost:19006',
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'https://nexo-finanzas-tech-api.vercel.app',
+  ];
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:19006', 'http://localhost:3000', 'http://localhost:5173'],
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
+        cb(null, true);
+      } else {
+        cb(null, false);
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
