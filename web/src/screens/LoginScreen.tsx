@@ -113,9 +113,10 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
 
           {mode === 'login' && (
             <div style={{ textAlign:'right', marginBottom:20 }}>
-              <span onClick={()=>{setMode('reset');setError('');setInfo('');}} style={{ color:C.primaryGlow, fontSize:13, cursor:'pointer' }}>
+              <button onClick={()=>{setMode('reset');setError('');setInfo('');}}
+                style={{ background:'none', border:'none', color:C.primaryGlow, fontSize:13, cursor:'pointer', padding:0 }}>
                 ¿Olvidaste tu contraseña?
-              </span>
+              </button>
             </div>
           )}
 
@@ -126,12 +127,16 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
 
           <div style={{ textAlign:'center', marginTop:16, fontSize:13 }}>
             {mode === 'login' ? (
-              <>
+              <button onClick={()=>{setMode('register');setError('');setInfo('');}}
+                style={{ background:'none', border:'none', cursor:'pointer', padding:0, fontSize:13 }}>
                 <span style={{ color:C.textSec }}>¿No tienes cuenta? </span>
-                <span onClick={()=>{setMode('register');setError('');setInfo('');}} style={{ color:C.accent, fontWeight:600, cursor:'pointer' }}>Regístrate gratis</span>
-              </>
+                <span style={{ color:C.accent, fontWeight:600 }}>Regístrate gratis</span>
+              </button>
             ) : (
-              <span onClick={()=>{setMode('login');setError('');setInfo('');}} style={{ color:C.accent, fontWeight:600, cursor:'pointer' }}>← Volver a iniciar sesión</span>
+              <button onClick={()=>{setMode('login');setError('');setInfo('');}}
+                style={{ background:'none', border:'none', color:C.accent, fontWeight:600, cursor:'pointer', fontSize:13, padding:0 }}>
+                ← Volver a iniciar sesión
+              </button>
             )}
           </div>
         </div>
