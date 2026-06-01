@@ -10,6 +10,7 @@ import { GoalsModule } from './goals/goals.module';
 import { AiModule } from './ai/ai.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SupabaseModule } from './common/supabase/supabase.module';
+import { EmailSyncModule } from './email-sync/email-sync.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SupabaseModule } from './common/supabase/supabase.module';
     GoalsModule,
     AiModule,
     AnalyticsModule,
+    EmailSyncModule,
   ],
 })
 export class AppModule {}
