@@ -1,6 +1,6 @@
 import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, Min, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { AssetType } from '@nexo/shared';
+import { AssetType } from '../../shared-types';
 
 export class CreateAssetDto {
   @ApiProperty({ example: 'Apartamento Laureles' })

@@ -1,6 +1,6 @@
 import { IsString, IsEnum, IsOptional, IsNumber, IsBoolean, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { AccountType } from '@nexo/shared';
+import { AccountType } from '../../shared-types';
 
 export class CreateAccountDto {
   @ApiProperty({ example: 'Bancolombia Ahorros' })

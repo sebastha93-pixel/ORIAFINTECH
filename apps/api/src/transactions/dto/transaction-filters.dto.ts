@@ -1,6 +1,6 @@
 import { IsOptional, IsEnum, IsString, IsNumber, IsDateString, IsUUID, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TransactionType } from '@nexo/shared';
+import { TransactionType } from '../../shared-types';
 
 export class TransactionFiltersDto {
   @IsOptional() @IsUUID() account_id?: string;

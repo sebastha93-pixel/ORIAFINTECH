@@ -1,6 +1,6 @@
 import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, Min, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { LiabilityType } from '@nexo/shared';
+import { LiabilityType } from '../../shared-types';
 
 export class CreateLiabilityDto {
   @ApiProperty({ example: 'Hipoteca apartamento' })

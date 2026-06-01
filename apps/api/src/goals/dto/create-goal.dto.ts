@@ -1,6 +1,6 @@
 import { IsString, IsEnum, IsNumber, IsOptional, IsDateString, IsUUID, Min, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { GoalType } from '@nexo/shared';
+import { GoalType } from '../../shared-types';
 
 export class CreateGoalDto {
   @ApiProperty({ example: 'Fondo de emergencia' })

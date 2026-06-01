@@ -1,6 +1,6 @@
 import { IsString, IsNumber, IsEnum, IsOptional, IsBoolean, IsDateString, IsUUID, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { TransactionType } from '@nexo/shared';
+import { TransactionType } from '../../shared-types';
 
 export class CreateTransactionDto {
   @ApiProperty()
