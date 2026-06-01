@@ -42,11 +42,12 @@ export function SettingsScreen() {
   }
 
   function handleConnect() {
-    setSyncState('syncing');
+    setErrorMsg('');
+    setSyncState('idle');
     startGmailAuth(
-      async (token) => {
+      (token) => {
         setToken(token);
-        await handleSync(token);
+        handleSync(token);
       },
       (err) => {
         setErrorMsg(err);

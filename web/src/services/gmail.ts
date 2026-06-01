@@ -31,19 +31,27 @@ export function startGmailAuth(
   onSuccess: (token: string) => void,
   onError:   (err: string)   => void,
 ) {
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope:     SCOPES,
-    callback:  (response) => {
-      if (response.access_token) {
-        localStorage.setItem(TOKEN_KEY, response.access_token);
-        onSuccess(response.access_token);
-      } else {
-        onError(response.error ?? 'Auth cancelado');
-      }
-    },
-  });
-  client.requestAccessToken();
+  try {
+    if (typeof google === 'undefined' || !google?.accounts?.oauth2) {
+      onError('Google no ha cargado aún. Recarga la página e intenta de nuevo.');
+      return;
+    }
+    const client = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope:     SCOPES,
+      callback:  (response) => {
+        if (response.access_token) {
+          localStorage.setItem(TOKEN_KEY, response.access_token);
+          onSuccess(response.access_token);
+        } else {
+          onError(response.error ?? 'Auth cancelado');
+        }
+      },
+    });
+    client.requestAccessToken();
+  } catch (e) {
+    onError(e instanceof Error ? e.message : 'Error al conectar con Google');
+  }
 }
 
 export function getStoredToken(): string | null {
