@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { C, fmt, card } from '../theme';
+import { supabase } from '../lib/supabase';
 
 const RAILWAY_API = import.meta.env.VITE_API_URL as string ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
 
@@ -413,6 +414,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
             )}
           </>
         )}
+      </div>
+
+      {/* Logout */}
+      <div style={{ padding:'8px 16px 32px' }}>
+        <button
+          onClick={() => supabase.auth.signOut()}
+          style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.3)`, background:'rgba(239,68,68,0.07)', color:C.danger, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+          Cerrar sesión
+        </button>
       </div>
     </div>
   );
