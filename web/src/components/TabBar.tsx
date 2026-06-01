@@ -6,7 +6,7 @@ const TABS = [
   { id:'transactions',  label:'Movimientos',   icon:'💳' },
   { id:'add',           label:'',              icon:'＋' },
   { id:'goals',         label:'Metas',         icon:'🎯' },
-  { id:'ai',            label:'Nexo AI',       icon:'🤖' },
+  { id:'settings',      label:'Configurar',    icon:'⚙️' },
 ];
 
 interface Props {
