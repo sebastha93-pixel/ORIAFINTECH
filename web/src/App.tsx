@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
 import { DashboardScreen }      from './screens/DashboardScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
@@ -14,16 +14,6 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [screen, setScreen]     = useState<Screen>('dashboard');
   const [showAdd, setShowAdd]   = useState(false);
-
-  useEffect(() => {
-    // Handles return from full-redirect OAuth (Safari / popup blocked)
-    const justConnected = sessionStorage.getItem('nexo_just_connected');
-    if (justConnected) {
-      sessionStorage.removeItem('nexo_just_connected');
-      setLoggedIn(true);
-      setScreen('settings');
-    }
-  }, []);
 
   if (!loggedIn) return <LoginScreen onLogin={() => setLoggedIn(true)} />;
 

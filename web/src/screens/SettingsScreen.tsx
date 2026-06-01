@@ -1,229 +1,255 @@
-import React, { useState, useEffect } from 'react';
-import { C, card } from '../theme';
-import {
-  startGmailAuth, getStoredToken, getStoredEmail,
-  syncGmailTransactions, disconnectGmail,
-  type ParsedTransaction, type SyncResult,
-} from '../services/gmail';
+import React, { useState, useRef } from 'react';
+import { C, fmt, card } from '../theme';
 
-type SyncState = 'idle' | 'syncing' | 'done' | 'error';
+interface Transaction {
+  date:        string;
+  description: string;
+  amount:      number;
+  type:        'income' | 'expense';
+  category:    string;
+  bank:        string;
+}
+
+// ── Parsers ───────────────────────────────────────────────────────────────────
+
+function guessCategory(desc: string, type: 'income' | 'expense'): string {
+  if (type === 'income') {
+    if (/nómin|salari/i.test(desc))      return 'Salario';
+    if (/freelanc|honorari/i.test(desc)) return 'Freelance';
+    return 'Ingresos';
+  }
+  const d = desc.toLowerCase();
+  if (/éxito|carulla|jumbo|d1|ara|supermercado|alkosto|mercado/i.test(d)) return 'Alimentación';
+  if (/uber|taxi|didi|cabify|sitp|transporte/i.test(d))                   return 'Transporte';
+  if (/netflix|spotify|disney|hbo|prime|cine/i.test(d))                   return 'Entretenimiento';
+  if (/farmacia|droguería|cruz verde|salud|clínica|médic/i.test(d))       return 'Salud';
+  if (/arriendo|renta|vivienda|inmobili/i.test(d))                        return 'Vivienda';
+  if (/gym|bodytech|smartfit|fitness/i.test(d))                           return 'Deporte';
+  return 'Otros';
+}
+
+function parseCOP(s: string): number {
+  return Math.abs(parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0);
+}
+
+function parseCSV(text: string, bank: string): Transaction[] {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const results: Transaction[] = [];
+
+  // Try to detect header row
+  const headerIdx = lines.findIndex(l =>
+    /fecha|date|descripci|concepto|valor|monto|debito|credito/i.test(l)
+  );
+  const dataLines = headerIdx >= 0 ? lines.slice(headerIdx + 1) : lines.slice(1);
+
+  for (const line of dataLines) {
+    // Split by semicolon or comma (handle quoted fields)
+    const cols = line.split(/[;,]/).map(c => c.replace(/^"|"$/g, '').trim());
+    if (cols.length < 3) continue;
+
+    // Find a date-like column
+    const dateCol = cols.find(c => /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(c)) ?? '';
+    if (!dateCol) continue;
+
+    // Find description (longest non-numeric, non-date string)
+    const desc = cols
+      .filter(c => c !== dateCol && !/^[\d.,\-\s]+$/.test(c) && c.length > 2)
+      .sort((a, b) => b.length - a.length)[0] ?? 'Movimiento';
+
+    // Find numeric columns for amounts
+    const nums = cols
+      .filter(c => /^-?[\d.,]+$/.test(c.replace(/\s/g, '')))
+      .map(parseCOP)
+      .filter(n => n > 0);
+
+    if (nums.length === 0) continue;
+
+    // Bancolombia: separate debit/credit columns; Davivienda: signed single column
+    let amount = 0;
+    let type: 'income' | 'expense' = 'expense';
+
+    if (nums.length >= 2) {
+      // Two columns: debit and credit
+      const [debit, credit] = nums;
+      if (credit > 0 && debit === 0) { amount = credit; type = 'income'; }
+      else { amount = debit; type = 'expense'; }
+    } else {
+      // Signed single column
+      const raw = cols.find(c => /^-?[\d.,]+$/.test(c.replace(/\s/g, ''))) ?? '0';
+      amount = parseCOP(raw);
+      type = raw.trim().startsWith('-') ? 'expense' : 'income';
+    }
+
+    if (amount === 0) continue;
+
+    // Normalize date to ISO
+    const dateParts = dateCol.match(/(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})/);
+    let iso = new Date().toISOString().slice(0, 10);
+    if (dateParts) {
+      const [, a, b, c] = dateParts;
+      iso = a.length === 4 ? `${a}-${b.padStart(2,'0')}-${c.padStart(2,'0')}` : `${c}-${b.padStart(2,'0')}-${a.padStart(2,'0')}`;
+    }
+
+    results.push({ date: iso, description: desc, amount, type, category: guessCategory(desc, type), bank });
+  }
+
+  return results;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
+const BANKS = [
+  { id:'bancolombia', name:'Bancolombia', icon:'🏦', color:'#FFCD00',
+    steps:['Ingresa a la app o web de Bancolombia','Ve a Cuentas → tu cuenta → Extracto','Selecciona el período','Descarga en formato Excel o CSV'] },
+  { id:'davivienda', name:'Davivienda',   icon:'🏦', color:'#E8192C',
+    steps:['Ingresa a la app o web de Davivienda','Ve a Mis productos → tu cuenta → Extracto','Selecciona el período','Descarga en formato Excel o CSV'] },
+  { id:'nequi',      name:'Nequi',        icon:'📱', color:'#7B3FF2',
+    steps:['Abre Nequi','Ve a Movimientos','Toca los tres puntos (⋮)','Exportar movimientos → CSV'] },
+];
 
 export function SettingsScreen() {
-  const [token,     setToken]   = useState<string|null>(null);
-  const [email,     setEmail]   = useState<string|null>(null);
-  const [syncState, setSyncState] = useState<SyncState>('idle');
-  const [result,    setResult]  = useState<SyncResult|null>(null);
-  const [errorMsg,  setErrorMsg] = useState('');
+  const [selectedBank, setSelectedBank] = useState<string|null>(null);
+  const [imported, setImported]         = useState<Transaction[]>([]);
+  const [status, setStatus]             = useState<'idle'|'done'|'error'>('idle');
+  const [errorMsg, setErrorMsg]         = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  useEffect(()=>{
-    const stored = getStoredToken();
-    if (stored) { setToken(stored); setEmail(getStoredEmail()); }
-  }, []);
+  const bank = BANKS.find(b => b.id === selectedBank);
 
-  async function handleSync(t: string) {
-    setSyncState('syncing');
-    setErrorMsg('');
-    try {
-      const res = await syncGmailTransactions(t);
-      setResult(res);
-      setEmail(res.gmailAddress);
-      setSyncState('done');
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error desconocido';
-      if (msg.includes('401')) {
-        disconnectGmail();
-        setToken(null);
-        setErrorMsg('Tu sesión de Google expiró. Vuelve a conectar.');
-      } else {
-        setErrorMsg(msg);
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !selectedBank) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const text = ev.target?.result as string;
+        const txns = parseCSV(text, bank?.name ?? selectedBank);
+        if (txns.length === 0) {
+          setErrorMsg('No se encontraron movimientos en el archivo. Asegúrate de exportar como CSV o Excel (no PDF).');
+          setStatus('error');
+        } else {
+          setImported(txns);
+          setStatus('done');
+        }
+      } catch {
+        setErrorMsg('Error leyendo el archivo. Intenta exportarlo de nuevo desde el banco.');
+        setStatus('error');
       }
-      setSyncState('error');
-    }
+    };
+    reader.readAsText(file, 'latin1');
+    e.target.value = '';
   }
-
-  function handleConnect() {
-    setErrorMsg('');
-    setSyncState('idle');
-    startGmailAuth(
-      (token) => {
-        setToken(token);
-        handleSync(token);
-      },
-      (err) => {
-        setErrorMsg(err);
-        setSyncState('error');
-      },
-    );
-  }
-
-  function handleDisconnect() {
-    disconnectGmail();
-    setToken(null);
-    setEmail(null);
-    setResult(null);
-    setSyncState('idle');
-  }
-
-  const connected = !!token;
 
   return (
     <div style={{ paddingBottom: 100 }}>
       {/* Header */}
       <div style={{ background:'linear-gradient(135deg,#0F2563,#070B14)', padding:'48px 20px 24px' }}>
-        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Configuración</div>
-        <div style={{ color:C.textMuted, fontSize:13 }}>Sincroniza tu correo con Nexo</div>
+        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Importar extracto</div>
+        <div style={{ color:C.textMuted, fontSize:13 }}>Sube el CSV de tu banco y Nexo hace el resto</div>
       </div>
 
       <div style={{ padding:'20px 16px', display:'flex', flexDirection:'column', gap:16 }}>
 
-        {/* Gmail card */}
-        <div style={{ ...card, border: connected ? `1px solid ${C.accent}44` : `1px solid ${C.border}` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
-            <div style={{ width:48, height:48, borderRadius:14, background:'#EA433522', display:'flex', alignItems:'center', justifyContent:'center', fontSize:26 }}>✉️</div>
-            <div style={{ flex:1 }}>
-              <div style={{ color:C.text, fontSize:16, fontWeight:700 }}>Gmail</div>
-              <div style={{ color:C.textMuted, fontSize:12, marginTop:2 }}>
-                {email ?? 'No conectado'}
-              </div>
-            </div>
-            {connected && (
-              <div style={{ display:'flex', alignItems:'center', gap:5, background:'rgba(34,197,94,0.12)', border:`1px solid rgba(34,197,94,0.3)`, borderRadius:999, padding:'4px 10px' }}>
-                <div style={{ width:6, height:6, borderRadius:'50%', background:C.accent }} />
-                <span style={{ color:C.accent, fontSize:11, fontWeight:600 }}>Activo</span>
-              </div>
-            )}
-          </div>
-
-          {/* Not connected */}
-          {!connected && (
-            <>
-              <p style={{ color:C.textSec, fontSize:13, lineHeight:1.6, marginBottom:16 }}>
-                Nexo lee los correos de <strong style={{color:C.text}}>Bancolombia, Davivienda y Nequi</strong> y registra tus movimientos automáticamente.
-              </p>
-              <button onClick={handleConnect} style={{ width:'100%', padding:'14px 0', borderRadius:14, border:'none', background:'linear-gradient(135deg,#EA4335,#C62828)', color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
-                Conectar con Google
-              </button>
-            </>
-          )}
-
-          {/* Syncing */}
-          {connected && syncState === 'syncing' && (
-            <div style={{ textAlign:'center', padding:'20px 0' }}>
-              <div style={{ fontSize:32, marginBottom:12 }}>📬</div>
-              <div style={{ color:C.text, fontSize:14, fontWeight:600 }}>Leyendo correos...</div>
-              <div style={{ color:C.textMuted, fontSize:12, marginTop:4 }}>Buscando movimientos de tus bancos</div>
-              <div style={{ marginTop:16, height:3, background:C.border, borderRadius:2, overflow:'hidden' }}>
-                <div style={{ height:'100%', background:C.accent, borderRadius:2, animation:'progress 3s ease-in-out infinite' }} />
-              </div>
-            </div>
-          )}
-
-          {/* Error */}
-          {syncState === 'error' && (
-            <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:12, padding:'12px 14px', marginBottom:12 }}>
-              <div style={{ color:C.danger, fontSize:13 }}>⚠️ {errorMsg}</div>
-            </div>
-          )}
-
-          {/* Connected idle or done */}
-          {connected && (syncState === 'idle' || syncState === 'done' || syncState === 'error') && (
-            <div style={{ display:'flex', gap:8 }}>
-              <button onClick={()=>handleSync(token!)} style={{ flex:1, padding:'12px 0', borderRadius:12, border:'none', background:'linear-gradient(135deg,#22C55E,#16A34A)', color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer' }}>
-                {syncState === 'done' ? '🔄 Sincronizar de nuevo' : '🔄 Sincronizar ahora'}
-              </button>
-              <button onClick={handleDisconnect} style={{ padding:'12px 14px', borderRadius:12, border:`1px solid ${C.border}`, background:'transparent', color:C.textMuted, fontSize:13, cursor:'pointer' }}>
-                Desconectar
-              </button>
-            </div>
-          )}
-
-          {/* Results */}
-          {result && syncState === 'done' && (
-            <div style={{ marginTop:16 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginBottom:14 }}>
-                <MiniStat label="Correos" value={String(result.emailsScanned)} color={C.primaryGlow} />
-                <MiniStat label="Movimientos" value={String(result.transactionsCreated)} color={C.accent} />
-                <MiniStat label="Cuenta" value={result.gmailAddress.split('@')[0]} color={C.textSec} />
-              </div>
-
-              {result.transactions.length > 0 ? (
-                <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                  {result.transactions.map((t,i)=>(
-                    <TransactionRow key={i} tx={t} />
-                  ))}
-                </div>
-              ) : (
-                <div style={{ textAlign:'center', padding:'20px 0', color:C.textMuted, fontSize:13 }}>
-                  No se encontraron correos de bancos en los últimos 30 días.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Supported banks */}
+        {/* Bank selector */}
         <div>
-          <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>BANCOS SOPORTADOS</div>
+          <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>SELECCIONA TU BANCO</div>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {[
-              { name:'Bancolombia',     icon:'🏦', color:'#FFCD00', status:'Activo' },
-              { name:'Davivienda',      icon:'🏦', color:'#E8192C', status:'Activo' },
-              { name:'Nequi',           icon:'📱', color:'#7B3FF2', status:'Activo' },
-              { name:'Banco de Bogotá', icon:'🏦', color:'#003087', status:'Próximamente' },
-              { name:'Falabella',       icon:'💳', color:'#8BC34A', status:'Próximamente' },
-            ].map(b=>(
-              <div key={b.name} style={{ ...card, display:'flex', alignItems:'center', gap:12, padding:'12px 14px' }}>
-                <div style={{ width:36, height:36, borderRadius:10, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>{b.icon}</div>
-                <div style={{ flex:1, color:C.text, fontSize:14, fontWeight:500 }}>{b.name}</div>
-                <div style={{ fontSize:11, fontWeight:600, color: b.status==='Activo'?C.accent:C.textMuted }}>
-                  {b.status==='Activo'?'● ':''}{b.status}
-                </div>
-              </div>
+            {BANKS.map(b => (
+              <button key={b.id} onClick={() => { setSelectedBank(b.id); setStatus('idle'); setImported([]); }}
+                style={{ ...card, display:'flex', alignItems:'center', gap:12, padding:'14px 16px', cursor:'pointer', border: selectedBank===b.id ? `1px solid ${b.color}66` : `1px solid ${C.border}`, background: selectedBank===b.id ? `${b.color}0D` : C.surface, textAlign:'left' }}>
+                <div style={{ width:40, height:40, borderRadius:12, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{b.icon}</div>
+                <div style={{ color:C.text, fontSize:15, fontWeight:600 }}>{b.name}</div>
+                {selectedBank===b.id && <div style={{ marginLeft:'auto', color:b.color, fontSize:18 }}>✓</div>}
+              </button>
             ))}
           </div>
         </div>
 
-        {/* Privacy note */}
+        {/* Instructions + upload */}
+        {bank && (
+          <div style={{ ...card }}>
+            <div style={{ color:C.text, fontSize:14, fontWeight:700, marginBottom:12 }}>¿Cómo descargar el extracto?</div>
+            {bank.steps.map((step, i) => (
+              <div key={i} style={{ display:'flex', gap:10, marginBottom:8, alignItems:'flex-start' }}>
+                <div style={{ width:22, height:22, borderRadius:'50%', background:`${bank.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:bank.color, fontWeight:800, flexShrink:0 }}>{i+1}</div>
+                <div style={{ color:C.textSec, fontSize:13, lineHeight:1.5 }}>{step}</div>
+              </div>
+            ))}
+
+            <input ref={fileRef} type="file" accept=".csv,.txt,.xls,.xlsx" style={{ display:'none' }} onChange={handleFile} />
+
+            <button onClick={() => fileRef.current?.click()}
+              style={{ width:'100%', marginTop:16, padding:'14px 0', borderRadius:14, border:'none', background:`linear-gradient(135deg,${bank.color},${bank.color}CC)`, color: bank.id==='bancolombia'?'#1a1a1a':'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
+              📂 Subir extracto de {bank.name}
+            </button>
+          </div>
+        )}
+
+        {/* Error */}
+        {status === 'error' && (
+          <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:14, padding:'14px 16px' }}>
+            <div style={{ color:C.danger, fontSize:13, lineHeight:1.5 }}>⚠️ {errorMsg}</div>
+          </div>
+        )}
+
+        {/* Results */}
+        {status === 'done' && imported.length > 0 && (
+          <div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+              <div style={{ ...card, textAlign:'center' }}>
+                <div style={{ color:C.accent, fontSize:24, fontWeight:800 }}>{imported.length}</div>
+                <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Movimientos</div>
+              </div>
+              <div style={{ ...card, textAlign:'center' }}>
+                <div style={{ color:C.primaryGlow, fontSize:24, fontWeight:800 }}>
+                  {[...new Set(imported.map(t => t.category))].length}
+                </div>
+                <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Categorías</div>
+              </div>
+            </div>
+
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>MOVIMIENTOS IMPORTADOS</div>
+            <div style={{ ...card }}>
+              {imported.slice(0, 10).map((t, i) => (
+                <div key={i} style={{ display:'flex', alignItems:'center', gap:10, paddingBottom: i < Math.min(imported.length,10)-1 ? 12:0, marginBottom: i < Math.min(imported.length,10)-1 ? 12:0, borderBottom: i < Math.min(imported.length,10)-1 ? `1px solid ${C.border}` : 'none' }}>
+                  <div style={{ width:38, height:38, borderRadius:11, background:t.type==='income'?'rgba(34,197,94,0.15)':'rgba(59,130,246,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
+                    {t.type==='income'?'💰':'💳'}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ color:C.text, fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
+                    <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>{t.category} · {t.date}</div>
+                  </div>
+                  <div style={{ color:t.type==='income'?C.accent:C.text, fontSize:13, fontWeight:700, flexShrink:0 }}>
+                    {t.type==='income'?'+':'-'}{fmt(t.amount)}
+                  </div>
+                </div>
+              ))}
+              {imported.length > 10 && (
+                <div style={{ color:C.textMuted, fontSize:12, textAlign:'center', marginTop:12 }}>
+                  +{imported.length - 10} movimientos más
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => { setImported([]); setStatus('idle'); }}
+              style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:14, cursor:'pointer' }}>
+              Importar otro extracto
+            </button>
+          </div>
+        )}
+
+        {/* Gmail coming soon */}
         <div style={{ ...card, background:'rgba(59,130,246,0.06)', border:`1px solid rgba(59,130,246,0.2)` }}>
-          <div style={{ color:C.primaryGlow, fontSize:13, fontWeight:700, marginBottom:8 }}>🔒 Privacidad</div>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+            <span style={{ fontSize:20 }}>✉️</span>
+            <div style={{ color:C.primaryGlow, fontSize:13, fontWeight:700 }}>Sincronización automática con Gmail</div>
+            <div style={{ marginLeft:'auto', background:'rgba(59,130,246,0.2)', borderRadius:999, padding:'2px 8px', fontSize:10, color:C.primaryGlow, fontWeight:700 }}>PRÓXIMO</div>
+          </div>
           <div style={{ color:C.textSec, fontSize:12, lineHeight:1.7 }}>
-            Nexo solicita acceso de <strong style={{color:C.text}}>solo lectura</strong> a tu Gmail. Nunca escribe, envía ni comparte tus correos. Los datos se procesan localmente en tu navegador.
+            Nexo detectará automáticamente los correos de Bancolombia, Davivienda y Nequi y registrará tus movimientos. En desarrollo.
           </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes progress {
-          0%   { width: 0%; margin-left: 0 }
-          50%  { width: 60%; margin-left: 20% }
-          100% { width: 0%; margin-left: 100% }
-        }
-      `}</style>
-    </div>
-  );
-}
-
-function TransactionRow({ tx }: { tx: ParsedTransaction }) {
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:10, background:'#070B14', borderRadius:12, padding:'10px 12px', border:`1px solid #1E2D45`, animation:'fadeIn 0.3s ease' }}>
-      <div style={{ fontSize:18 }}>{tx.type==='income'?'💰':'💳'}</div>
-      <div style={{ flex:1 }}>
-        <div style={{ color:'#F8FAFC', fontSize:13, fontWeight:600 }}>{tx.merchant}</div>
-        <div style={{ color:'#64748B', fontSize:10, marginTop:1 }}>{tx.bank} · {tx.category}</div>
-      </div>
-      <div style={{ color: tx.type==='income'?'#22C55E':'#F8FAFC', fontSize:13, fontWeight:700 }}>
-        {tx.type==='income'?'+':'-'}${tx.amount.toLocaleString('es-CO')}
-      </div>
-      <div style={{ width:18, height:18, borderRadius:'50%', background:'rgba(34,197,94,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#22C55E' }}>✓</div>
-    </div>
-  );
-}
-
-function MiniStat({ label, value, color }: { label:string; value:string; color:string }) {
-  return (
-    <div style={{ background:'#070B14', borderRadius:10, padding:'8px 10px', textAlign:'center' }}>
-      <div style={{ color, fontSize:14, fontWeight:800 }}>{value}</div>
-      <div style={{ color:'#64748B', fontSize:10, marginTop:2 }}>{label}</div>
     </div>
   );
 }
