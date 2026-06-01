@@ -1,7 +1,8 @@
-const CLIENT_ID = '666605907841-ftgh9fqkk44qn4kbm67foppn3683mtib.apps.googleusercontent.com';
-const SCOPES    = 'https://www.googleapis.com/auth/gmail.readonly';
-const TOKEN_KEY = 'nexo_gmail_token';
-const EMAIL_KEY = 'nexo_gmail_email';
+const CLIENT_ID    = '666605907841-ftgh9fqkk44qn4kbm67foppn3683mtib.apps.googleusercontent.com';
+const SCOPES       = 'https://www.googleapis.com/auth/gmail.readonly';
+const REDIRECT_URI = `${window.location.origin}/callback.html`;
+const TOKEN_KEY    = 'nexo_gmail_token';
+const EMAIL_KEY    = 'nexo_gmail_email';
 
 export interface ParsedTransaction {
   amount:      number;
@@ -13,46 +14,52 @@ export interface ParsedTransaction {
   bank:        string;
 }
 
-// ── Google Identity Services (popup — no redirect URI needed) ─────────────────
-
-declare const google: {
-  accounts: {
-    oauth2: {
-      initTokenClient(cfg: {
-        client_id: string;
-        scope: string;
-        callback: (r: { access_token?: string; error?: string }) => void;
-      }): { requestAccessToken(): void };
-    };
-  };
-};
+// ── OAuth via controlled popup + postMessage ──────────────────────────────────
 
 export function startGmailAuth(
   onSuccess: (token: string) => void,
   onError:   (err: string)   => void,
 ) {
-  try {
-    if (typeof google === 'undefined' || !google?.accounts?.oauth2) {
-      onError('Google no ha cargado aún. Recarga la página e intenta de nuevo.');
-      return;
-    }
-    const client = google.accounts.oauth2.initTokenClient({
-      client_id: CLIENT_ID,
-      scope:     SCOPES,
-      callback:  (response) => {
-        if (response.access_token) {
-          localStorage.setItem(TOKEN_KEY, response.access_token);
-          onSuccess(response.access_token);
-        } else {
-          onError(response.error ?? 'Auth cancelado');
-        }
-      },
-    });
-    client.requestAccessToken();
-  } catch (e) {
-    onError(e instanceof Error ? e.message : 'Error al conectar con Google');
+  const params = new URLSearchParams({
+    client_id:     CLIENT_ID,
+    redirect_uri:  REDIRECT_URI,
+    response_type: 'token',
+    scope:         SCOPES,
+  });
+
+  const popup = window.open(
+    `https://accounts.google.com/o/oauth2/auth?${params}`,
+    'nexo_gmail_auth',
+    'width=500,height=640,left=400,top=150,toolbar=no,menubar=no',
+  );
+
+  if (!popup) {
+    onError('El navegador bloqueó el popup. Permite popups para localhost:5173 e intenta de nuevo.');
+    return;
   }
+
+  function handleMessage(event: MessageEvent) {
+    if (event.origin !== window.location.origin) return;
+    window.removeEventListener('message', handleMessage);
+    clearInterval(closedCheck);
+    if (event.data?.type === 'nexo_gmail_token') {
+      localStorage.setItem(TOKEN_KEY, event.data.token as string);
+      onSuccess(event.data.token as string);
+    } else if (event.data?.type === 'nexo_gmail_error') {
+      onError(`Google: ${event.data.error as string}`);
+    }
+  }
+
+  window.addEventListener('message', handleMessage);
+
+  const closedCheck = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(closedCheck);
+      window.removeEventListener('message', handleMessage);
+    }
+  }, 800);
 }
+
 
 export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
