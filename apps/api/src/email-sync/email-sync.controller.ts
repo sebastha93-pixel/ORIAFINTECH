@@ -174,6 +174,12 @@ export class EmailSyncController {
     return this.emailSyncService.getStatus(userId);
   }
 
+  @Get('debug-public')
+  @ApiQuery({ name: 'userId', required: true })
+  async debugPublic(@Query('userId') userId: string): Promise<{ sample: string; subject: string; from: string }[]> {
+    return this.emailSyncService.debugSample(userId);
+  }
+
   @Post('sync-public')
   @ApiOperation({ summary: 'Manually trigger Gmail sync by user ID (no auth required)' })
   @ApiQuery({ name: 'userId', required: true })
@@ -184,7 +190,7 @@ export class EmailSyncController {
     transactionsCreated: number;
   }> {
     this.logger.log(`Public manual sync triggered for user ${userId}`);
-    const { emailsProcessed, transactionsCreated } = await this.emailSyncService.syncEmails(userId);
-    return { message: 'Sync completed', emailsProcessed, transactionsCreated };
+    const { emailsProcessed, transactionsCreated, errors } = await this.emailSyncService.syncEmails(userId);
+    return { message: 'Sync completed', emailsProcessed, transactionsCreated, errors: errors.slice(0, 5) };
   }
 }

@@ -493,6 +493,27 @@ export class EmailSyncService {
     return data?.id ?? null;
   }
 
+  // ─── Debug: return raw text of first 3 bank emails ──────────────────────────
+
+  async debugSample(userId: string): Promise<{ sample: string; subject: string; from: string }[]> {
+    const { data: connection } = await this.supabase
+      .from('email_connections').select('*').eq('user_id', userId).maybeSingle();
+    if (!connection) return [{ sample: 'No connection found', subject: '', from: '' }];
+
+    const accessToken = await this.getValidAccessToken(connection as EmailConnection);
+    const messages = await this.listMessages(accessToken, BANK_QUERY);
+    const results: { sample: string; subject: string; from: string }[] = [];
+
+    for (const msg of messages.slice(0, 3)) {
+      const full = await this.getMessage(accessToken, msg.id);
+      const from = this.getHeader(full.payload, 'from');
+      const subject = this.getHeader(full.payload, 'subject');
+      const body = this.extractEmailBody(full.payload);
+      results.push({ from, subject, sample: body.slice(0, 400) });
+    }
+    return results;
+  }
+
   // ─── Cron: sync all users every day at 6am and 8pm Colombia time (UTC-5) ──
 
   @Cron('0 11,19,1 * * *') // 06:00, 14:00 and 20:00 COT = 11:00, 19:00 and 01:00 UTC
