@@ -1,7 +1,8 @@
-const CLIENT_ID = '666605907841-ftgh9fqkk44qn4kbm67foppn3683mtib.apps.googleusercontent.com';
-const SCOPES    = 'https://www.googleapis.com/auth/gmail.readonly';
-const TOKEN_KEY = 'nexo_gmail_token';
-const EMAIL_KEY = 'nexo_gmail_email';
+const CLIENT_ID    = '666605907841-ftgh9fqkk44qn4kbm67foppn3683mtib.apps.googleusercontent.com';
+const SCOPES       = 'https://www.googleapis.com/auth/gmail.readonly';
+const REDIRECT_URI = 'http://localhost:5173';
+const TOKEN_KEY    = 'nexo_gmail_token';
+const EMAIL_KEY    = 'nexo_gmail_email';
 
 export interface ParsedTransaction {
   amount:      number;
@@ -16,10 +17,9 @@ export interface ParsedTransaction {
 // ── OAuth ────────────────────────────────────────────────────────────────────
 
 export function startGmailAuth() {
-  const redirectUri = window.location.origin;
   const params = new URLSearchParams({
     client_id:     CLIENT_ID,
-    redirect_uri:  redirectUri,
+    redirect_uri:  REDIRECT_URI,
     response_type: 'token',
     scope:         SCOPES,
   });
