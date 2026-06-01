@@ -51,7 +51,7 @@ interface GmailFullMessage {
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const BANK_QUERY =
-  'from:(alertas@notificaciones.bancolombia.com OR notificaciones@bancolombia.com OR alertas@davivienda.com OR notificaciones@davivienda.com OR info@nequi.com OR nequi@info.nequi.com) newer_than:30d';
+  '(from:bancolombia OR from:davivienda OR from:nequi) newer_than:30d';
 
 @Injectable()
 export class EmailSyncService {

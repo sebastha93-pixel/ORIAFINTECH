@@ -161,10 +161,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
     setSyncing(true);
     try {
       const res = await fetch(`${RAILWAY_API}/email-sync/sync-public?userId=${encodeURIComponent(userId)}`, { method: 'POST' });
-      const data = await res.json() as { transactionsCreated: number };
+      const data = await res.json() as { transactionsCreated: number; emailsProcessed: number };
       setGmailCount(prev => prev + (data.transactionsCreated ?? 0));
-      setLastSync(new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }));
-    } catch { /* silent */ } finally {
+      setLastSync(`${new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })} · ${data.emailsProcessed ?? 0} correos / ${data.transactionsCreated ?? 0} nuevos`);
+    } catch (e) {
+      setLastSync('Error al sincronizar');
+    } finally {
       setSyncing(false);
     }
   }
