@@ -1,8 +1,7 @@
-const CLIENT_ID    = '666605907841-ftgh9fqkk44qn4kbm67foppn3683mtib.apps.googleusercontent.com';
-const SCOPES       = 'https://www.googleapis.com/auth/gmail.readonly';
-const REDIRECT_URI = 'http://localhost:5173';
-const TOKEN_KEY    = 'nexo_gmail_token';
-const EMAIL_KEY    = 'nexo_gmail_email';
+const CLIENT_ID = '666605907841-ftgh9fqkk44qn4kbm67foppn3683mtib.apps.googleusercontent.com';
+const SCOPES    = 'https://www.googleapis.com/auth/gmail.readonly';
+const TOKEN_KEY = 'nexo_gmail_token';
+const EMAIL_KEY = 'nexo_gmail_email';
 
 export interface ParsedTransaction {
   amount:      number;
@@ -14,27 +13,37 @@ export interface ParsedTransaction {
   bank:        string;
 }
 
-// ── OAuth ────────────────────────────────────────────────────────────────────
+// ── Google Identity Services (popup — no redirect URI needed) ─────────────────
 
-export function startGmailAuth() {
-  const params = new URLSearchParams({
-    client_id:     CLIENT_ID,
-    redirect_uri:  REDIRECT_URI,
-    response_type: 'token',
-    scope:         SCOPES,
+declare const google: {
+  accounts: {
+    oauth2: {
+      initTokenClient(cfg: {
+        client_id: string;
+        scope: string;
+        callback: (r: { access_token?: string; error?: string }) => void;
+      }): { requestAccessToken(): void };
+    };
+  };
+};
+
+export function startGmailAuth(
+  onSuccess: (token: string) => void,
+  onError:   (err: string)   => void,
+) {
+  const client = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope:     SCOPES,
+    callback:  (response) => {
+      if (response.access_token) {
+        localStorage.setItem(TOKEN_KEY, response.access_token);
+        onSuccess(response.access_token);
+      } else {
+        onError(response.error ?? 'Auth cancelado');
+      }
+    },
   });
-  window.location.href = `https://accounts.google.com/o/oauth2/auth?${params}`;
-}
-
-export function handleOAuthCallback(): string | null {
-  const hash   = window.location.hash.substring(1);
-  const params = new URLSearchParams(hash);
-  const token  = params.get('access_token');
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-    window.location.hash = '';
-  }
-  return token;
+  client.requestAccessToken();
 }
 
 export function getStoredToken(): string | null {
@@ -61,156 +70,127 @@ async function gmailFetch(path: string, token: string) {
 }
 
 async function getUserEmail(token: string): Promise<string> {
-  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+  const res  = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await res.json() as { email: string };
   return data.email;
 }
 
+interface GmailPayload {
+  body?:     { data?: string };
+  parts?:    GmailPayload[];
+  mimeType?: string;
+}
+
 function decodeBody(payload: GmailPayload): string {
-  const tryDecode = (data: string) =>
-    atob(data.replace(/-/g, '+').replace(/_/g, '/'));
-
-  if (payload.body?.data) return tryDecode(payload.body.data);
-
+  const decode = (d: string) => atob(d.replace(/-/g, '+').replace(/_/g, '/'));
+  if (payload.body?.data) return decode(payload.body.data);
   const parts = payload.parts ?? [];
   for (const p of parts) {
-    if (p.mimeType === 'text/plain' && p.body?.data) return tryDecode(p.body.data);
+    if (p.mimeType === 'text/plain' && p.body?.data) return decode(p.body.data);
   }
   for (const p of parts) {
     if (p.mimeType === 'text/html' && p.body?.data) {
-      const html = tryDecode(p.body.data);
-      return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      return decode(p.body.data).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     }
   }
   return '';
 }
 
-interface GmailPayload {
-  body?:  { data?: string };
-  parts?: GmailPayload[];
-  mimeType?: string;
-}
-
 // ── Parsers ───────────────────────────────────────────────────────────────────
 
-function parseCOPAmount(raw: string): number {
+function parseCOP(raw: string): number {
   return parseInt(raw.replace(/\./g, '').replace(/,/g, ''), 10);
 }
 
-function guessCategory(merchant: string, type: 'income' | 'expense'): string {
+function category(merchant: string, type: 'income' | 'expense'): string {
   if (type === 'income') {
-    if (/nómin|salari/i.test(merchant)) return 'Salario';
+    if (/nómin|salari/i.test(merchant))    return 'Salario';
     if (/freelanc|honorari/i.test(merchant)) return 'Freelance';
     return 'Ingresos';
   }
   const m = merchant.toLowerCase();
-  if (/éxito|carulla|jumbo|d1|ara|supermercado|mercado|alkosto/i.test(m)) return 'Alimentación';
-  if (/uber|taxi|didi|cabify|sitp|transporte/i.test(m)) return 'Transporte';
-  if (/netflix|spotify|disney|hbo|prime|entretenimiento|cine/i.test(m)) return 'Entretenimiento';
-  if (/farmacia|droguería|cruz verde|colsubsidio|salud|clínica|médic/i.test(m)) return 'Salud';
-  if (/arriendo|renta|vivienda|inmobili/i.test(m)) return 'Vivienda';
-  if (/gym|bodytech|smartfit|deporte|fitness/i.test(m)) return 'Deporte';
+  if (/éxito|carulla|jumbo|d1|ara|supermercado|alkosto/i.test(m)) return 'Alimentación';
+  if (/uber|taxi|didi|cabify|sitp/i.test(m))                      return 'Transporte';
+  if (/netflix|spotify|disney|hbo|prime|cine/i.test(m))           return 'Entretenimiento';
+  if (/farmacia|droguería|cruz verde|salud|clínica|médic/i.test(m)) return 'Salud';
+  if (/arriendo|renta|vivienda|inmobili/i.test(m))                return 'Vivienda';
+  if (/gym|bodytech|smartfit|fitness/i.test(m))                   return 'Deporte';
   return 'Otros';
 }
 
-function parseBancolombia(body: string, subject: string): ParsedTransaction | null {
-  // Compra: "Compra aprobada por $320.000 en Éxito"
+function tx(amount: number, type: 'income'|'expense', desc: string, merchant: string, bank: string): ParsedTransaction {
+  return { amount, type, description: desc, category: category(merchant, type), date: new Date().toISOString().slice(0,10), merchant, bank };
+}
+
+function parseBancolombia(body: string): ParsedTransaction | null {
   let m = body.match(/[Cc]ompra\s+aprobada\s+por\s+\$?([\d.]+)\s+en\s+([^\n.]+)/);
-  if (m) {
-    const merchant = m[2].trim();
-    return { amount: parseCOPAmount(m[1]), type: 'expense', description: `Compra en ${merchant}`, category: guessCategory(merchant, 'expense'), date: new Date().toISOString().slice(0,10), merchant, bank: 'Bancolombia' };
-  }
-  // Nómina: "Pago de nómina por $5.800.000"
+  if (m) return tx(parseCOP(m[1]), 'expense', `Compra en ${m[2].trim()}`, m[2].trim(), 'Bancolombia');
+
   m = body.match(/[Pp]ago\s+de\s+nómin[a-z]*\s+(?:por\s+)?\$?([\d.]+)/);
-  if (m) {
-    return { amount: parseCOPAmount(m[1]), type: 'income', description: 'Nómina', category: 'Salario', date: new Date().toISOString().slice(0,10), merchant: 'Nómina', bank: 'Bancolombia' };
-  }
-  // Transferencia recibida
+  if (m) return tx(parseCOP(m[1]), 'income', 'Nómina', 'Nómina', 'Bancolombia');
+
   m = body.match(/[Tt]ransferencia\s+recibida\s+(?:por\s+)?\$?([\d.]+)/);
-  if (m) {
-    return { amount: parseCOPAmount(m[1]), type: 'income', description: 'Transferencia recibida', category: 'Ingresos', date: new Date().toISOString().slice(0,10), merchant: 'Transferencia', bank: 'Bancolombia' };
-  }
-  // Retiro cajero
+  if (m) return tx(parseCOP(m[1]), 'income', 'Transferencia recibida', 'Transferencia', 'Bancolombia');
+
   m = body.match(/[Rr]etiro\s+(?:en\s+cajero\s+)?(?:por\s+)?\$?([\d.]+)/);
-  if (m) {
-    return { amount: parseCOPAmount(m[1]), type: 'expense', description: 'Retiro cajero', category: 'Efectivo', date: new Date().toISOString().slice(0,10), merchant: 'Cajero', bank: 'Bancolombia' };
-  }
-  // Pago de servicios
+  if (m) return tx(parseCOP(m[1]), 'expense', 'Retiro cajero', 'Cajero', 'Bancolombia');
+
   m = body.match(/[Pp]ago\s+de\s+servicios?\s+\$?([\d.]+)\s+a\s+([^\n.]+)/);
-  if (m) {
-    const merchant = m[2].trim();
-    return { amount: parseCOPAmount(m[1]), type: 'expense', description: `Pago a ${merchant}`, category: guessCategory(merchant, 'expense'), date: new Date().toISOString().slice(0,10), merchant, bank: 'Bancolombia' };
-  }
+  if (m) return tx(parseCOP(m[1]), 'expense', `Pago a ${m[2].trim()}`, m[2].trim(), 'Bancolombia');
+
   return null;
 }
 
 function parseDavivienda(body: string): ParsedTransaction | null {
-  // "Se realizó un débito de $45.000 en UBER"
   let m = body.match(/débito\s+de\s+\$?([\d.]+)\s+en\s+([^\n.]+)/i);
-  if (m) {
-    const merchant = m[2].trim();
-    return { amount: parseCOPAmount(m[1]), type: 'expense', description: `Pago en ${merchant}`, category: guessCategory(merchant, 'expense'), date: new Date().toISOString().slice(0,10), merchant, bank: 'Davivienda' };
-  }
-  // "Crédito por $X"
+  if (m) return tx(parseCOP(m[1]), 'expense', `Pago en ${m[2].trim()}`, m[2].trim(), 'Davivienda');
+
   m = body.match(/crédito\s+por\s+\$?([\d.]+)/i);
-  if (m) {
-    return { amount: parseCOPAmount(m[1]), type: 'income', description: 'Crédito Davivienda', category: 'Ingresos', date: new Date().toISOString().slice(0,10), merchant: 'Davivienda', bank: 'Davivienda' };
-  }
+  if (m) return tx(parseCOP(m[1]), 'income', 'Crédito Davivienda', 'Davivienda', 'Davivienda');
+
   return null;
 }
 
 function parseNequi(body: string): ParsedTransaction | null {
-  // "Enviaste $89.000 a Nombre"
   let m = body.match(/[Ee]nviaste\s+\$?([\d.]+)\s+a\s+([^\n.]+)/);
-  if (m) {
-    const merchant = m[2].trim();
-    return { amount: parseCOPAmount(m[1]), type: 'expense', description: `Envío a ${merchant}`, category: guessCategory(merchant, 'expense'), date: new Date().toISOString().slice(0,10), merchant, bank: 'Nequi' };
-  }
-  // "Recibiste $X de Nombre"
+  if (m) return tx(parseCOP(m[1]), 'expense', `Envío a ${m[2].trim()}`, m[2].trim(), 'Nequi');
+
   m = body.match(/[Rr]ecibiste\s+\$?([\d.]+)\s+de\s+([^\n.]+)/);
-  if (m) {
-    const merchant = m[2].trim();
-    return { amount: parseCOPAmount(m[1]), type: 'income', description: `Recibido de ${merchant}`, category: 'Ingresos', date: new Date().toISOString().slice(0,10), merchant, bank: 'Nequi' };
-  }
+  if (m) return tx(parseCOP(m[1]), 'income', `Recibido de ${m[2].trim()}`, m[2].trim(), 'Nequi');
+
   return null;
 }
 
-function parseEmail(from: string, subject: string, body: string): ParsedTransaction | null {
-  if (/bancolombia/i.test(from)) return parseBancolombia(body, subject);
+function parseEmail(from: string, body: string): ParsedTransaction | null {
+  if (/bancolombia/i.test(from)) return parseBancolombia(body);
   if (/davivienda/i.test(from))  return parseDavivienda(body);
   if (/nequi/i.test(from))       return parseNequi(body);
   return null;
 }
 
-// ── Main sync function ────────────────────────────────────────────────────────
+// ── Main sync ─────────────────────────────────────────────────────────────────
 
 export interface SyncResult {
-  emailsScanned:        number;
-  transactionsCreated:  number;
-  transactions:         ParsedTransaction[];
-  gmailAddress:         string;
+  emailsScanned:       number;
+  transactionsCreated: number;
+  transactions:        ParsedTransaction[];
+  gmailAddress:        string;
 }
 
 export async function syncGmailTransactions(token: string): Promise<SyncResult> {
   const gmailAddress = await getUserEmail(token);
   localStorage.setItem(EMAIL_KEY, gmailAddress);
 
-  const query = [
-    'from:(alertas@notificaciones.bancolombia.com',
-    'OR notificaciones@davivienda.com',
-    'OR info@nequi.com',
-    'OR alertas@bancolombia.com)',
-    'newer_than:30d',
-  ].join(' ');
+  const query = 'from:(alertas@notificaciones.bancolombia.com OR notificaciones@davivienda.com OR info@nequi.com OR alertas@bancolombia.com) newer_than:30d';
 
   const listData = await gmailFetch(
     `/users/me/messages?q=${encodeURIComponent(query)}&maxResults=50`,
     token,
   ) as { messages?: { id: string }[] };
 
-  const messages = listData.messages ?? [];
+  const messages     = listData.messages ?? [];
   const transactions: ParsedTransaction[] = [];
 
   for (const msg of messages) {
@@ -222,17 +202,12 @@ export async function syncGmailTransactions(token: string): Promise<SyncResult> 
       const from    = headers.find(h => h.name === 'From')?.value ?? '';
       const subject = headers.find(h => h.name === 'Subject')?.value ?? '';
       const body    = decodeBody(full.payload);
-      const tx      = parseEmail(from, subject, body);
-      if (tx) transactions.push(tx);
+      const result  = parseEmail(from, body);
+      if (result) transactions.push({ ...result, description: result.description || subject });
     } catch {
-      // skip unparseable messages
+      // skip unparseable message
     }
   }
 
-  return {
-    emailsScanned:       messages.length,
-    transactionsCreated: transactions.length,
-    transactions,
-    gmailAddress,
-  };
+  return { emailsScanned: messages.length, transactionsCreated: transactions.length, transactions, gmailAddress };
 }

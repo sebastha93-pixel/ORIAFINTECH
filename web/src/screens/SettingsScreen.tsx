@@ -42,7 +42,17 @@ export function SettingsScreen() {
   }
 
   function handleConnect() {
-    startGmailAuth();
+    setSyncState('syncing');
+    startGmailAuth(
+      async (token) => {
+        setToken(token);
+        await handleSync(token);
+      },
+      (err) => {
+        setErrorMsg(err);
+        setSyncState('error');
+      },
+    );
   }
 
   function handleDisconnect() {
