@@ -1,5 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { C, fmt, card } from '../theme';
+
+const RAILWAY_API = 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
 
 interface Transaction {
   date:        string;
@@ -10,7 +12,16 @@ interface Transaction {
   bank:        string;
 }
 
-// ── Parsers ───────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getUserId(): string {
+  let uid = localStorage.getItem('nexo_uid');
+  if (!uid) {
+    uid = crypto.randomUUID();
+    localStorage.setItem('nexo_uid', uid);
+  }
+  return uid;
+}
 
 function guessCategory(desc: string, type: 'income' | 'expense'): string {
   if (type === 'income') {
@@ -35,68 +46,46 @@ function parseCOP(s: string): number {
 function parseCSV(text: string, bank: string): Transaction[] {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   const results: Transaction[] = [];
-
-  // Try to detect header row
   const headerIdx = lines.findIndex(l =>
     /fecha|date|descripci|concepto|valor|monto|debito|credito/i.test(l)
   );
   const dataLines = headerIdx >= 0 ? lines.slice(headerIdx + 1) : lines.slice(1);
 
   for (const line of dataLines) {
-    // Split by semicolon or comma (handle quoted fields)
     const cols = line.split(/[;,]/).map(c => c.replace(/^"|"$/g, '').trim());
     if (cols.length < 3) continue;
-
-    // Find a date-like column
     const dateCol = cols.find(c => /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(c)) ?? '';
     if (!dateCol) continue;
-
-    // Find description (longest non-numeric, non-date string)
     const desc = cols
       .filter(c => c !== dateCol && !/^[\d.,\-\s]+$/.test(c) && c.length > 2)
       .sort((a, b) => b.length - a.length)[0] ?? 'Movimiento';
-
-    // Find numeric columns for amounts
     const nums = cols
       .filter(c => /^-?[\d.,]+$/.test(c.replace(/\s/g, '')))
-      .map(parseCOP)
-      .filter(n => n > 0);
-
+      .map(parseCOP).filter(n => n > 0);
     if (nums.length === 0) continue;
-
-    // Bancolombia: separate debit/credit columns; Davivienda: signed single column
-    let amount = 0;
-    let type: 'income' | 'expense' = 'expense';
-
+    let amount = 0, type: 'income' | 'expense' = 'expense';
     if (nums.length >= 2) {
-      // Two columns: debit and credit
       const [debit, credit] = nums;
       if (credit > 0 && debit === 0) { amount = credit; type = 'income'; }
       else { amount = debit; type = 'expense'; }
     } else {
-      // Signed single column
       const raw = cols.find(c => /^-?[\d.,]+$/.test(c.replace(/\s/g, ''))) ?? '0';
       amount = parseCOP(raw);
       type = raw.trim().startsWith('-') ? 'expense' : 'income';
     }
-
     if (amount === 0) continue;
-
-    // Normalize date to ISO
     const dateParts = dateCol.match(/(\d{1,4})[\/\-](\d{1,2})[\/\-](\d{1,4})/);
     let iso = new Date().toISOString().slice(0, 10);
     if (dateParts) {
       const [, a, b, c] = dateParts;
       iso = a.length === 4 ? `${a}-${b.padStart(2,'0')}-${c.padStart(2,'0')}` : `${c}-${b.padStart(2,'0')}-${a.padStart(2,'0')}`;
     }
-
     results.push({ date: iso, description: desc, amount, type, category: guessCategory(desc, type), bank });
   }
-
   return results;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const BANKS = [
   { id:'bancolombia', name:'Bancolombia', icon:'🏦', color:'#FFCD00',
@@ -107,14 +96,66 @@ const BANKS = [
     steps:['Abre Nequi','Ve a Movimientos','Toca los tres puntos (⋮)','Exportar movimientos → CSV'] },
 ];
 
-export function SettingsScreen() {
-  const [selectedBank, setSelectedBank] = useState<string|null>(null);
-  const [imported, setImported]         = useState<Transaction[]>([]);
-  const [status, setStatus]             = useState<'idle'|'done'|'error'>('idle');
-  const [errorMsg, setErrorMsg]         = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
+// ── Component ─────────────────────────────────────────────────────────────────
 
-  const bank = BANKS.find(b => b.id === selectedBank);
+export function SettingsScreen() {
+  const [tab, setTab]               = useState<'gmail'|'csv'>('gmail');
+  const [selectedBank, setSelectedBank] = useState<string|null>(null);
+  const [imported, setImported]     = useState<Transaction[]>([]);
+  const [csvStatus, setCsvStatus]   = useState<'idle'|'done'|'error'>('idle');
+  const [csvError, setCsvError]     = useState('');
+
+  // Gmail state
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail]         = useState('');
+  const [gmailCount, setGmailCount]         = useState(0);
+  const [gmailLoading, setGmailLoading]     = useState(false);
+  const [gmailError, setGmailError]         = useState('');
+
+  const fileRef = useRef<HTMLInputElement>(null);
+  const bank    = BANKS.find(b => b.id === selectedBank);
+
+  // Listen for postMessage from the Railway OAuth popup
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.data?.type === 'nexo_gmail_connected') {
+        setGmailConnected(true);
+        setGmailEmail(e.data.email ?? '');
+        setGmailCount(e.data.count ?? 0);
+        setGmailLoading(false);
+      }
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  async function connectGmail() {
+    setGmailLoading(true);
+    setGmailError('');
+    try {
+      const userId = getUserId();
+      const res = await fetch(`${RAILWAY_API}/email-sync/auth/google?state=${encodeURIComponent(userId)}`);
+      const data = await res.json() as { url: string };
+
+      const popup = window.open(data.url, 'nexo_gmail', 'width=520,height=660,left=400,top=100,toolbar=no,menubar=no');
+      if (!popup || popup.closed) {
+        // Safari blocked popup → full redirect
+        window.location.href = data.url;
+        return;
+      }
+
+      // Watch for popup close without postMessage
+      const check = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(check);
+          setGmailLoading(false);
+        }
+      }, 800);
+    } catch {
+      setGmailError('No se pudo contactar el servidor. Verifica la conexión.');
+      setGmailLoading(false);
+    }
+  }
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -125,15 +166,15 @@ export function SettingsScreen() {
         const text = ev.target?.result as string;
         const txns = parseCSV(text, bank?.name ?? selectedBank);
         if (txns.length === 0) {
-          setErrorMsg('No se encontraron movimientos en el archivo. Asegúrate de exportar como CSV o Excel (no PDF).');
-          setStatus('error');
+          setCsvError('No se encontraron movimientos. Asegúrate de exportar como CSV (no PDF).');
+          setCsvStatus('error');
         } else {
           setImported(txns);
-          setStatus('done');
+          setCsvStatus('done');
         }
       } catch {
-        setErrorMsg('Error leyendo el archivo. Intenta exportarlo de nuevo desde el banco.');
-        setStatus('error');
+        setCsvError('Error leyendo el archivo. Intenta exportarlo de nuevo desde el banco.');
+        setCsvStatus('error');
       }
     };
     reader.readAsText(file, 'latin1');
@@ -144,111 +185,185 @@ export function SettingsScreen() {
     <div style={{ paddingBottom: 100 }}>
       {/* Header */}
       <div style={{ background:'linear-gradient(135deg,#0F2563,#070B14)', padding:'48px 20px 24px' }}>
-        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Importar extracto</div>
-        <div style={{ color:C.textMuted, fontSize:13 }}>Sube el CSV de tu banco y Nexo hace el resto</div>
+        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Sincronizar banco</div>
+        <div style={{ color:C.textMuted, fontSize:13 }}>Conecta Gmail o sube un extracto CSV</div>
       </div>
 
-      <div style={{ padding:'20px 16px', display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Tab switcher */}
+      <div style={{ display:'flex', gap:0, margin:'16px 16px 0', borderRadius:14, overflow:'hidden', border:`1px solid ${C.border}` }}>
+        {(['gmail','csv'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            style={{ flex:1, padding:'11px 0', border:'none', cursor:'pointer', fontWeight:700, fontSize:13,
+              background: tab===t ? 'linear-gradient(135deg,#1d4ed8,#7c3aed)' : C.surface,
+              color: tab===t ? '#fff' : C.textMuted }}>
+            {t === 'gmail' ? '✉️  Gmail automático' : '📂  Subir extracto'}
+          </button>
+        ))}
+      </div>
 
-        {/* Bank selector */}
-        <div>
-          <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>SELECCIONA TU BANCO</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {BANKS.map(b => (
-              <button key={b.id} onClick={() => { setSelectedBank(b.id); setStatus('idle'); setImported([]); }}
-                style={{ ...card, display:'flex', alignItems:'center', gap:12, padding:'14px 16px', cursor:'pointer', border: selectedBank===b.id ? `1px solid ${b.color}66` : `1px solid ${C.border}`, background: selectedBank===b.id ? `${b.color}0D` : C.surface, textAlign:'left' }}>
-                <div style={{ width:40, height:40, borderRadius:12, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{b.icon}</div>
-                <div style={{ color:C.text, fontSize:15, fontWeight:600 }}>{b.name}</div>
-                {selectedBank===b.id && <div style={{ marginLeft:'auto', color:b.color, fontSize:18 }}>✓</div>}
-              </button>
-            ))}
-          </div>
-        </div>
+      <div style={{ padding:'16px 16px', display:'flex', flexDirection:'column', gap:16 }}>
 
-        {/* Instructions + upload */}
-        {bank && (
-          <div style={{ ...card }}>
-            <div style={{ color:C.text, fontSize:14, fontWeight:700, marginBottom:12 }}>¿Cómo descargar el extracto?</div>
-            {bank.steps.map((step, i) => (
-              <div key={i} style={{ display:'flex', gap:10, marginBottom:8, alignItems:'flex-start' }}>
-                <div style={{ width:22, height:22, borderRadius:'50%', background:`${bank.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:bank.color, fontWeight:800, flexShrink:0 }}>{i+1}</div>
-                <div style={{ color:C.textSec, fontSize:13, lineHeight:1.5 }}>{step}</div>
-              </div>
-            ))}
-
-            <input ref={fileRef} type="file" accept=".csv,.txt,.xls,.xlsx" style={{ display:'none' }} onChange={handleFile} />
-
-            <button onClick={() => fileRef.current?.click()}
-              style={{ width:'100%', marginTop:16, padding:'14px 0', borderRadius:14, border:'none', background:`linear-gradient(135deg,${bank.color},${bank.color}CC)`, color: bank.id==='bancolombia'?'#1a1a1a':'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
-              📂 Subir extracto de {bank.name}
-            </button>
-          </div>
-        )}
-
-        {/* Error */}
-        {status === 'error' && (
-          <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:14, padding:'14px 16px' }}>
-            <div style={{ color:C.danger, fontSize:13, lineHeight:1.5 }}>⚠️ {errorMsg}</div>
-          </div>
-        )}
-
-        {/* Results */}
-        {status === 'done' && imported.length > 0 && (
-          <div>
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
-              <div style={{ ...card, textAlign:'center' }}>
-                <div style={{ color:C.accent, fontSize:24, fontWeight:800 }}>{imported.length}</div>
-                <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Movimientos</div>
-              </div>
-              <div style={{ ...card, textAlign:'center' }}>
-                <div style={{ color:C.primaryGlow, fontSize:24, fontWeight:800 }}>
-                  {[...new Set(imported.map(t => t.category))].length}
+        {/* ── GMAIL TAB ── */}
+        {tab === 'gmail' && (
+          <>
+            {!gmailConnected ? (
+              <div style={{ ...card }}>
+                <div style={{ color:C.text, fontSize:16, fontWeight:800, marginBottom:8 }}>Sincronización automática</div>
+                <div style={{ color:C.textSec, fontSize:13, lineHeight:1.7, marginBottom:20 }}>
+                  Nexo lee los correos de alerta de <strong style={{color:C.text}}>Bancolombia</strong>, <strong style={{color:C.text}}>Davivienda</strong> y <strong style={{color:C.text}}>Nequi</strong> y registra tus movimientos automáticamente. Solo lectura — Nexo nunca modifica tu correo.
                 </div>
-                <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Categorías</div>
-              </div>
-            </div>
 
-            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>MOVIMIENTOS IMPORTADOS</div>
+                {gmailError && (
+                  <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:10, padding:'10px 14px', marginBottom:16, color:C.danger, fontSize:13 }}>
+                    ⚠️ {gmailError}
+                  </div>
+                )}
+
+                <button onClick={connectGmail} disabled={gmailLoading}
+                  style={{ width:'100%', padding:'15px 0', borderRadius:14, border:'none', cursor: gmailLoading ? 'default' : 'pointer',
+                    background: gmailLoading ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                    color:'#fff', fontSize:15, fontWeight:700, opacity: gmailLoading ? 0.7 : 1 }}>
+                  {gmailLoading ? '⏳ Esperando autorización…' : '🔗 Conectar Gmail'}
+                </button>
+
+                <div style={{ marginTop:12, display:'flex', alignItems:'flex-start', gap:8 }}>
+                  <span style={{ color:C.accent, fontSize:12, marginTop:1 }}>🔒</span>
+                  <div style={{ color:C.textMuted, fontSize:11, lineHeight:1.6 }}>
+                    Usa OAuth 2.0 seguro. Nexo nunca almacena tu contraseña. Puedes revocar el acceso en cualquier momento desde tu cuenta Google.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ ...card, border:`1px solid rgba(34,197,94,0.3)`, background:'rgba(34,197,94,0.05)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+                  <div style={{ width:44, height:44, borderRadius:14, background:'rgba(34,197,94,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✅</div>
+                  <div>
+                    <div style={{ color:C.text, fontSize:15, fontWeight:700 }}>Gmail conectado</div>
+                    <div style={{ color:C.textMuted, fontSize:12 }}>{gmailEmail}</div>
+                  </div>
+                </div>
+                <div style={{ background:'rgba(34,197,94,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
+                  {gmailCount} movimiento{gmailCount !== 1 ? 's' : ''} importado{gmailCount !== 1 ? 's' : ''} automáticamente
+                </div>
+                <div style={{ color:C.textMuted, fontSize:12, marginTop:10, textAlign:'center' }}>
+                  Nexo sincroniza nuevos movimientos cada vez que llega un correo del banco.
+                </div>
+              </div>
+            )}
+
+            {/* How it works */}
             <div style={{ ...card }}>
-              {imported.slice(0, 10).map((t, i) => (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:10, paddingBottom: i < Math.min(imported.length,10)-1 ? 12:0, marginBottom: i < Math.min(imported.length,10)-1 ? 12:0, borderBottom: i < Math.min(imported.length,10)-1 ? `1px solid ${C.border}` : 'none' }}>
-                  <div style={{ width:38, height:38, borderRadius:11, background:t.type==='income'?'rgba(34,197,94,0.15)':'rgba(59,130,246,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
-                    {t.type==='income'?'💰':'💳'}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ color:C.text, fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
-                    <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>{t.category} · {t.date}</div>
-                  </div>
-                  <div style={{ color:t.type==='income'?C.accent:C.text, fontSize:13, fontWeight:700, flexShrink:0 }}>
-                    {t.type==='income'?'+':'-'}{fmt(t.amount)}
-                  </div>
+              <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:12 }}>CÓMO FUNCIONA</div>
+              {[
+                ['1','Conecta tu Gmail con un clic usando Google OAuth'],
+                ['2','Nexo busca correos de Bancolombia, Davivienda y Nequi'],
+                ['3','Extrae el monto, comercio y fecha de cada alerta'],
+                ['4','Los movimientos aparecen en tu historial automáticamente'],
+              ].map(([n, text]) => (
+                <div key={n} style={{ display:'flex', gap:10, marginBottom:10, alignItems:'flex-start' }}>
+                  <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(59,130,246,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:C.primaryGlow, fontWeight:800, flexShrink:0 }}>{n}</div>
+                  <div style={{ color:C.textSec, fontSize:13, lineHeight:1.5 }}>{text}</div>
                 </div>
               ))}
-              {imported.length > 10 && (
-                <div style={{ color:C.textMuted, fontSize:12, textAlign:'center', marginTop:12 }}>
-                  +{imported.length - 10} movimientos más
-                </div>
-              )}
             </div>
-
-            <button onClick={() => { setImported([]); setStatus('idle'); }}
-              style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:14, cursor:'pointer' }}>
-              Importar otro extracto
-            </button>
-          </div>
+          </>
         )}
 
-        {/* Gmail coming soon */}
-        <div style={{ ...card, background:'rgba(59,130,246,0.06)', border:`1px solid rgba(59,130,246,0.2)` }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
-            <span style={{ fontSize:20 }}>✉️</span>
-            <div style={{ color:C.primaryGlow, fontSize:13, fontWeight:700 }}>Sincronización automática con Gmail</div>
-            <div style={{ marginLeft:'auto', background:'rgba(59,130,246,0.2)', borderRadius:999, padding:'2px 8px', fontSize:10, color:C.primaryGlow, fontWeight:700 }}>PRÓXIMO</div>
-          </div>
-          <div style={{ color:C.textSec, fontSize:12, lineHeight:1.7 }}>
-            Nexo detectará automáticamente los correos de Bancolombia, Davivienda y Nequi y registrará tus movimientos. En desarrollo.
-          </div>
-        </div>
+        {/* ── CSV TAB ── */}
+        {tab === 'csv' && (
+          <>
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>SELECCIONA TU BANCO</div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {BANKS.map(b => (
+                  <button key={b.id} onClick={() => { setSelectedBank(b.id); setCsvStatus('idle'); setImported([]); }}
+                    style={{ ...card, display:'flex', alignItems:'center', gap:12, padding:'14px 16px', cursor:'pointer',
+                      border: selectedBank===b.id ? `1px solid ${b.color}66` : `1px solid ${C.border}`,
+                      background: selectedBank===b.id ? `${b.color}0D` : C.surface, textAlign:'left' }}>
+                    <div style={{ width:40, height:40, borderRadius:12, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{b.icon}</div>
+                    <div style={{ color:C.text, fontSize:15, fontWeight:600 }}>{b.name}</div>
+                    {selectedBank===b.id && <div style={{ marginLeft:'auto', color:b.color, fontSize:18 }}>✓</div>}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {bank && (
+              <div style={{ ...card }}>
+                <div style={{ color:C.text, fontSize:14, fontWeight:700, marginBottom:12 }}>¿Cómo descargar el extracto?</div>
+                {bank.steps.map((step, i) => (
+                  <div key={i} style={{ display:'flex', gap:10, marginBottom:8, alignItems:'flex-start' }}>
+                    <div style={{ width:22, height:22, borderRadius:'50%', background:`${bank.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:bank.color, fontWeight:800, flexShrink:0 }}>{i+1}</div>
+                    <div style={{ color:C.textSec, fontSize:13, lineHeight:1.5 }}>{step}</div>
+                  </div>
+                ))}
+                <input ref={fileRef} type="file" accept=".csv,.txt,.xls,.xlsx" style={{ display:'none' }} onChange={handleFile} />
+                <button onClick={() => fileRef.current?.click()}
+                  style={{ width:'100%', marginTop:16, padding:'14px 0', borderRadius:14, border:'none',
+                    background:`linear-gradient(135deg,${bank.color},${bank.color}CC)`,
+                    color: bank.id==='bancolombia'?'#1a1a1a':'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
+                  📂 Subir extracto de {bank.name}
+                </button>
+              </div>
+            )}
+
+            {csvStatus === 'error' && (
+              <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:14, padding:'14px 16px' }}>
+                <div style={{ color:C.danger, fontSize:13, lineHeight:1.5 }}>⚠️ {csvError}</div>
+              </div>
+            )}
+
+            {csvStatus === 'done' && imported.length > 0 && (
+              <div>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
+                  <div style={{ ...card, textAlign:'center' }}>
+                    <div style={{ color:C.accent, fontSize:24, fontWeight:800 }}>{imported.length}</div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Movimientos</div>
+                  </div>
+                  <div style={{ ...card, textAlign:'center' }}>
+                    <div style={{ color:C.primaryGlow, fontSize:24, fontWeight:800 }}>
+                      {[...new Set(imported.map(t => t.category))].length}
+                    </div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Categorías</div>
+                  </div>
+                </div>
+
+                <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>MOVIMIENTOS IMPORTADOS</div>
+                <div style={{ ...card }}>
+                  {imported.slice(0, 10).map((t, i) => (
+                    <div key={i} style={{ display:'flex', alignItems:'center', gap:10,
+                      paddingBottom: i < Math.min(imported.length,10)-1 ? 12:0,
+                      marginBottom:  i < Math.min(imported.length,10)-1 ? 12:0,
+                      borderBottom:  i < Math.min(imported.length,10)-1 ? `1px solid ${C.border}` : 'none' }}>
+                      <div style={{ width:38, height:38, borderRadius:11,
+                        background:t.type==='income'?'rgba(34,197,94,0.15)':'rgba(59,130,246,0.15)',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
+                        {t.type==='income'?'💰':'💳'}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ color:C.text, fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
+                        <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>{t.category} · {t.date}</div>
+                      </div>
+                      <div style={{ color:t.type==='income'?C.accent:C.text, fontSize:13, fontWeight:700, flexShrink:0 }}>
+                        {t.type==='income'?'+':'-'}{fmt(t.amount)}
+                      </div>
+                    </div>
+                  ))}
+                  {imported.length > 10 && (
+                    <div style={{ color:C.textMuted, fontSize:12, textAlign:'center', marginTop:12 }}>
+                      +{imported.length - 10} movimientos más
+                    </div>
+                  )}
+                </div>
+
+                <button onClick={() => { setImported([]); setCsvStatus('idle'); }}
+                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:14, cursor:'pointer' }}>
+                  Importar otro extracto
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
