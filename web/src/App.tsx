@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
 import { DashboardScreen }      from './screens/DashboardScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
@@ -7,6 +7,7 @@ import { AiChatScreen }         from './screens/AiChatScreen';
 import { SettingsScreen }       from './screens/SettingsScreen';
 import { AddTransactionScreen } from './screens/AddTransactionScreen';
 import { TabBar }               from './components/TabBar';
+import { handleOAuthCallback }  from './services/gmail';
 
 type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai' | 'settings';
 
@@ -14,6 +15,16 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [screen, setScreen]     = useState<Screen>('dashboard');
   const [showAdd, setShowAdd]   = useState(false);
+
+  useEffect(()=>{
+    // If Google redirected back with an OAuth token, capture it
+    if (window.location.hash.includes('access_token')) {
+      handleOAuthCallback();
+      // Go to settings so the user sees the sync button
+      setLoggedIn(true);
+      setScreen('settings');
+    }
+  }, []);
 
   if (!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} />;
 
