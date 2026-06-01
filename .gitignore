@@ -40,3 +40,4 @@ coverage/
 # Expo
 *.orig.*
 web-build/
+package-lock.json
