@@ -54,6 +54,34 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
+  // "Transferiste $X" → expense (transfer out)
+  const transferisteMatch = text.match(/[Tt]ransferiste\s+\$?([\d.,]+)/);
+  if (transferisteMatch) {
+    const amount = parseColombianAmount(transferisteMatch[1]);
+    return {
+      amount,
+      type: 'expense',
+      description: 'Transferencia enviada Bancolombia',
+      category: 'Transferencias',
+      date: new Date().toISOString(),
+      rawText: text,
+    };
+  }
+
+  // "Te llegó una transferencia de $X" / "Recibiste $X" → income
+  const recibisteMatch = text.match(/(?:[Tt]e\s+lleg[oó]|[Rr]ecibiste)\s+(?:una\s+transferencia\s+de\s+)?\$?([\d.,]+)/);
+  if (recibisteMatch) {
+    const amount = parseColombianAmount(recibisteMatch[1]);
+    return {
+      amount,
+      type: 'income',
+      description: 'Transferencia recibida Bancolombia',
+      category: 'Transferencias',
+      date: new Date().toISOString(),
+      rawText: text,
+    };
+  }
+
   // Transferencia recibida por $X
   const transferenciaRecibidaMatch = text.match(
     /[Tt]ransferencia\s+recibida\s+por\s+\$?([\d.,]+)/,
