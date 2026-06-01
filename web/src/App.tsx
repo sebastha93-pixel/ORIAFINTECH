@@ -11,11 +11,16 @@ import { TabBar }               from './components/TabBar';
 type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai' | 'settings';
 
 export default function App() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem('nexo_logged_in') === '1');
   const [screen, setScreen]     = useState<Screen>('dashboard');
   const [showAdd, setShowAdd]   = useState(false);
 
-  if (!loggedIn) return <LoginScreen onLogin={() => setLoggedIn(true)} />;
+  function handleLogin() {
+    localStorage.setItem('nexo_logged_in', '1');
+    setLoggedIn(true);
+  }
+
+  if (!loggedIn) return <LoginScreen onLogin={handleLogin} />;
 
   function handleTab(id: string) {
     if (id === 'add') { setShowAdd(true); return; }

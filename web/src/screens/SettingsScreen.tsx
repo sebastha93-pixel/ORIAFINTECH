@@ -117,6 +117,27 @@ export function SettingsScreen() {
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
 
+  // Auto-sync today's notifications when screen mounts if already connected
+  useEffect(() => {
+    const uid = localStorage.getItem('nexo_uid');
+    if (!uid) return;
+    fetch(`${RAILWAY_API}/email-sync/status-public?userId=${encodeURIComponent(uid)}`)
+      .then(r => r.json() as Promise<{ connected: boolean; lastSync: string | null; transactionsCreated: number }>)
+      .then(d => {
+        if (d.connected) {
+          setGmailConnected(true);
+          setLastSync(d.lastSync ? new Date(d.lastSync).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }) : null);
+          // Trigger a sync immediately to catch today's notifications
+          fetch(`${RAILWAY_API}/email-sync/sync-public?userId=${encodeURIComponent(uid)}`, { method:'POST' })
+            .then(r => r.json() as Promise<{ transactionsCreated: number }>)
+            .then(s => { if (s.transactionsCreated > 0) setGmailCount(prev => prev + s.transactionsCreated); })
+            .catch(() => {/* silent */});
+        }
+      })
+      .catch(() => {/* silent */});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Detect ?gmail=connected on load (iPhone full-redirect flow)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
