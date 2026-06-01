@@ -1,16 +1,18 @@
 FROM node:20-alpine
 
-WORKDIR /app
-
-# Install NestJS CLI globally
 RUN npm install -g @nestjs/cli
 
-# Copy package files
-COPY package.json ./
+WORKDIR /app
+
+# Copy API dependencies and config (paths relative to repo root)
+COPY apps/api/package.json ./package.json
+COPY apps/api/tsconfig.json ./tsconfig.json
+COPY apps/api/nest-cli.json ./nest-cli.json
+
 RUN npm install
 
 # Copy source
-COPY . .
+COPY apps/api/src ./src
 
 # Build
 RUN nest build
