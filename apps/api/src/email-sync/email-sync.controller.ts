@@ -15,7 +15,7 @@ import { EmailSyncService } from './email-sync.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-const successHtml = (email: string, userId: string, count: number) => `<!DOCTYPE html>
+const successHtml = (email: string, userId: string, count: number, frontendUrl: string) => `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -44,10 +44,9 @@ const successHtml = (email: string, userId: string, count: number) => `<!DOCTYPE
         window.opener.postMessage({ type: 'nexo_gmail_connected', email: '${email}', userId: '${userId}', count: ${count} }, '*');
         window.close();
       } else {
-        window.location.href = '/';
+        window.location.href = '${frontendUrl}?gmail=connected&email=${encodeURIComponent(email)}&count=${count}';
       }
     }
-    // Auto-notify after short delay
     setTimeout(notify, 1200);
   </script>
 </body>
@@ -125,7 +124,8 @@ export class EmailSyncController {
         this.logger.warn(`Initial sync had ${errors.length} errors: ${errors.join('; ')}`);
       }
 
-      return successHtml(email, state, transactionsCreated);
+      const frontendUrl = this.emailSyncService.getFrontendUrl();
+      return successHtml(email, state, transactionsCreated, frontendUrl);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`OAuth callback error: ${msg}`);

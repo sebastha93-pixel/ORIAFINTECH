@@ -74,6 +74,10 @@ export class EmailSyncService {
 
   // ─── OAuth helpers ────────────────────────────────────────────────────────
 
+  getFrontendUrl(): string {
+    return this.configService.get<string>('FRONTEND_URL') ?? 'https://nexo-finanzas-tech-api.vercel.app';
+  }
+
   getAuthUrl(state?: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,

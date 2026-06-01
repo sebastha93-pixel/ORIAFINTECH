@@ -117,7 +117,20 @@ export function SettingsScreen() {
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
 
-  // Listen for postMessage from the Railway OAuth popup
+  // Detect ?gmail=connected on load (iPhone full-redirect flow)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gmail') === 'connected') {
+      setGmailConnected(true);
+      setGmailEmail(params.get('email') ?? '');
+      setGmailCount(Number(params.get('count') ?? 0));
+      setLastSync(new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }));
+      // Clean URL without reloading
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  // Listen for postMessage from the Railway OAuth popup (desktop)
   useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.data?.type === 'nexo_gmail_connected') {
