@@ -11,9 +11,12 @@ export const SUPABASE_CLIENT = 'SUPABASE_CLIENT';
       provide: SUPABASE_CLIENT,
       inject: [ConfigService],
       useFactory: (configService: ConfigService): SupabaseClient => {
+        const key =
+          configService.get<string>('SUPABASE_SERVICE_ROLE_KEY') ??
+          configService.getOrThrow<string>('SUPABASE_ANON_KEY');
         return createClient(
           configService.getOrThrow<string>('SUPABASE_URL'),
-          configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY'),
+          key,
         );
       },
     },
