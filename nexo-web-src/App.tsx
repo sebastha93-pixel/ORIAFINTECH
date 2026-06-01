@@ -1,0 +1,36 @@
+import React, { useState } from 'react';
+import { LoginScreen }        from './screens/LoginScreen';
+import { DashboardScreen }    from './screens/DashboardScreen';
+import { TransactionsScreen } from './screens/TransactionsScreen';
+import { GoalsScreen }        from './screens/GoalsScreen';
+import { AiChatScreen }       from './screens/AiChatScreen';
+import { AddTransactionScreen } from './screens/AddTransactionScreen';
+import { TabBar }             from './components/TabBar';
+
+type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai';
+
+export default function App() {
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [screen, setScreen]     = useState<Screen>('dashboard');
+  const [showAdd, setShowAdd]   = useState(false);
+
+  if (!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} />;
+
+  function handleTab(id: string) {
+    if (id === 'add') { setShowAdd(true); return; }
+    setScreen(id as Screen);
+  }
+
+  return (
+    <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14', overflowX:'hidden' }}>
+      {screen === 'dashboard'    && <DashboardScreen />}
+      {screen === 'transactions' && <TransactionsScreen />}
+      {screen === 'goals'        && <GoalsScreen />}
+      {screen === 'ai'           && <AiChatScreen />}
+
+      <TabBar active={screen} onTab={handleTab} />
+
+      {showAdd && <AddTransactionScreen onClose={()=>setShowAdd(false)} />}
+    </div>
+  );
+}
