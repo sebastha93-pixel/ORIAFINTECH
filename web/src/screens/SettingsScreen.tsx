@@ -97,9 +97,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [csvStatus, setCsvStatus]   = useState<'idle'|'done'|'error'>('idle');
   const [csvError, setCsvError]     = useState('');
 
-  // Gmail state
-  const [gmailConnected, setGmailConnected] = useState(false);
-  const [gmailEmail, setGmailEmail]         = useState('');
+  // Gmail state — seed from cache to avoid flash on navigation
+  const [gmailConnected, setGmailConnected] = useState(() => localStorage.getItem('nexo_gmail_connected') === '1');
+  const [gmailEmail, setGmailEmail]         = useState(() => localStorage.getItem('nexo_gmail_email') ?? '');
   const [gmailCount, setGmailCount]         = useState(0);
   const [gmailLoading, setGmailLoading]     = useState(false);
   const [gmailError, setGmailError]         = useState('');
@@ -117,6 +117,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       .then(d => {
         if (d.connected) {
           setGmailConnected(true);
+          localStorage.setItem('nexo_gmail_connected', '1');
           setLastSync(d.lastSync ? new Date(d.lastSync).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }) : null);
           // Trigger a sync immediately to catch today's notifications
           fetch(`${RAILWAY_API}/email-sync/sync-public?userId=${encodeURIComponent(uid)}`, { method:'POST' })
@@ -134,7 +135,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
     const params = new URLSearchParams(window.location.search);
     if (params.get('gmail') === 'connected') {
       setGmailConnected(true);
-      setGmailEmail(params.get('email') ?? '');
+      localStorage.setItem('nexo_gmail_connected', '1');
+      const em = params.get('email') ?? '';
+      setGmailEmail(em);
+      if (em) localStorage.setItem('nexo_gmail_email', em);
       setGmailCount(Number(params.get('count') ?? 0));
       setLastSync(new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }));
       // Clean URL without reloading
@@ -147,7 +151,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
     function onMessage(e: MessageEvent) {
       if (e.data?.type === 'nexo_gmail_connected') {
         setGmailConnected(true);
-        setGmailEmail(e.data.email ?? '');
+        localStorage.setItem('nexo_gmail_connected', '1');
+        const em = e.data.email ?? '';
+        setGmailEmail(em);
+        if (em) localStorage.setItem('nexo_gmail_email', em);
         setGmailCount(e.data.count ?? 0);
         setGmailLoading(false);
         setLastSync(new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }));
@@ -421,7 +428,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       {/* Logout */}
       <div style={{ padding:'8px 16px 32px' }}>
         <button
-          onClick={() => supabase.auth.signOut()}
+          onClick={() => { localStorage.removeItem('nexo_gmail_connected'); localStorage.removeItem('nexo_gmail_email'); supabase.auth.signOut(); }}
           style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.3)`, background:'rgba(239,68,68,0.07)', color:C.danger, fontSize:15, fontWeight:700, cursor:'pointer' }}>
           Cerrar sesión
         </button>
