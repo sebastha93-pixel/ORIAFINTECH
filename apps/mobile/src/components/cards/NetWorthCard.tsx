@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
-import { NetWorthSnapshot } from '@nexo/shared';
+import { NetWorthSnapshot } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { formatCurrency } from '../../utils/format';
 

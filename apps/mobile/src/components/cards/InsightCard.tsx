@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { AiInsight } from '@nexo/shared';
+import { AiInsight } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 
 const SEVERITY: Record<string, { color: string; bg: string; icon: string; label: string }> = {

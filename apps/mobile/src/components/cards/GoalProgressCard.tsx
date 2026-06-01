@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Goal } from '@nexo/shared';
+import { Goal } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { formatCurrency } from '../../utils/format';
 

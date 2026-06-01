@@ -7,7 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { api } from '../../services/api';
-import { Transaction } from '@nexo/shared';
+import { Transaction } from '../../types';
 
 // ─── helpers ───────────────────────────────────────────────
 const fmt = (n: number) =>

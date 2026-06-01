@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
-import { Profile } from '@nexo/shared';
+import { Profile } from '../../types';
 
 interface AuthState {
   user: { id: string; email: string } | null;

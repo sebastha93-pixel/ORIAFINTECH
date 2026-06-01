@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Transaction } from '@nexo/shared';
+import { Transaction } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { formatCurrency, formatDate } from '../../utils/format';
 

@@ -14,7 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { api } from '../../services/api';
-import { AiMessage } from '@nexo/shared';
+import { AiMessage } from '../../types';
 
 const QUICK_PROMPTS = [
   '¿Cuánto gasté en restaurantes este mes?',

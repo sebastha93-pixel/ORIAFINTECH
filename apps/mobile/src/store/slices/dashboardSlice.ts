@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { api } from '../../services/api';
-import { DashboardSummary } from '@nexo/shared';
+import { DashboardSummary } from '../../types';
 
 interface DashboardState {
   data: DashboardSummary | null;

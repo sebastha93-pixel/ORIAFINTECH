@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import * as SecureStore from 'expo-secure-store';
-import { DashboardSummary, Transaction, Account, Goal, Asset, Liability, AiChatResponse, AiInsight } from '@nexo/shared';
+import { DashboardSummary, Transaction, Account, Goal, Asset, Liability, AiChatResponse, AiInsight } from '../types';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 

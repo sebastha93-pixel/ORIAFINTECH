@@ -8,7 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { api } from '../../services/api';
-import { Account, Category, TransactionType } from '@nexo/shared';
+import { Account, Category, TransactionType } from '../../types';
 
 // ─── helpers ───────────────────────────────────────────────
 const today = () => new Date().toISOString().slice(0, 10);

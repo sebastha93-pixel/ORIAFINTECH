@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { CategorySpending } from '@nexo/shared';
+import { CategorySpending } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { formatCurrency } from '../../utils/format';
 
