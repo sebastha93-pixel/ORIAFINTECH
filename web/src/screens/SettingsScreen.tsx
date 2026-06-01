@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { C, fmt, card } from '../theme';
 
-const RAILWAY_API = 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
+const RAILWAY_API = import.meta.env.VITE_API_URL as string ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
 
 interface Transaction {
   date:        string;
@@ -13,15 +13,6 @@ interface Transaction {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getUserId(): string {
-  let uid = localStorage.getItem('nexo_uid');
-  if (!uid) {
-    uid = crypto.randomUUID();
-    localStorage.setItem('nexo_uid', uid);
-  }
-  return uid;
-}
 
 function guessCategory(desc: string, type: 'income' | 'expense'): string {
   if (type === 'income') {
@@ -98,7 +89,7 @@ const BANKS = [
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SettingsScreen() {
+export function SettingsScreen({ userId }: { userId: string }) {
   const [tab, setTab]               = useState<'gmail'|'csv'>('gmail');
   const [selectedBank, setSelectedBank] = useState<string|null>(null);
   const [imported, setImported]     = useState<Transaction[]>([]);
@@ -119,8 +110,7 @@ export function SettingsScreen() {
 
   // Auto-sync today's notifications when screen mounts if already connected
   useEffect(() => {
-    const uid = localStorage.getItem('nexo_uid');
-    if (!uid) return;
+    const uid = userId;
     fetch(`${RAILWAY_API}/email-sync/status-public?userId=${encodeURIComponent(uid)}`)
       .then(r => r.json() as Promise<{ connected: boolean; lastSync: string | null; transactionsCreated: number }>)
       .then(d => {
@@ -169,7 +159,6 @@ export function SettingsScreen() {
   async function syncNow() {
     setSyncing(true);
     try {
-      const userId = getUserId();
       const res = await fetch(`${RAILWAY_API}/email-sync/sync-public?userId=${encodeURIComponent(userId)}`, { method: 'POST' });
       const data = await res.json() as { transactionsCreated: number };
       setGmailCount(prev => prev + (data.transactionsCreated ?? 0));
@@ -183,7 +172,6 @@ export function SettingsScreen() {
     setGmailLoading(true);
     setGmailError('');
     try {
-      const userId = getUserId();
       const res = await fetch(`${RAILWAY_API}/email-sync/auth/google?state=${encodeURIComponent(userId)}`);
       const data = await res.json() as { url: string };
 
