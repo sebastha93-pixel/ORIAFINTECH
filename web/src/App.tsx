@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
 import { DashboardScreen }      from './screens/DashboardScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
@@ -15,7 +15,17 @@ export default function App() {
   const [screen, setScreen]     = useState<Screen>('dashboard');
   const [showAdd, setShowAdd]   = useState(false);
 
-  if (!loggedIn) return <LoginScreen onLogin={()=>setLoggedIn(true)} />;
+  useEffect(() => {
+    // Handles return from full-redirect OAuth (Safari / popup blocked)
+    const justConnected = sessionStorage.getItem('nexo_just_connected');
+    if (justConnected) {
+      sessionStorage.removeItem('nexo_just_connected');
+      setLoggedIn(true);
+      setScreen('settings');
+    }
+  }, []);
+
+  if (!loggedIn) return <LoginScreen onLogin={() => setLoggedIn(true)} />;
 
   function handleTab(id: string) {
     if (id === 'add') { setShowAdd(true); return; }
@@ -32,7 +42,7 @@ export default function App() {
 
       <TabBar active={screen} onTab={handleTab} />
 
-      {showAdd && <AddTransactionScreen onClose={()=>setShowAdd(false)} />}
+      {showAdd && <AddTransactionScreen onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

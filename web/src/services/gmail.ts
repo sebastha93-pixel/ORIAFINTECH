@@ -20,21 +20,21 @@ export function startGmailAuth(
   onSuccess: (token: string) => void,
   onError:   (err: string)   => void,
 ) {
+  const redirectUri = `${window.location.origin}/callback.html`;
   const params = new URLSearchParams({
     client_id:     CLIENT_ID,
-    redirect_uri:  REDIRECT_URI,
+    redirect_uri:  redirectUri,
     response_type: 'token',
     scope:         SCOPES,
   });
+  const authUrl = `https://accounts.google.com/o/oauth2/auth?${params}`;
 
-  const popup = window.open(
-    `https://accounts.google.com/o/oauth2/auth?${params}`,
-    'nexo_gmail_auth',
-    'width=500,height=640,left=400,top=150,toolbar=no,menubar=no',
-  );
+  // Try popup first
+  const popup = window.open(authUrl, 'nexo_gmail_auth', 'width=500,height=640,left=400,top=150,toolbar=no,menubar=no');
 
-  if (!popup) {
-    onError('El navegador bloqueó el popup. Permite popups para localhost:5173 e intenta de nuevo.');
+  if (!popup || popup.closed) {
+    // Safari / popup blocked → full redirect (callback.html handles return)
+    window.location.href = authUrl;
     return;
   }
 
@@ -43,7 +43,6 @@ export function startGmailAuth(
     window.removeEventListener('message', handleMessage);
     clearInterval(closedCheck);
     if (event.data?.type === 'nexo_gmail_token') {
-      localStorage.setItem(TOKEN_KEY, event.data.token as string);
       onSuccess(event.data.token as string);
     } else if (event.data?.type === 'nexo_gmail_error') {
       onError(`Google: ${event.data.error as string}`);
@@ -59,7 +58,6 @@ export function startGmailAuth(
     }
   }, 800);
 }
-
 
 export function getStoredToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
