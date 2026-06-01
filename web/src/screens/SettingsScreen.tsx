@@ -111,6 +111,8 @@ export function SettingsScreen() {
   const [gmailCount, setGmailCount]         = useState(0);
   const [gmailLoading, setGmailLoading]     = useState(false);
   const [gmailError, setGmailError]         = useState('');
+  const [syncing, setSyncing]               = useState(false);
+  const [lastSync, setLastSync]             = useState<string|null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
@@ -123,11 +125,25 @@ export function SettingsScreen() {
         setGmailEmail(e.data.email ?? '');
         setGmailCount(e.data.count ?? 0);
         setGmailLoading(false);
+        setLastSync(new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }));
       }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, []);
+
+  async function syncNow() {
+    setSyncing(true);
+    try {
+      const userId = getUserId();
+      const res = await fetch(`${RAILWAY_API}/email-sync/sync-public?userId=${encodeURIComponent(userId)}`, { method: 'POST' });
+      const data = await res.json() as { transactionsCreated: number };
+      setGmailCount(prev => prev + (data.transactionsCreated ?? 0));
+      setLastSync(new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }));
+    } catch { /* silent */ } finally {
+      setSyncing(false);
+    }
+  }
 
   async function connectGmail() {
     setGmailLoading(true);
@@ -245,8 +261,19 @@ export function SettingsScreen() {
                 <div style={{ background:'rgba(34,197,94,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
                   {gmailCount} movimiento{gmailCount !== 1 ? 's' : ''} importado{gmailCount !== 1 ? 's' : ''} automáticamente
                 </div>
-                <div style={{ color:C.textMuted, fontSize:12, marginTop:10, textAlign:'center' }}>
-                  Nexo sincroniza nuevos movimientos cada vez que llega un correo del banco.
+                {lastSync && (
+                  <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center' }}>
+                    Última sync: {lastSync}
+                  </div>
+                )}
+                <button onClick={syncNow} disabled={syncing}
+                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:'none', cursor: syncing ? 'default' : 'pointer',
+                    background: syncing ? C.surface : 'rgba(34,197,94,0.15)',
+                    color: C.accent, fontSize:14, fontWeight:700, opacity: syncing ? 0.7 : 1 }}>
+                  {syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar ahora'}
+                </button>
+                <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
+                  Nexo sincroniza automáticamente 2 veces al día (6am y 8pm).
                 </div>
               </div>
             )}

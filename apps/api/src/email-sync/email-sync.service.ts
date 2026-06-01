@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '../common/supabase/supabase.module';
@@ -50,7 +51,7 @@ interface GmailFullMessage {
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const BANK_QUERY =
-  'from:(alertas@notificaciones.bancolombia.com OR alertas@davivienda.com OR info@nequi.com) newer_than:7d is:unread';
+  'from:(alertas@notificaciones.bancolombia.com OR notificaciones@bancolombia.com OR alertas@davivienda.com OR notificaciones@davivienda.com OR info@nequi.com OR nequi@info.nequi.com) newer_than:30d';
 
 @Injectable()
 export class EmailSyncService {
@@ -486,5 +487,33 @@ export class EmailSyncService {
       .maybeSingle();
 
     return data?.id ?? null;
+  }
+
+  // ─── Cron: sync all users every day at 6am and 8pm Colombia time (UTC-5) ──
+
+  @Cron('0 11,1 * * *') // 06:00 and 20:00 COT = 11:00 and 01:00 UTC
+  async syncAllUsers(): Promise<void> {
+    this.logger.log('Cron: starting Gmail sync for all connected users…');
+
+    const { data: connections, error } = await this.supabase
+      .from('email_connections')
+      .select('user_id');
+
+    if (error || !connections?.length) {
+      this.logger.log('Cron: no connected users found.');
+      return;
+    }
+
+    let total = 0;
+    for (const { user_id } of connections) {
+      try {
+        const { transactionsCreated } = await this.syncEmails(user_id as string);
+        total += transactionsCreated;
+      } catch (err) {
+        this.logger.warn(`Cron: sync failed for user ${user_id as string}: ${String(err)}`);
+      }
+    }
+
+    this.logger.log(`Cron: sync complete — ${total} new transactions across ${connections.length} users.`);
   }
 }
