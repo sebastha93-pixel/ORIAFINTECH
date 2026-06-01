@@ -78,7 +78,7 @@ export class EmailSyncService {
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/gmail.readonly',
+      scope: 'openid email https://www.googleapis.com/auth/gmail.readonly',
       access_type: 'offline',
       prompt: 'consent',
       ...(state ? { state } : {}),
