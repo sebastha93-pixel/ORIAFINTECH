@@ -14,7 +14,7 @@ export class AiService {
     private readonly configService: ConfigService,
   ) {
     this.openai = new OpenAI({
-      apiKey: configService.getOrThrow<string>('OPENAI_API_KEY'),
+      apiKey: configService.get<string>('OPENAI_API_KEY') ?? 'sk-placeholder',
     });
   }
 
