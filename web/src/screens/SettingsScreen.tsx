@@ -22,8 +22,8 @@ interface BankAccount {
   account_suffix:           string | null;
   account_holder:           string | null;
   currency_code:            string;
-  initial_balance:          number | null;
-  initial_balance_set_date: string | null;  // ISO date "YYYY-MM-DD"
+  initial_balance:    number | null;
+  initial_balance_set_at: string | null;  // ISO timestamp
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function loadAccounts() {
     const { data } = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_date')
+      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at')
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
@@ -177,13 +177,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
     setBalanceDraft(prev => ({ ...drafts, ...prev }));
   }
 
-  function todayISO() {
-    return new Date().toISOString().slice(0, 10);
-  }
-
   function canEditBalance(acc: BankAccount): boolean {
-    // Editable if never set, or set today
-    return !acc.initial_balance_set_date || acc.initial_balance_set_date === todayISO();
+    if (!acc.initial_balance_set_at) return true;
+    const setDay = new Date(acc.initial_balance_set_at).toDateString();
+    return setDay === new Date().toDateString();
   }
 
   async function saveInitialBalance(acc: BankAccount) {
@@ -192,7 +189,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
     setSavingBalance(prev => ({ ...prev, [acc.id]: true }));
     const { error } = await supabase.from('accounts').update({
       initial_balance: amount,
-      initial_balance_set_date: todayISO(),
+      initial_balance_set_at: new Date().toISOString(),
     }).eq('id', acc.id).eq('user_id', userId);
     setSavingBalance(prev => ({ ...prev, [acc.id]: false }));
     if (!error) await loadAccounts();
@@ -339,8 +336,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
         });
         if (!match) continue;
 
-        // Only import transactions from the date the initial balance was set onwards
-        if (match.initial_balance_set_date && email.date < match.initial_balance_set_date) continue;
+        // Only import transactions from the exact moment the initial balance was set
+        if (match.initial_balance_set_at && email.date < match.initial_balance_set_at) continue;
 
         parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
       }
@@ -363,7 +360,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
           transaction_type: txn.type,
           amount: txn.amount,
           description: txn.description,
-          date: txn.date,
+          date: txn.date.slice(0, 10),
           gmail_message_id: txn.messageId,
           currency_code: 'COP',
           notes: 'Auto-importado',
@@ -629,7 +626,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                           </span>
                           <span style={{ fontSize:12, color:C.textMuted }}>🔒</span>
                           <span style={{ color:C.textMuted, fontSize:10 }}>
-                            fijado el {acc.initial_balance_set_date}
+                            fijado el {acc.initial_balance_set_at ? new Date(acc.initial_balance_set_at).toLocaleString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : ''}
                           </span>
                         </div>
                       )}

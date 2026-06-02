@@ -431,7 +431,7 @@ export class EmailSyncService {
     // Load user's registered accounts
     const { data: userAccounts } = await this.supabase
       .from('accounts')
-      .select('id, institution, account_suffix, account_holder, initial_balance_set_date')
+      .select('id, institution, account_suffix, account_holder, initial_balance_set_at')
       .eq('user_id', userId)
       .eq('is_active', true);
 
@@ -464,15 +464,16 @@ export class EmailSyncService {
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    // Determine the email date from internalDate (ms since epoch) or fallback
-    const emailDate = message.internalDate
-      ? new Date(parseInt(message.internalDate, 10)).toISOString().split('T')[0]
-      : parsed.date.split('T')[0];
+    // Full ISO timestamp for exact cutoff comparison
+    const emailTimestamp = message.internalDate
+      ? new Date(parseInt(message.internalDate, 10)).toISOString()
+      : parsed.date;
+    const emailDate = emailTimestamp.slice(0, 10);
 
-    // Only import transactions from the date the initial balance was set onwards
-    const cutoffDate = (matchedAccount as { initial_balance_set_date: string | null }).initial_balance_set_date;
-    if (cutoffDate && emailDate < cutoffDate) {
-      this.logger.debug(`Message ${messageId} (${emailDate}) is before initial balance cutoff (${cutoffDate}), skipping`);
+    // Only import transactions from the exact moment the initial balance was set
+    const cutoffAt = (matchedAccount as { initial_balance_set_at: string | null }).initial_balance_set_at;
+    if (cutoffAt && emailTimestamp < cutoffAt) {
+      this.logger.debug(`Message ${messageId} (${emailTimestamp}) is before initial balance cutoff (${cutoffAt}), skipping`);
       return false;
     }
 
@@ -569,8 +570,8 @@ export class EmailSyncService {
       const subject = this.getHeader(full.payload, 'subject');
       const body = this.extractEmailBody(full.payload);
       const date = full.internalDate
-        ? new Date(parseInt(full.internalDate, 10)).toISOString().split('T')[0]
-        : new Date().toISOString().split('T')[0];
+        ? new Date(parseInt(full.internalDate, 10)).toISOString()
+        : new Date().toISOString();
 
       results.push({ messageId: msg.id, bank, subject, body: body.slice(0, 3000), date });
     }
