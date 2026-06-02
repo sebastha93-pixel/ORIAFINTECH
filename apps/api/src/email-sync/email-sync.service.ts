@@ -334,30 +334,31 @@ export class EmailSyncService {
   }
 
   private extractEmailBody(payload: GmailMessagePayload): string {
-    // Prefer text/plain, fall back to text/html
     if (payload.mimeType === 'text/plain' && payload.body?.data) {
       return this.decodeBase64(payload.body.data);
     }
 
     if (payload.mimeType === 'text/html' && payload.body?.data) {
       const html = this.decodeBase64(payload.body.data);
-      // Strip HTML tags for plain text parsing
       return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     }
 
     if (payload.parts) {
-      // Try text/plain first
+      // Try text/plain first — but only if non-empty after trimming
       const plain = payload.parts.find((p) => p.mimeType === 'text/plain');
-      if (plain) return this.extractEmailBody(plain);
+      if (plain) {
+        const plainText = this.extractEmailBody(plain);
+        if (plainText.trim()) return plainText;
+      }
 
-      // Then text/html
+      // Fall back to text/html (preferred for bank notification emails)
       const html = payload.parts.find((p) => p.mimeType === 'text/html');
       if (html) return this.extractEmailBody(html);
 
-      // Recurse into multipart
+      // Recurse into nested multipart
       for (const part of payload.parts) {
         const body = this.extractEmailBody(part);
-        if (body) return body;
+        if (body.trim()) return body;
       }
     }
 
@@ -495,21 +496,34 @@ export class EmailSyncService {
 
   // ─── Debug: return raw text of first 3 bank emails ──────────────────────────
 
-  async debugSample(userId: string): Promise<{ sample: string; subject: string; from: string }[]> {
+  async debugSample(userId: string): Promise<{ sample: string; subject: string; from: string; parsed: string; bodyLen: number }[]> {
     const { data: connection } = await this.supabase
       .from('email_connections').select('*').eq('user_id', userId).maybeSingle();
-    if (!connection) return [{ sample: 'No connection found', subject: '', from: '' }];
+    if (!connection) return [{ sample: 'No connection found', subject: '', from: '', parsed: 'no-connection', bodyLen: 0 }];
 
     const accessToken = await this.getValidAccessToken(connection as EmailConnection);
     const messages = await this.listMessages(accessToken, BANK_QUERY);
-    const results: { sample: string; subject: string; from: string }[] = [];
+    const results: { sample: string; subject: string; from: string; parsed: string; bodyLen: number }[] = [];
 
-    for (const msg of messages.slice(0, 3)) {
+    for (const msg of messages.slice(0, 5)) {
       const full = await this.getMessage(accessToken, msg.id);
       const from = this.getHeader(full.payload, 'from');
       const subject = this.getHeader(full.payload, 'subject');
       const body = this.extractEmailBody(full.payload);
-      results.push({ from, subject, sample: body.slice(0, 400) });
+
+      const bank = this.detectBank(from);
+      let parsed = `bank=${bank ?? 'UNKNOWN'}`;
+      if (bank) {
+        const result: ParsedTransaction | null =
+          bank === 'bancolombia' ? parseBancolombia(body, subject) :
+          bank === 'davivienda'  ? parseDavivienda(body, subject) :
+          parseNequi(body, subject);
+        parsed = result
+          ? JSON.stringify({ type: result.type, amount: result.amount, desc: result.description })
+          : `${bank}:NO_MATCH`;
+      }
+
+      results.push({ from, subject, sample: body.slice(0, 500), parsed, bodyLen: body.length });
     }
     return results;
   }

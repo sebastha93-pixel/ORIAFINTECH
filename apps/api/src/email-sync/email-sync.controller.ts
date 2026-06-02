@@ -176,7 +176,7 @@ export class EmailSyncController {
 
   @Get('debug-public')
   @ApiQuery({ name: 'userId', required: true })
-  async debugPublic(@Query('userId') userId: string): Promise<{ sample: string; subject: string; from: string }[]> {
+  async debugPublic(@Query('userId') userId: string): Promise<{ sample: string; subject: string; from: string; parsed: string; bodyLen: number }[]> {
     return this.emailSyncService.debugSample(userId);
   }
 

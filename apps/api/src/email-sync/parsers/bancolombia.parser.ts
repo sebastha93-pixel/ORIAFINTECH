@@ -45,7 +45,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   const text = emailBody + ' ' + subject;
 
   // "Pagaste $X a MERCHANT desde" → expense
-  const pagoMatch = text.match(/[Pp]agaste\s+\$?([\d.,]+)\s+a\s+([\w\s]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
+  const pagoMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+a\s+([\w\s]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
   if (pagoMatch) {
     const amount = parseAmount(pagoMatch[1]);
     const merchant = pagoMatch[2].trim().replace(/\s+/g, ' ');
@@ -61,7 +61,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   }
 
   // "transferiste $X" → expense (works across line breaks since \s+ matches \r\n)
-  const transferisteMatch = text.match(/transferiste\s+\$?([\d.,]+)/i);
+  const transferisteMatch = text.match(/transferiste\s+\$?\s*([\d.,]+)/i);
   if (transferisteMatch) {
     const amount = parseAmount(transferisteMatch[1]);
     return {
@@ -75,7 +75,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   }
 
   // "Compra aprobada por $X en MERCHANT"
-  const compraMatch = text.match(/[Cc]ompra\s+aprobada\s+por\s+\$?([\d.,]+)\s+en\s+([^\n\r.]+)/);
+  const compraMatch = text.match(/[Cc]ompra\s+aprobada\s+por\s+\$?\s*([\d.,]+)\s+en\s+([^\n\r.]+)/);
   if (compraMatch) {
     const amount = parseAmount(compraMatch[1]);
     const merchant = compraMatch[2].trim().replace(/\s+/g, ' ');
@@ -91,7 +91,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   }
 
   // "Transferencia recibida por $X"
-  const transRecibidaMatch = text.match(/[Tt]ransferencia\s+recibida\s+por\s+\$?([\d.,]+)/);
+  const transRecibidaMatch = text.match(/[Tt]ransferencia\s+recibida\s+por\s+\$?\s*([\d.,]+)/);
   if (transRecibidaMatch) {
     const amount = parseAmount(transRecibidaMatch[1]);
     return {
@@ -105,7 +105,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   }
 
   // "te llegó" / "Recibiste" → income
-  const recibisteMatch = text.match(/(?:[Tt]e\s+lleg[oó]|[Rr]ecibiste)\s+(?:una\s+transferencia\s+de\s+)?\$?([\d.,]+)/);
+  const recibisteMatch = text.match(/(?:[Tt]e\s+lleg[oó]|[Rr]ecibiste)\s+(?:una\s+transferencia\s+de\s+)?\$?\s*([\d.,]+)/);
   if (recibisteMatch) {
     const amount = parseAmount(recibisteMatch[1]);
     return {
@@ -119,14 +119,14 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   }
 
   // "Retiro en cajero por $X"
-  const retiroMatch = text.match(/[Rr]etiro\s+en\s+cajero\s+por\s+\$?([\d.,]+)/);
+  const retiroMatch = text.match(/[Rr]etiro\s+en\s+cajero\s+por\s+\$?\s*([\d.,]+)/);
   if (retiroMatch) {
     const amount = parseAmount(retiroMatch[1]);
     return { amount, type: 'expense', description: 'Retiro en cajero', category: 'Efectivo', date: new Date().toISOString(), rawText: text };
   }
 
   // "Pago de nómina por $X"
-  const nominaMatch = text.match(/[Pp]ago\s+de\s+n[oó]mina\s+por\s+\$?([\d.,]+)/);
+  const nominaMatch = text.match(/[Pp]ago\s+de\s+n[oó]mina\s+por\s+\$?\s*([\d.,]+)/);
   if (nominaMatch) {
     const amount = parseAmount(nominaMatch[1]);
     return { amount, type: 'income', description: 'Pago de nómina', category: 'Salario', date: new Date().toISOString(), rawText: text };
