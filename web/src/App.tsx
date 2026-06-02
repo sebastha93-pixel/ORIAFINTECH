@@ -28,11 +28,11 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Scroll to top after every screen change
+  // Scroll to top after every screen change (iOS Safari compatible)
   useEffect(() => {
-    window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+    window.scrollTo(0, 0);
   }, [screen]);
 
   if (loading) {
@@ -51,7 +51,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14', overflowX:'hidden' }}>
+    <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14' }}>
       {screen === 'dashboard'    && <DashboardScreen />}
       {screen === 'transactions' && <TransactionsScreen />}
       {screen === 'goals'        && <GoalsScreen />}
