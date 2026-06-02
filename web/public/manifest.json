@@ -1,12 +1,12 @@
 {
-  "name": "Nexo Finanzas",
-  "short_name": "Nexo",
-  "description": "Tu inteligencia financiera personal",
+  "name": "ORIA",
+  "short_name": "ORIA",
+  "description": "Entiende tu dinero. Construye tu futuro.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#070B14",
-  "theme_color": "#070B14",
+  "background_color": "#081426",
+  "theme_color": "#081426",
   "icons": [
     {
       "src": "/icon-192.png",

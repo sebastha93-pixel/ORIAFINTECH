@@ -1,8 +1,8 @@
 {
-  "name": "nexo-finanzas",
+  "name": "oria",
   "version": "1.0.0",
   "private": true,
-  "description": "Nexo Finanzas - Personal Financial Intelligence Platform",
+  "description": "ORIA - Personal Financial Intelligence Platform",
   "workspaces": {
     "packages": ["apps/*", "packages/*"],
     "nohoist": [

@@ -45,7 +45,7 @@ async function bootstrap() {
   // Swagger docs
   if (process.env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
-      .setTitle('Nexo Finanzas API')
+      .setTitle('ORIA API')
       .setDescription('Personal Financial Intelligence Platform - REST API')
       .setVersion('1.0')
       .addBearerAuth()
@@ -63,7 +63,7 @@ async function bootstrap() {
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
-  console.log(`🚀 Nexo API running on http://localhost:${port}/api/v1`);
+  console.log(`🚀 ORIA API running on http://localhost:${port}/api/v1`);
   console.log(`📚 Swagger docs at http://localhost:${port}/docs`);
 }
 
