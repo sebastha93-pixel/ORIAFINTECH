@@ -41,8 +41,13 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   const valorMatch = text.match(/Valor\s+Transacci[oó]n[^:]*:\s*([\d.,]+)/i);
   if (valorMatch) {
     const amount = parseAmount(valorMatch[1]);
-    const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*([^\n\r,;]+)/i);
-    const lugarMatch = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r,;]+)/i);
+    // Capture only the first word for clase (e.g. "Compra", "Abono", "Retiro")
+    const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*(\w+)/i);
+    // Capture merchant: grab everything after the label, then strip any trailing "Word:" labels
+    const lugarRaw = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
+    const lugarMatch = lugarRaw
+      ? [lugarRaw[0], lugarRaw[1].replace(/\s+\w[\wáéíóúÁÉÍÓÚ]+\s*:.*$/, '').trim()]
+      : null;
 
     const clase = (claseMatch?.[1] ?? '').trim().toLowerCase();
     const merchant = lugarMatch ? lugarMatch[1].trim().replace(/\s+/g, ' ') : '';
