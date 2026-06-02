@@ -28,7 +28,10 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
       else if (data.user) { onLogin(data.user.id); }
 
     } else if (mode === 'register') {
-      const { data, error: err } = await supabase.auth.signUp({ email, password });
+      const { data, error: err } = await supabase.auth.signUp({
+        email, password,
+        options: { emailRedirectTo: window.location.origin },
+      });
       if (err) { setError(translateError(err.message)); }
       else if (data.user?.identities?.length === 0) {
         setError('Este correo ya está registrado. Inicia sesión.');
