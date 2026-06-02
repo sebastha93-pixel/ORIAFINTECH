@@ -39,12 +39,16 @@ export default function App() {
 
   if (!userId) return <LoginScreen onLogin={setUserId} />;
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    if (containerRef.current) containerRef.current.scrollTop = 0;
+  }, [screen]);
+
   function handleTab(id: string) {
     if (id === 'add') { setShowAdd(true); return; }
     setScreen(id as Screen);
-    // Reset scroll to top instantly on tab change
-    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-    containerRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }
 
   // Screens stay mounted (display:none when inactive) to avoid re-fetching data on every navigation
