@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
 import { DashboardScreen }      from './screens/DashboardScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
@@ -16,7 +16,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [screen, setScreen]   = useState<Screen>('dashboard');
   const [showAdd, setShowAdd] = useState(false);
-  const containerRef          = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -29,6 +28,13 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Scroll to top after every screen change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [screen]);
+
   if (loading) {
     return (
       <div style={{ minHeight:'100vh', background:'#070B14', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -39,28 +45,18 @@ export default function App() {
 
   if (!userId) return <LoginScreen onLogin={setUserId} />;
 
-  useEffect(() => {
-    window.scrollTo(0, 0);
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
-    if (containerRef.current) containerRef.current.scrollTop = 0;
-  }, [screen]);
-
   function handleTab(id: string) {
     if (id === 'add') { setShowAdd(true); return; }
     setScreen(id as Screen);
   }
 
-  // Screens stay mounted (display:none when inactive) to avoid re-fetching data on every navigation
-  const hide = (s: Screen): React.CSSProperties => ({ display: screen === s ? 'block' : 'none' });
-
   return (
-    <div ref={containerRef} style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14', overflowX:'hidden' }}>
-      <div style={hide('dashboard')}>    <DashboardScreen /> </div>
-      <div style={hide('transactions')}> <TransactionsScreen /> </div>
-      <div style={hide('goals')}>        <GoalsScreen /> </div>
-      <div style={hide('ai')}>           <AiChatScreen /> </div>
-      <div style={hide('settings')}>     <SettingsScreen userId={userId} /> </div>
+    <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14', overflowX:'hidden' }}>
+      {screen === 'dashboard'    && <DashboardScreen />}
+      {screen === 'transactions' && <TransactionsScreen />}
+      {screen === 'goals'        && <GoalsScreen />}
+      {screen === 'ai'           && <AiChatScreen />}
+      {screen === 'settings'     && <SettingsScreen userId={userId} />}
 
       <TabBar active={screen} onTab={handleTab} />
 
