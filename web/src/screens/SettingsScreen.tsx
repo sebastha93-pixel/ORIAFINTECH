@@ -15,13 +15,15 @@ interface Transaction {
 }
 
 interface BankAccount {
-  id:             string;
-  name:           string;
-  institution:    string;
-  account_type:   string;
-  account_suffix: string | null;
-  account_holder: string | null;
-  currency_code:  string;
+  id:                       string;
+  name:                     string;
+  institution:              string;
+  account_type:             string;
+  account_suffix:           string | null;
+  account_holder:           string | null;
+  currency_code:            string;
+  initial_balance:          number | null;
+  initial_balance_set_date: string | null;  // ISO date "YYYY-MM-DD"
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -148,17 +150,51 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newHolder, setNewHolder]           = useState('');
   const [savingAccount, setSavingAccount]   = useState(false);
 
+  // Initial balance editing: keyed by account id
+  const [balanceDraft, setBalanceDraft]   = useState<Record<string, string>>({});
+  const [savingBalance, setSavingBalance] = useState<Record<string, boolean>>({});
+
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
 
   async function loadAccounts() {
     const { data } = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code')
+      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_date')
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
-    setAccounts((data as BankAccount[]) ?? []);
+    const rows = (data as BankAccount[]) ?? [];
+    setAccounts(rows);
+    // Pre-fill draft inputs with existing values
+    const drafts: Record<string, string> = {};
+    for (const acc of rows) {
+      if (acc.initial_balance != null) {
+        drafts[acc.id] = String(Math.round(acc.initial_balance));
+      }
+    }
+    setBalanceDraft(prev => ({ ...drafts, ...prev }));
+  }
+
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function canEditBalance(acc: BankAccount): boolean {
+    // Editable if never set, or set today
+    return !acc.initial_balance_set_date || acc.initial_balance_set_date === todayISO();
+  }
+
+  async function saveInitialBalance(acc: BankAccount) {
+    const raw = (balanceDraft[acc.id] ?? '').replace(/\./g, '').replace(',', '.');
+    const amount = parseFloat(raw) || 0;
+    setSavingBalance(prev => ({ ...prev, [acc.id]: true }));
+    await supabase.from('accounts').update({
+      initial_balance: amount,
+      initial_balance_set_date: todayISO(),
+    }).eq('id', acc.id).eq('user_id', userId);
+    setSavingBalance(prev => ({ ...prev, [acc.id]: false }));
+    await loadAccounts();
   }
 
   async function addAccount() {
@@ -515,28 +551,78 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
               {accounts.map(acc => {
                 const inst = INSTITUTIONS.find(i => i.name.toLowerCase() === acc.institution?.toLowerCase());
+                const editable = canEditBalance(acc);
+                const isSaving = savingBalance[acc.id] ?? false;
                 return (
-                  <div key={acc.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0',
-                    borderBottom:`1px solid ${C.border}` }}>
-                    <div style={{ width:40, height:40, borderRadius:12, flexShrink:0,
-                      background:`${inst?.color ?? '#3b82f6'}22`,
-                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>
-                      🏦
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {acc.name}
+                  <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
+                    {/* Account row */}
+                    <div style={{ display:'flex', alignItems:'center', gap:12, paddingTop:12 }}>
+                      <div style={{ width:40, height:40, borderRadius:12, flexShrink:0,
+                        background:`${inst?.color ?? '#3b82f6'}22`,
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>
+                        🏦
                       </div>
-                      <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
-                        {acc.institution} · *{acc.account_suffix}
-                        {acc.account_holder && <span> · {acc.account_holder}</span>}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          {acc.name}
+                        </div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
+                          {acc.institution} · *{acc.account_suffix}
+                          {acc.account_holder && <span> · {acc.account_holder}</span>}
+                        </div>
                       </div>
+                      <button onClick={() => removeAccount(acc.id)}
+                        style={{ background:'rgba(239,68,68,0.1)', border:'none', borderRadius:8, padding:'6px 10px',
+                          color:C.danger, fontSize:12, cursor:'pointer', flexShrink:0 }}>
+                        Quitar
+                      </button>
                     </div>
-                    <button onClick={() => removeAccount(acc.id)}
-                      style={{ background:'rgba(239,68,68,0.1)', border:'none', borderRadius:8, padding:'6px 10px',
-                        color:C.danger, fontSize:12, cursor:'pointer', flexShrink:0 }}>
-                      Quitar
-                    </button>
+
+                    {/* Initial balance row */}
+                    <div style={{ marginTop:10, marginLeft:52 }}>
+                      <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5 }}>
+                        SALDO INICIAL
+                      </div>
+                      {editable ? (
+                        <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                          <div style={{ position:'relative', flex:1 }}>
+                            <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
+                            <input
+                              type="number"
+                              placeholder="0"
+                              value={balanceDraft[acc.id] ?? ''}
+                              onChange={e => setBalanceDraft(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                              style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:8, paddingBottom:8,
+                                borderRadius:10, border:`1px solid ${C.border}`,
+                                background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                                boxSizing:'border-box', outline:'none' }}
+                            />
+                          </div>
+                          <button onClick={() => saveInitialBalance(acc)} disabled={isSaving}
+                            style={{ padding:'8px 14px', borderRadius:10, border:'none',
+                              background: isSaving ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                              color:'#fff', fontSize:12, fontWeight:700, cursor: isSaving ? 'default' : 'pointer',
+                              flexShrink:0, opacity: isSaving ? 0.7 : 1 }}>
+                            {isSaving ? '…' : 'Guardar'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ color:C.text, fontSize:14, fontWeight:700 }}>
+                            {fmt(acc.initial_balance ?? 0)}
+                          </span>
+                          <span style={{ fontSize:12, color:C.textMuted }}>🔒</span>
+                          <span style={{ color:C.textMuted, fontSize:10 }}>
+                            fijado el {acc.initial_balance_set_date}
+                          </span>
+                        </div>
+                      )}
+                      {editable && (
+                        <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
+                          Ingresa el saldo real de tu cuenta hoy. Solo podrás editarlo hasta mañana.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}

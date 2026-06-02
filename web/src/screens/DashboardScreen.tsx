@@ -59,6 +59,7 @@ function currentMonthRange() {
 export function DashboardScreen() {
   const [currentTxns, setCurrentTxns]   = useState<Txn[]>([]);
   const [prevSummaries, setPrevSummaries] = useState<MonthlySummary[]>([]);
+  const [initialBalance, setInitialBalance] = useState(0);
   const [loading, setLoading]           = useState(true);
   const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
 
@@ -68,7 +69,7 @@ export function DashboardScreen() {
 
       const { first, last, year, month } = currentMonthRange();
 
-      const [txnsRes, summariesRes] = await Promise.all([
+      const [txnsRes, summariesRes, accountsRes] = await Promise.all([
         // Current month transactions
         supabase
           .from('transactions')
@@ -86,10 +87,20 @@ export function DashboardScreen() {
           .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
           .order('year', { ascending: false })
           .order('month', { ascending: false }),
+
+        // Sum of initial balances across all active accounts
+        supabase
+          .from('accounts')
+          .select('initial_balance')
+          .eq('user_id', user.id)
+          .eq('is_active', true),
       ]);
 
       setCurrentTxns((txnsRes.data as Txn[]) ?? []);
       setPrevSummaries((summariesRes.data as MonthlySummary[]) ?? []);
+      const initSum = ((accountsRes.data ?? []) as { initial_balance: number | null }[])
+        .reduce((s, a) => s + Number(a.initial_balance ?? 0), 0);
+      setInitialBalance(initSum);
       setLoading(false);
     });
   }, []);
@@ -98,7 +109,7 @@ export function DashboardScreen() {
   const curIncome  = currentTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const curExpense = currentTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
   const curNet     = curIncome - curExpense;
-  const totalBalance = prevNet + curNet;
+  const totalBalance = initialBalance + prevNet + curNet;
 
   const now      = new Date();
   const monthStr = now.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
