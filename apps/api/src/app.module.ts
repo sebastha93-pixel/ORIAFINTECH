@@ -14,6 +14,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { SupabaseModule } from './common/supabase/supabase.module';
 import { EmailSyncModule } from './email-sync/email-sync.module';
 import { MonthlyCloseModule } from './monthly-close/monthly-close.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   controllers: [HealthController],
@@ -32,6 +33,7 @@ import { MonthlyCloseModule } from './monthly-close/monthly-close.module';
     AnalyticsModule,
     EmailSyncModule,
     MonthlyCloseModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
