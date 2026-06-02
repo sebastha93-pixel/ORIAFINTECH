@@ -494,6 +494,36 @@ export class EmailSyncService {
     return data?.id ?? null;
   }
 
+  // ─── Fetch emails for client-side parsing ────────────────────────────────────
+
+  async fetchEmailsForClient(userId: string): Promise<{
+    messageId: string; bank: string; subject: string; body: string; date: string;
+  }[]> {
+    const { data: connection } = await this.supabase
+      .from('email_connections').select('*').eq('user_id', userId).maybeSingle();
+    if (!connection) return [];
+
+    const accessToken = await this.getValidAccessToken(connection as EmailConnection);
+    const messages = await this.listMessages(accessToken, BANK_QUERY);
+    const results: { messageId: string; bank: string; subject: string; body: string; date: string }[] = [];
+
+    for (const msg of messages) {
+      const full = await this.getMessage(accessToken, msg.id);
+      const from = this.getHeader(full.payload, 'from');
+      const bank = this.detectBank(from);
+      if (!bank) continue;
+
+      const subject = this.getHeader(full.payload, 'subject');
+      const body = this.extractEmailBody(full.payload);
+      const date = full.internalDate
+        ? new Date(parseInt(full.internalDate, 10)).toISOString().split('T')[0]
+        : new Date().toISOString().split('T')[0];
+
+      results.push({ messageId: msg.id, bank, subject, body: body.slice(0, 3000), date });
+    }
+    return results;
+  }
+
   // ─── Debug: return raw text of first 3 bank emails ──────────────────────────
 
   async debugSample(userId: string): Promise<{ sample: string; subject: string; from: string; parsed: string; bodyLen: number }[]> {

@@ -174,6 +174,15 @@ export class EmailSyncController {
     return this.emailSyncService.getStatus(userId);
   }
 
+  @Get('fetch-emails-public')
+  @ApiOperation({ summary: 'Fetch raw bank emails for client-side parsing (no auth required)' })
+  @ApiQuery({ name: 'userId', required: true })
+  async fetchEmailsPublic(@Query('userId') userId: string): Promise<{
+    messageId: string; bank: string; subject: string; body: string; date: string;
+  }[]> {
+    return this.emailSyncService.fetchEmailsForClient(userId);
+  }
+
   @Get('debug-public')
   @ApiQuery({ name: 'userId', required: true })
   async debugPublic(@Query('userId') userId: string): Promise<{ sample: string; subject: string; from: string; parsed: string; bodyLen: number }[]> {

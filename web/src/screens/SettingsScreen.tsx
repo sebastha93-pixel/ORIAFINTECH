@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
+import { parseEmail } from '../lib/emailParsers';
 
 const RAILWAY_API = import.meta.env.VITE_API_URL as string ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
 
@@ -109,21 +110,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
 
-  // Auto-sync today's notifications when screen mounts if already connected
+  // Check connection status on mount
   useEffect(() => {
-    const uid = userId;
-    fetch(`${RAILWAY_API}/email-sync/status-public?userId=${encodeURIComponent(uid)}`)
-      .then(r => r.json() as Promise<{ connected: boolean; lastSync: string | null; transactionsCreated: number }>)
+    fetch(`${RAILWAY_API}/email-sync/status-public?userId=${encodeURIComponent(userId)}`)
+      .then(r => r.json() as Promise<{ connected: boolean; lastSync: string | null }>)
       .then(d => {
         if (d.connected) {
           setGmailConnected(true);
           localStorage.setItem('nexo_gmail_connected', '1');
           setLastSync(d.lastSync ? new Date(d.lastSync).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }) : null);
-          // Trigger a sync immediately to catch today's notifications
-          fetch(`${RAILWAY_API}/email-sync/sync-public?userId=${encodeURIComponent(uid)}`, { method:'POST' })
-            .then(r => r.json() as Promise<{ transactionsCreated: number }>)
-            .then(s => { if (s.transactionsCreated > 0) setGmailCount(prev => prev + s.transactionsCreated); })
-            .catch(() => {/* silent */});
         }
       })
       .catch(() => {/* silent */});
@@ -167,15 +162,43 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function syncNow() {
     setSyncing(true);
     try {
-      const res = await fetch(`${RAILWAY_API}/email-sync/sync-public?userId=${encodeURIComponent(userId)}`, { method: 'POST' });
-      const data = await res.json() as { transactionsCreated: number; emailsProcessed: number; errors?: string[] };
-      setGmailCount(prev => prev + (data.transactionsCreated ?? 0));
-      const errCount = (data.errors ?? []).length;
-      const errSuffix = errCount > 0 ? ` · ⚠️ ${errCount} errores` : '';
-      setLastSync(`${new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })} · ${data.emailsProcessed ?? 0} correos / ${data.transactionsCreated ?? 0} nuevos${errSuffix}`);
-      if (errCount > 0) console.error('Sync errors:', data.errors);
+      // Step 1: Fetch raw emails from backend (Railway only does Gmail proxy)
+      const emailsRes = await fetch(`${RAILWAY_API}/email-sync/fetch-emails-public?userId=${encodeURIComponent(userId)}`);
+      const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
+
+      // Step 2: Parse emails in the browser using the local parser
+      const parsed = emails.flatMap(email => {
+        const result = parseEmail(email.bank, email.body, email.subject);
+        if (!result || result.amount <= 0) return [];
+        return [{ ...result, messageId: email.messageId, date: email.date }];
+      });
+
+      if (parsed.length === 0) {
+        setLastSync(`${new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })} · ${emails.length} correos / 0 nuevos`);
+        return;
+      }
+
+      // Step 3: Insert via Supabase JS (user is authenticated → no RLS issues)
+      let created = 0;
+      for (const txn of parsed) {
+        const { error } = await supabase.from('transactions').upsert({
+          user_id: userId,
+          transaction_type: txn.type,
+          amount: txn.amount,
+          description: txn.description,
+          date: txn.date,
+          gmail_message_id: txn.messageId,
+          currency_code: 'COP',
+          notes: `Auto-importado`,
+        }, { onConflict: 'user_id,gmail_message_id' });
+        if (!error) created++;
+      }
+
+      setGmailCount(prev => prev + created);
+      setLastSync(`${new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })} · ${emails.length} correos / ${created} nuevos`);
     } catch (e) {
       setLastSync('Error al sincronizar');
+      console.error('Sync error:', e);
     } finally {
       setSyncing(false);
     }
