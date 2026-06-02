@@ -36,11 +36,20 @@ function txCategory(t: Txn): string {
 
 const TABS = ['Todos', 'Ingresos', 'Gastos'];
 
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function formatMonthLabel(year: number, month: number) {
+  return `${MONTH_NAMES[month]} ${year}`;
+}
+
 export function TransactionsScreen() {
+  const now = new Date();
   const [transactions, setTransactions] = useState<Txn[]>([]);
   const [loading, setLoading]           = useState(true);
   const [tab, setTab]                   = useState(0);
   const [search, setSearch]             = useState('');
+  const [selYear, setSelYear]           = useState(now.getFullYear());
+  const [selMonth, setSelMonth]         = useState(now.getMonth()); // 0-indexed
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -57,7 +66,24 @@ export function TransactionsScreen() {
     });
   }, []);
 
-  const filtered = transactions.filter(t => {
+  function prevMonth() {
+    if (selMonth === 0) { setSelYear(y => y - 1); setSelMonth(11); }
+    else setSelMonth(m => m - 1);
+  }
+
+  function nextMonth() {
+    const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth();
+    if (isCurrentMonth) return;
+    if (selMonth === 11) { setSelYear(y => y + 1); setSelMonth(0); }
+    else setSelMonth(m => m + 1);
+  }
+
+  const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth();
+  const monthPrefix = `${selYear}-${String(selMonth + 1).padStart(2, '0')}`;
+
+  const monthTxns = transactions.filter(t => t.date.startsWith(monthPrefix));
+
+  const filtered = monthTxns.filter(t => {
     if (tab === 1 && t.transaction_type !== 'income')  return false;
     if (tab === 2 && t.transaction_type !== 'expense') return false;
     if (search && !(t.description ?? '').toLowerCase().includes(search.toLowerCase())) return false;
@@ -70,16 +96,40 @@ export function TransactionsScreen() {
     grouped[t.date].push(t);
   });
 
-  const totalIncome  = transactions.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-  const totalExpense = transactions.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  const totalIncome  = monthTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const totalExpense = monthTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
 
   return (
     <div style={{ paddingBottom: 100 }}>
       <div style={{ background:'linear-gradient(135deg,#0F2563,#070B14)', padding:'48px 20px 20px' }}>
-        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Movimientos</div>
-        <div style={{ color:C.textMuted, fontSize:13 }}>Historial completo</div>
+        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:2 }}>Movimientos</div>
 
-        <div style={{ display:'flex', gap:10, marginTop:16 }}>
+        {/* Month selector */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:12, marginBottom:16 }}>
+          <button onClick={prevMonth}
+            style={{ background:'rgba(255,255,255,0.07)', border:'none', borderRadius:10, width:36, height:36,
+              color:C.text, fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            ‹
+          </button>
+          <div style={{ textAlign:'center' }}>
+            <div style={{ color:C.text, fontSize:15, fontWeight:700, textTransform:'capitalize' }}>
+              {formatMonthLabel(selYear, selMonth)}
+            </div>
+            {isCurrentMonth && (
+              <div style={{ color:C.accent, fontSize:10, fontWeight:600, marginTop:1 }}>MES ACTUAL</div>
+            )}
+          </div>
+          <button onClick={nextMonth}
+            style={{ background: isCurrentMonth ? 'transparent' : 'rgba(255,255,255,0.07)',
+              border:'none', borderRadius:10, width:36, height:36,
+              color: isCurrentMonth ? C.border : C.text,
+              fontSize:18, cursor: isCurrentMonth ? 'default' : 'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center' }}>
+            ›
+          </button>
+        </div>
+
+        <div style={{ display:'flex', gap:10 }}>
           <div style={{ flex:1, background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', borderRadius:14, padding:'10px 14px' }}>
             <div style={{ color:C.textMuted, fontSize:11, marginBottom:2 }}>Ingresos</div>
             <div style={{ color:C.accent, fontSize:15, fontWeight:700 }}>{fmt(totalIncome)}</div>
@@ -128,7 +178,7 @@ export function TransactionsScreen() {
             <div style={{ fontSize:14 }}>
               {transactions.length === 0
                 ? 'Conecta Gmail en Configurar para importar movimientos'
-                : 'Sin resultados'}
+                : `Sin movimientos en ${formatMonthLabel(selYear, selMonth).toLowerCase()}`}
             </div>
           </div>
         ) : (

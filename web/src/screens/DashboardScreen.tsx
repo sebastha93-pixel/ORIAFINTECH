@@ -40,18 +40,33 @@ function txCategory(t: Txn): string {
   return 'Otros';
 }
 
+function currentMonthRange() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + 1;
+  const first = `${y}-${String(m).padStart(2, '0')}-01`;
+  const last = new Date(y, m, 0).toISOString().slice(0, 10);
+  return { first, last };
+}
+
+function monthLabel() {
+  return new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+}
+
 export function DashboardScreen() {
   const [transactions, setTransactions] = useState<Txn[]>([]);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
+      const { first, last } = currentMonthRange();
       supabase
         .from('transactions')
         .select('id, transaction_type, amount, description, date, notes')
         .eq('user_id', user.id)
+        .gte('date', first)
+        .lte('date', last)
         .order('date', { ascending: false })
-        .limit(100)
         .then(({ data }) => setTransactions((data as Txn[]) ?? []));
     });
   }, []);
@@ -68,13 +83,16 @@ export function DashboardScreen() {
             <div style={{ color:C.textMuted, fontSize:12, letterSpacing:1 }}>NEXO FINANZAS</div>
             <div style={{ color:C.text, fontSize:17, fontWeight:700 }}>Bienvenido 👋</div>
           </div>
+          <div style={{ background:'rgba(255,255,255,0.07)', borderRadius:10, padding:'5px 12px' }}>
+            <div style={{ color:C.textMuted, fontSize:11, textTransform:'capitalize' }}>{monthLabel()}</div>
+          </div>
         </div>
 
         <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:20, padding:20, border:`1px solid ${C.border}` }}>
-          <div style={{ color:C.textMuted, fontSize:12, marginBottom:4 }}>Balance neto</div>
+          <div style={{ color:C.textMuted, fontSize:12, marginBottom:4 }}>Balance neto del mes</div>
           <div style={{ color:C.text, fontSize:36, fontWeight:800, marginBottom:8 }}>{fmt(savings)}</div>
           <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(34,197,94,0.15)', borderRadius:999, padding:'3px 10px' }}>
-            <span style={{ color:C.accent, fontSize:12 }}>{transactions.length} movimiento{transactions.length !== 1 ? 's' : ''} importado{transactions.length !== 1 ? 's' : ''}</span>
+            <span style={{ color:C.accent, fontSize:12 }}>{transactions.length} movimiento{transactions.length !== 1 ? 's' : ''} este mes</span>
           </div>
         </div>
       </div>
@@ -97,7 +115,7 @@ export function DashboardScreen() {
         {/* Spending by category */}
         <Section title="Gastos por categoría">
           {expense === 0
-            ? <Empty icon="📊" text="Los gastos aparecerán aquí cuando se importen movimientos" />
+            ? <Empty icon="📊" text="Los gastos del mes aparecerán aquí cuando se importen movimientos" />
             : (() => {
                 const bycat: Record<string, number> = {};
                 transactions.filter(t => t.transaction_type === 'expense').forEach(t => {
@@ -147,7 +165,7 @@ export function DashboardScreen() {
           }
         </Section>
 
-        <Section title="Movimientos recientes" action={transactions.length ? 'Ver todos' : undefined}>
+        <Section title="Movimientos recientes">
           {transactions.length === 0
             ? <Empty icon="💸" text="Ve a Configurar y conecta Gmail para importar tus movimientos automáticamente" />
             : <div style={{ ...card }}>
