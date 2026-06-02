@@ -150,7 +150,13 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
           .replace(/\s+Atentamente.*/i, '')
           .replace(/\s+Cordialmente.*/i, '')
           .replace(/\s+Banco\s+Davivienda.*/i, '')
+          .replace(/\s+Recuerde\s+que.*/i, '')
+          .replace(/\s+puede\s+hacerlo.*/i, '')
+          .replace(/\s+Si\s+usted.*/i, '')
+          .replace(/\s+Le\s+recordamos.*/i, '')
+          .replace(/\s+App\s+Davivienda.*/i, '')
           .trim()
+          .slice(0, 60)
       : '';
     const claseRaw = (claseMatch?.[1] ?? '').trim();
     const clase    = claseRaw.toLowerCase();

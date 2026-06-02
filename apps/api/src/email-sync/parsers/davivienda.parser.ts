@@ -38,9 +38,17 @@ function cleanName(raw: string): string {
     .replace(/\s+Cordialmente.*/i, '')
     .replace(/\s+el\s+d[ií]a.*/i, '')
     .replace(/\s+desde\s+.*/i, '')
+    .replace(/\s+Recuerde\s+que.*/i, '')
+    .replace(/\s+puede\s+hacerlo.*/i, '')
+    .replace(/\s+Para\s+m[aá]s.*/i, '')
+    .replace(/\s+Si\s+usted.*/i, '')
+    .replace(/\s+Le\s+recordamos.*/i, '')
+    .replace(/\s+App\s+Davivienda.*/i, '')
+    .replace(/\s+Banco\s+Davivienda.*/i, '')
     .replace(/[.,;:]+$/, '')
     .trim()
-    .replace(/\s+/g, ' ');
+    .replace(/\s+/g, ' ')
+    .slice(0, 60); // hard cap to avoid footer bleed-through
 }
 
 function extractDaviviendaAccountSuffix(text: string): string | undefined {
