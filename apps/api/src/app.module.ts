@@ -13,6 +13,7 @@ import { AiModule } from './ai/ai.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { SupabaseModule } from './common/supabase/supabase.module';
 import { EmailSyncModule } from './email-sync/email-sync.module';
+import { MonthlyCloseModule } from './monthly-close/monthly-close.module';
 
 @Module({
   controllers: [HealthController],
@@ -30,6 +31,7 @@ import { EmailSyncModule } from './email-sync/email-sync.module';
     AiModule,
     AnalyticsModule,
     EmailSyncModule,
+    MonthlyCloseModule,
   ],
 })
 export class AppModule {}

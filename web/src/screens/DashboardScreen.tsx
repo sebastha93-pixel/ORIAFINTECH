@@ -9,7 +9,14 @@ interface Txn {
   amount: number;
   description: string | null;
   date: string;
-  notes: string | null;
+}
+
+interface MonthlySummary {
+  year: number;
+  month: number;
+  total_income: number;
+  total_expenses: number;
+  net_savings: number;
 }
 
 function txIcon(t: Txn): string {
@@ -22,11 +29,6 @@ function txIcon(t: Txn): string {
   if (/arriendo|renta/i.test(d)) return '🏠';
   if (/retiro|cajero/i.test(d)) return '🏧';
   return '💳';
-}
-
-function txColor(t: Txn): string {
-  if (t.transaction_type === 'income') return C.accent;
-  return C.primaryGlow;
 }
 
 function txCategory(t: Txn): string {
@@ -44,81 +46,164 @@ function currentMonthRange() {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
-  const first = `${y}-${String(m).padStart(2, '0')}-01`;
-  const last = new Date(y, m, 0).toISOString().slice(0, 10);
-  return { first, last };
-}
-
-function monthLabel() {
-  return new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+  return {
+    first: `${y}-${String(m).padStart(2, '0')}-01`,
+    last:  new Date(y, m, 0).toISOString().slice(0, 10),
+    year: y, month: m,
+  };
 }
 
 export function DashboardScreen() {
-  const [transactions, setTransactions] = useState<Txn[]>([]);
+  const [currentTxns, setCurrentTxns]   = useState<Txn[]>([]);
+  const [prevSummaries, setPrevSummaries] = useState<MonthlySummary[]>([]);
+  const [loading, setLoading]           = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      const { first, last } = currentMonthRange();
-      supabase
-        .from('transactions')
-        .select('id, transaction_type, amount, description, date, notes')
-        .eq('user_id', user.id)
-        .gte('date', first)
-        .lte('date', last)
-        .order('date', { ascending: false })
-        .then(({ data }) => setTransactions((data as Txn[]) ?? []));
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { setLoading(false); return; }
+
+      const { first, last, year, month } = currentMonthRange();
+
+      const [txnsRes, summariesRes] = await Promise.all([
+        // Current month transactions
+        supabase
+          .from('transactions')
+          .select('id, transaction_type, amount, description, date')
+          .eq('user_id', user.id)
+          .gte('date', first)
+          .lte('date', last)
+          .order('date', { ascending: false }),
+
+        // All closed months before current month
+        supabase
+          .from('monthly_summaries')
+          .select('year, month, total_income, total_expenses, net_savings')
+          .eq('user_id', user.id)
+          .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
+          .order('year', { ascending: false })
+          .order('month', { ascending: false }),
+      ]);
+
+      setCurrentTxns((txnsRes.data as Txn[]) ?? []);
+      setPrevSummaries((summariesRes.data as MonthlySummary[]) ?? []);
+      setLoading(false);
     });
   }, []);
 
-  const income  = transactions.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-  const expense = transactions.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
-  const savings = income - expense;
+  const prevNet    = prevSummaries.reduce((s, m) => s + Number(m.net_savings), 0);
+  const curIncome  = currentTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+  const curExpense = currentTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  const curNet     = curIncome - curExpense;
+  const totalBalance = prevNet + curNet;
+
+  const now      = new Date();
+  const monthStr = now.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
 
   return (
     <div style={{ paddingBottom: 100 }}>
       <div style={{ background: gradHero, padding:'48px 20px 24px', borderRadius:'0 0 28px 28px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <div>
             <div style={{ color:C.textMuted, fontSize:12, letterSpacing:1 }}>NEXO FINANZAS</div>
             <div style={{ color:C.text, fontSize:17, fontWeight:700 }}>Bienvenido 👋</div>
           </div>
           <div style={{ background:'rgba(255,255,255,0.07)', borderRadius:10, padding:'5px 12px' }}>
-            <div style={{ color:C.textMuted, fontSize:11, textTransform:'capitalize' }}>{monthLabel()}</div>
+            <div style={{ color:C.textMuted, fontSize:11, textTransform:'capitalize' }}>{monthStr}</div>
           </div>
         </div>
 
+        {/* Total balance card */}
         <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:20, padding:20, border:`1px solid ${C.border}` }}>
-          <div style={{ color:C.textMuted, fontSize:12, marginBottom:4 }}>Balance neto del mes</div>
-          <div style={{ color:C.text, fontSize:36, fontWeight:800, marginBottom:8 }}>{fmt(savings)}</div>
-          <div style={{ display:'inline-flex', alignItems:'center', gap:4, background:'rgba(34,197,94,0.15)', borderRadius:999, padding:'3px 10px' }}>
-            <span style={{ color:C.accent, fontSize:12 }}>{transactions.length} movimiento{transactions.length !== 1 ? 's' : ''} este mes</span>
+          <div style={{ color:C.textMuted, fontSize:11, marginBottom:4, letterSpacing:0.5 }}>SALDO DISPONIBLE</div>
+          <div style={{ color: totalBalance >= 0 ? C.text : C.danger, fontSize:36, fontWeight:800, marginBottom:12 }}>
+            {fmt(totalBalance)}
+          </div>
+
+          {/* Breakdown row */}
+          <div style={{ display:'flex', gap:0, borderTop:`1px solid ${C.border}`, paddingTop:12 }}>
+            <div style={{ flex:1, paddingRight:12, borderRight:`1px solid ${C.border}` }}>
+              <div style={{ color:C.textMuted, fontSize:10, marginBottom:3 }}>Saldo anterior</div>
+              <div style={{ color: prevNet >= 0 ? C.accent : C.danger, fontSize:13, fontWeight:700 }}>
+                {prevNet >= 0 ? '+' : ''}{fmt(prevNet)}
+              </div>
+              <div style={{ color:C.textMuted, fontSize:9, marginTop:1 }}>
+                {prevSummaries.length} mes{prevSummaries.length !== 1 ? 'es' : ''} cerrado{prevSummaries.length !== 1 ? 's' : ''}
+              </div>
+            </div>
+            <div style={{ flex:1, paddingLeft:12 }}>
+              <div style={{ color:C.textMuted, fontSize:10, marginBottom:3 }}>Este mes</div>
+              <div style={{ color: curNet >= 0 ? C.accent : C.danger, fontSize:13, fontWeight:700 }}>
+                {curNet >= 0 ? '+' : ''}{fmt(curNet)}
+              </div>
+              <div style={{ color:C.textMuted, fontSize:9, marginTop:1 }}>
+                {currentTxns.length} movimiento{currentTxns.length !== 1 ? 's' : ''}
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       <div style={{ padding:'20px 16px', display:'flex', flexDirection:'column', gap:20 }}>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+
+        {/* Current month summary */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           {[
-            { label:'Ingresos', value:income,  color:C.accent,      icon:'↓' },
-            { label:'Gastos',   value:expense, color:C.danger,      icon:'↑' },
-            { label:'Ahorro',   value:savings, color:C.primaryGlow, icon:'≡' },
+            { label:'Ingresos del mes',  value:curIncome,  color:C.accent  },
+            { label:'Gastos del mes',    value:curExpense, color:C.danger  },
           ].map(s => (
             <div key={s.label} style={{ ...card, textAlign:'center', padding:14 }}>
-              <div style={{ color:s.color, fontSize:18, marginBottom:4 }}>{s.icon}</div>
-              <div style={{ color:C.text, fontSize:14, fontWeight:700 }}>{fmt(s.value)}</div>
-              <div style={{ color:C.textMuted, fontSize:10, marginTop:2 }}>{s.label}</div>
+              <div style={{ color:s.color, fontSize:20, fontWeight:800 }}>{fmt(s.value)}</div>
+              <div style={{ color:C.textMuted, fontSize:10, marginTop:4 }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Spending by category */}
+        {/* Previous months closings */}
+        {prevSummaries.length > 0 && (
+          <Section title="Cierres anteriores">
+            <div style={{ ...card }}>
+              {prevSummaries.slice(0, 4).map((s, i) => {
+                const net = Number(s.net_savings);
+                const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+                return (
+                  <div key={`${s.year}-${s.month}`} style={{
+                    display:'flex', alignItems:'center', justifyContent:'space-between',
+                    paddingBottom: i < Math.min(prevSummaries.length,4)-1 ? 10 : 0,
+                    marginBottom:  i < Math.min(prevSummaries.length,4)-1 ? 10 : 0,
+                    borderBottom:  i < Math.min(prevSummaries.length,4)-1 ? `1px solid ${C.border}` : 'none',
+                  }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                      <div style={{ width:36, height:36, borderRadius:10,
+                        background: net >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
+                        {net >= 0 ? '📈' : '📉'}
+                      </div>
+                      <div>
+                        <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>
+                          {MONTHS[s.month - 1]} {s.year}
+                        </div>
+                        <div style={{ color:C.textMuted, fontSize:10 }}>
+                          ↓{fmt(Number(s.total_income))} · ↑{fmt(Number(s.total_expenses))}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ color: net >= 0 ? C.accent : C.danger, fontSize:13, fontWeight:700 }}>
+                      {net >= 0 ? '+' : ''}{fmt(net)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        )}
+
+        {/* Spending by category (current month) */}
         <Section title="Gastos por categoría">
-          {expense === 0
-            ? <Empty icon="📊" text="Los gastos del mes aparecerán aquí cuando se importen movimientos" />
+          {curExpense === 0
+            ? <Empty icon="📊" text="Los gastos del mes aparecerán aquí automáticamente" />
             : (() => {
                 const bycat: Record<string, number> = {};
-                transactions.filter(t => t.transaction_type === 'expense').forEach(t => {
+                currentTxns.filter(t => t.transaction_type === 'expense').forEach(t => {
                   const cat = txCategory(t);
                   bycat[cat] = (bycat[cat] ?? 0) + Number(t.amount);
                 });
@@ -130,7 +215,7 @@ export function DashboardScreen() {
                         <div style={{ width:10, height:10, borderRadius:'50%', background:colors[i % colors.length], flexShrink:0 }} />
                         <div style={{ flex:1, fontSize:13, color:C.textSec }}>{name}</div>
                         <div style={{ flex:2, height:6, background:C.border, borderRadius:3, overflow:'hidden' }}>
-                          <div style={{ width:`${Math.round((amt/expense)*100)}%`, height:'100%', background:colors[i % colors.length], borderRadius:3 }} />
+                          <div style={{ width:`${Math.round((amt/curExpense)*100)}%`, height:'100%', background:colors[i % colors.length], borderRadius:3 }} />
                         </div>
                         <div style={{ color:C.text, fontSize:12, fontWeight:600, minWidth:80, textAlign:'right' }}>{fmt(amt)}</div>
                       </div>
@@ -141,6 +226,7 @@ export function DashboardScreen() {
           }
         </Section>
 
+        {/* Goals */}
         <Section title="Metas activas" action={GOALS.length ? 'Ver todas' : undefined}>
           {GOALS.length === 0
             ? <Empty icon="🎯" text="Crea tu primera meta financiera en la sección Metas" />
@@ -165,23 +251,30 @@ export function DashboardScreen() {
           }
         </Section>
 
+        {/* Recent transactions */}
         <Section title="Movimientos recientes">
-          {transactions.length === 0
-            ? <Empty icon="💸" text="Ve a Configurar y conecta Gmail para importar tus movimientos automáticamente" />
-            : <div style={{ ...card }}>
-                {transactions.slice(0,5).map((t, i) => (
-                  <div key={t.id} style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<4?12:0, marginBottom:i<4?12:0, borderBottom:i<4?`1px solid ${C.border}`:'none' }}>
-                    <div style={{ width:40, height:40, borderRadius:12, background:`${txColor(t)}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>{txIcon(t)}</div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ color:C.text, fontSize:14, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description ?? 'Movimiento'}</div>
-                      <div style={{ color:C.textMuted, fontSize:11 }}>{txCategory(t)} · {t.date.slice(5)}</div>
+          {loading
+            ? <Empty icon="⏳" text="Cargando…" />
+            : currentTxns.length === 0
+              ? <Empty icon="💸" text="Ve a Configurar y conecta Gmail para importar movimientos" />
+              : <div style={{ ...card }}>
+                  {currentTxns.slice(0,5).map((t, i) => (
+                    <div key={t.id} style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<4?12:0, marginBottom:i<4?12:0, borderBottom:i<4?`1px solid ${C.border}`:'none' }}>
+                      <div style={{ width:40, height:40, borderRadius:12,
+                        background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`,
+                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
+                        {txIcon(t)}
+                      </div>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ color:C.text, fontSize:14, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description ?? 'Movimiento'}</div>
+                        <div style={{ color:C.textMuted, fontSize:11 }}>{txCategory(t)} · {t.date.slice(5)}</div>
+                      </div>
+                      <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700, flexShrink:0 }}>
+                        {t.transaction_type==='income'?'+':'-'}{fmt(Number(t.amount))}
+                      </div>
                     </div>
-                    <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700, flexShrink:0 }}>
-                      {t.transaction_type==='income'?'+':'-'}{fmt(Number(t.amount))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
           }
         </Section>
       </div>
