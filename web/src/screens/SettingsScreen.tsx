@@ -860,12 +860,21 @@ export function SettingsScreen({ userId }: { userId: string }) {
       <div style={{ padding:'8px 16px 32px', display:'flex', flexDirection:'column', gap:10 }}>
         <button
           onClick={async () => {
-            const ok = window.confirm('¿Borrar TODOS los movimientos? Esta acción no se puede deshacer.');
+            const ok = window.confirm('¿Borrar TODOS los movimientos y cierres anteriores? Esta acción no se puede deshacer.');
             if (!ok) return;
-            await supabase.from('transactions').delete().eq('user_id', userId);
+            await Promise.all([
+              supabase.from('transactions').delete().eq('user_id', userId),
+              supabase.from('monthly_summaries').delete().eq('user_id', userId),
+            ]);
+            await supabase.from('accounts').update({
+              initial_balance: 0,
+              initial_balance_set_at: null,
+              current_balance: 0,
+            }).eq('user_id', userId);
+            window.location.reload();
           }}
           style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.2)`, background:'transparent', color:C.textMuted, fontSize:14, fontWeight:600, cursor:'pointer' }}>
-          🗑️ Borrar todos los movimientos
+          🗑️ Borrar todo y empezar desde cero
         </button>
         <button
           onClick={() => { localStorage.removeItem('nexo_gmail_connected'); localStorage.removeItem('nexo_gmail_email'); supabase.auth.signOut(); }}
