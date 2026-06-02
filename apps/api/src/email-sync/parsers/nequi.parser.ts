@@ -5,6 +5,13 @@ function parseColombianAmount(raw: string): number {
   return parseFloat(raw.replace(/\./g, '').replace(',', '.')) || 0;
 }
 
+function cleanName(raw: string): string {
+  return raw
+    .replace(/[.,;:]+$/, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
   const text = emailBody + ' ' + subject;
 
@@ -14,11 +21,11 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   );
   if (enviasteMatch) {
     const amount = parseColombianAmount(enviasteMatch[1]);
-    const recipient = enviasteMatch[2].trim().replace(/\s+/g, ' ');
+    const recipient = cleanName(enviasteMatch[2]);
     return {
       amount,
       type: 'expense',
-      description: `Enviaste a ${recipient}`,
+      description: `Enviaste a ${recipient} · Nequi`,
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: recipient,
@@ -32,11 +39,11 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   );
   if (recibisteMatch) {
     const amount = parseColombianAmount(recibisteMatch[1]);
-    const sender = recibisteMatch[2].trim().replace(/\s+/g, ' ');
+    const sender = cleanName(recibisteMatch[2]);
     return {
       amount,
       type: 'income',
-      description: `Recibiste de ${sender}`,
+      description: `Recibiste de ${sender} · Nequi`,
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: sender,
@@ -51,7 +58,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     return {
       amount,
       type: 'income',
-      description: 'Transferencia recibida Nequi',
+      description: 'Transferencia recibida · Nequi',
       category: 'Transferencias',
       date: new Date().toISOString(),
       rawText: text,
@@ -64,11 +71,11 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   );
   if (pagoMatch) {
     const amount = parseColombianAmount(pagoMatch[1]);
-    const merchant = pagoMatch[2]?.trim().replace(/\s+/g, ' ') || '';
+    const merchant = pagoMatch[2] ? cleanName(pagoMatch[2]) : '';
     return {
       amount,
       type: 'expense',
-      description: merchant ? `Pago en ${merchant}` : 'Pago Nequi',
+      description: merchant ? `Pago en ${merchant} · Nequi` : 'Pago · Nequi',
       category: merchant ? 'Compras' : 'Otros',
       date: new Date().toISOString(),
       merchant: merchant || undefined,
@@ -83,7 +90,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     return {
       amount,
       type: 'expense',
-      description: 'Retiro Nequi',
+      description: 'Retiro · Nequi',
       category: 'Efectivo',
       date: new Date().toISOString(),
       rawText: text,
@@ -99,7 +106,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       return {
         amount,
         type: isIncome ? 'income' : 'expense',
-        description: subject.trim() || 'Transacción Nequi',
+        description: subject.trim() || 'Transacción · Nequi',
         category: 'Transferencias',
         date: new Date().toISOString(),
         rawText: text,

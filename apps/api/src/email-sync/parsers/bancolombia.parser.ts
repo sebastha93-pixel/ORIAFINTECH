@@ -41,6 +41,18 @@ function inferCategory(description: string, merchant?: string): string {
   return 'Otros';
 }
 
+// Strips trailing noise (date refs, closing words, punctuation) from captured names
+function cleanName(raw: string): string {
+  return raw
+    .replace(/\s+el\s+d[ií]a.*/i, '')
+    .replace(/\s+desde\s+.*/i, '')
+    .replace(/\s+por\s+.*/i, '')
+    .replace(/\s+de\s+tu\s+.*/i, '')
+    .replace(/[.,;:]+$/, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
   const text = emailBody + ' ' + subject;
 
@@ -48,11 +60,11 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   const pagoMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+a\s+([\w\s]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
   if (pagoMatch) {
     const amount = parseAmount(pagoMatch[1]);
-    const merchant = pagoMatch[2].trim().replace(/\s+/g, ' ');
+    const merchant = cleanName(pagoMatch[2]);
     return {
       amount,
       type: 'expense',
-      description: `Pago a ${merchant}`,
+      description: `Pago a ${merchant} · Bancolombia`,
       category: inferCategory(merchant, merchant),
       date: new Date().toISOString(),
       merchant,
@@ -60,16 +72,22 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
-  // "transferiste $X" → expense (works across line breaks since \s+ matches \r\n)
-  const transferisteMatch = text.match(/transferiste\s+\$?\s*([\d.,]+)/i);
+  // "transferiste $X a DESTINATARIO" → expense
+  const transferisteMatch = text.match(
+    /transferiste\s+\$?\s*([\d.,]+)(?:\s+a\s+([\w\sáéíóúÁÉÍÓÚñÑ*\d\-]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+de\s+tu\s|[.,\n\r]|$))?/i,
+  );
   if (transferisteMatch) {
     const amount = parseAmount(transferisteMatch[1]);
+    const recipient = transferisteMatch[2] ? cleanName(transferisteMatch[2]) : '';
     return {
       amount,
       type: 'expense',
-      description: 'Transferencia enviada Bancolombia',
+      description: recipient
+        ? `Transferencia a ${recipient} · Bancolombia`
+        : 'Transferencia enviada · Bancolombia',
       category: 'Transferencias',
       date: new Date().toISOString(),
+      merchant: recipient || undefined,
       rawText: text,
     };
   }
@@ -82,7 +100,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     return {
       amount,
       type: 'expense',
-      description: `Compra en ${merchant}`,
+      description: `Compra en ${merchant} · Bancolombia`,
       category: inferCategory('compra ' + merchant, merchant),
       date: new Date().toISOString(),
       merchant,
@@ -90,30 +108,42 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
-  // "Transferencia recibida por $X"
-  const transRecibidaMatch = text.match(/[Tt]ransferencia\s+recibida\s+por\s+\$?\s*([\d.,]+)/);
+  // "Transferencia recibida por $X de REMITENTE"
+  const transRecibidaMatch = text.match(
+    /[Tt]ransferencia\s+recibida\s+por\s+\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
+  );
   if (transRecibidaMatch) {
     const amount = parseAmount(transRecibidaMatch[1]);
+    const sender = transRecibidaMatch[2] ? cleanName(transRecibidaMatch[2]) : '';
     return {
       amount,
       type: 'income',
-      description: 'Transferencia recibida',
+      description: sender
+        ? `Transferencia de ${sender} · Bancolombia`
+        : 'Transferencia recibida · Bancolombia',
       category: 'Transferencias',
       date: new Date().toISOString(),
+      merchant: sender || undefined,
       rawText: text,
     };
   }
 
-  // "te llegó" / "Recibiste" → income
-  const recibisteMatch = text.match(/(?:[Tt]e\s+lleg[oó]|[Rr]ecibiste)\s+(?:una\s+transferencia\s+de\s+)?\$?\s*([\d.,]+)/);
+  // "te llegó / Recibiste una transferencia de $X de REMITENTE" → income
+  const recibisteMatch = text.match(
+    /(?:[Tt]e\s+lleg[oó]|[Rr]ecibiste)\s+(?:una\s+transferencia\s+de\s+)?\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
+  );
   if (recibisteMatch) {
     const amount = parseAmount(recibisteMatch[1]);
+    const sender = recibisteMatch[2] ? cleanName(recibisteMatch[2]) : '';
     return {
       amount,
       type: 'income',
-      description: 'Transferencia recibida Bancolombia',
+      description: sender
+        ? `Transferencia de ${sender} · Bancolombia`
+        : 'Transferencia recibida · Bancolombia',
       category: 'Transferencias',
       date: new Date().toISOString(),
+      merchant: sender || undefined,
       rawText: text,
     };
   }
@@ -122,14 +152,28 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   const retiroMatch = text.match(/[Rr]etiro\s+en\s+cajero\s+por\s+\$?\s*([\d.,]+)/);
   if (retiroMatch) {
     const amount = parseAmount(retiroMatch[1]);
-    return { amount, type: 'expense', description: 'Retiro en cajero', category: 'Efectivo', date: new Date().toISOString(), rawText: text };
+    return {
+      amount,
+      type: 'expense',
+      description: 'Retiro en cajero · Bancolombia',
+      category: 'Efectivo',
+      date: new Date().toISOString(),
+      rawText: text,
+    };
   }
 
   // "Pago de nómina por $X"
   const nominaMatch = text.match(/[Pp]ago\s+de\s+n[oó]mina\s+por\s+\$?\s*([\d.,]+)/);
   if (nominaMatch) {
     const amount = parseAmount(nominaMatch[1]);
-    return { amount, type: 'income', description: 'Pago de nómina', category: 'Salario', date: new Date().toISOString(), rawText: text };
+    return {
+      amount,
+      type: 'income',
+      description: 'Pago de nómina · Bancolombia',
+      category: 'Salario',
+      date: new Date().toISOString(),
+      rawText: text,
+    };
   }
 
   // Generic fallback — any amount in a Bancolombia email
@@ -141,7 +185,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       return {
         amount,
         type: isIncome ? 'income' : 'expense',
-        description: subject.trim() || 'Transacción Bancolombia',
+        description: subject.trim() || 'Transacción · Bancolombia',
         category: inferCategory(subject),
         date: new Date().toISOString(),
         rawText: text,

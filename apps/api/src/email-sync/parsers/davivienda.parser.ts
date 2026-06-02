@@ -31,6 +31,18 @@ function inferCategory(text: string): string {
   return 'Otros';
 }
 
+// Strips trailing noise from captured names/accounts
+function cleanName(raw: string): string {
+  return raw
+    .replace(/\s+Atentamente.*/i, '')
+    .replace(/\s+Cordialmente.*/i, '')
+    .replace(/\s+el\s+d[ií]a.*/i, '')
+    .replace(/\s+desde\s+.*/i, '')
+    .replace(/[.,;:]+$/, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
   // Reject promotional/marketing emails that are not transaction notifications
   if (/bono|beneficio|oferta|promoci[oó]n|descuento|gana\s+m[aá]s|cashback|recompensa/i.test(subject) &&
@@ -41,23 +53,22 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   const text = emailBody + ' ' + subject;
 
   // Davivienda structured format:
-  // "Valor Transacción: 68,150"
+  // "Valor Transacción: $68,150"
   // "Clase de Movimiento: Compra" (or Abono, Retiro, Transferencia, etc.)
   // "Lugar de Transacción: RAPPI GENERAL"
+  // "Cuenta/Tarjeta: **** 1234"
   const valorMatch = text.match(/Valor\s+Transacci[oó]n[^:]*:\s*\$?\s*([\d.,]+)/i);
   if (valorMatch) {
     const amount = parseAmount(valorMatch[1]);
-    // Capture full clase text: "Abono Pago de Nomina" not just first word
     const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*([^\n\r,]+)/i);
-    // Capture merchant: grab everything after the label, then strip email closing phrases
     const lugarRaw = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
     const lugarMatch = lugarRaw
-      ? [lugarRaw[0], lugarRaw[1]
-          .replace(/\s+Atentamente.*/i, '')
-          .replace(/\s+Cordialmente.*/i, '')
-          .replace(/\s+\w[\wáéíóúÁÉÍÓÚ]+\s*:.*$/, '')
-          .trim()]
+      ? [lugarRaw[0], cleanName(lugarRaw[1])]
       : null;
+
+    // Capture last 4 digits of the card/account referenced in the email
+    const cuentaMatch = text.match(/(?:cuenta|tarjeta|tc)[^\d]*(?:\*+\s*)?(\d{3,4})\b/i);
+    const accountSuffix = cuentaMatch ? ` ****${cuentaMatch[1]}` : '';
 
     const claseRaw = (claseMatch?.[1] ?? '').trim();
     const clase = claseRaw.toLowerCase();
@@ -68,11 +79,15 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
 
     let description: string;
     if (merchant) {
-      description = isIncome ? `${claseRaw} - ${merchant}` : `Compra en ${merchant}`;
+      description = isIncome
+        ? `${claseRaw} - ${merchant} · Davivienda${accountSuffix}`
+        : `Compra en ${merchant} · Davivienda${accountSuffix}`;
     } else if (claseRaw) {
-      description = `${claseRaw} Davivienda`;
+      description = `${claseRaw} · Davivienda${accountSuffix}`;
     } else {
-      description = isIncome ? 'Ingreso Davivienda' : 'Gasto Davivienda';
+      description = isIncome
+        ? `Ingreso · Davivienda${accountSuffix}`
+        : `Gasto · Davivienda${accountSuffix}`;
     }
 
     return {
@@ -96,7 +111,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     return {
       amount,
       type: 'expense',
-      description: `Compra en ${merchant}`,
+      description: `Compra en ${merchant} · Davivienda`,
       category: inferCategory(merchant),
       date: new Date().toISOString(),
       merchant,
@@ -104,17 +119,19 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
-  // "Transferencia enviada por $X"
+  // "Transferencia enviada por $X a DESTINATARIO"
   const transEnviadaMatch = text.match(
     /[Tt]ransferencia\s+enviada\s+(?:por\s+)?\$?([\d.,]+)(?:\s+a\s+([^\n\r.]+))?/,
   );
   if (transEnviadaMatch) {
     const amount = parseAmount(transEnviadaMatch[1]);
-    const recipient = transEnviadaMatch[2]?.trim() || '';
+    const recipient = transEnviadaMatch[2] ? cleanName(transEnviadaMatch[2]) : '';
     return {
       amount,
       type: 'expense',
-      description: recipient ? `Transferencia a ${recipient}` : 'Transferencia enviada Davivienda',
+      description: recipient
+        ? `Transferencia a ${recipient} · Davivienda`
+        : 'Transferencia enviada · Davivienda',
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: recipient || undefined,
@@ -122,16 +139,22 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
-  // "Transferencia recibida por $X"
-  const transRecibidaMatch = text.match(/[Tt]ransferencia\s+recibida\s+(?:por\s+)?\$?([\d.,]+)/);
+  // "Transferencia recibida por $X de REMITENTE"
+  const transRecibidaMatch = text.match(
+    /[Tt]ransferencia\s+recibida\s+(?:por\s+)?\$?([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|\s+con\s|[.,\n\r]|$))?/,
+  );
   if (transRecibidaMatch) {
     const amount = parseAmount(transRecibidaMatch[1]);
+    const sender = transRecibidaMatch[2] ? cleanName(transRecibidaMatch[2]) : '';
     return {
       amount,
       type: 'income',
-      description: 'Transferencia recibida Davivienda',
+      description: sender
+        ? `Transferencia de ${sender} · Davivienda`
+        : 'Transferencia recibida · Davivienda',
       category: 'Transferencias',
       date: new Date().toISOString(),
+      merchant: sender || undefined,
       rawText: text,
     };
   }
@@ -143,16 +166,15 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     return {
       amount,
       type: 'expense',
-      description: 'Retiro en cajero Davivienda',
+      description: 'Retiro en cajero · Davivienda',
       category: 'Efectivo',
       date: new Date().toISOString(),
       rawText: text,
     };
   }
 
-  // Generic fallback — only for emails that look like real transaction notifications.
-  // Reject marketing/promotional emails (bonos, ofertas, etc.) that contain amounts
-  // but are not account-specific transaction alerts.
+  // Generic fallback — only for emails that look like real transaction notifications
+  // with account/card reference (avoids promotional emails)
   const hasTransactionKeyword = /compra|débito|debito|cr[eé]dito|transacci[oó]n|retiro|abono|transferencia|pago\s+realizad/i.test(text);
   const hasAccountRef = /\*{2,}\d{3,4}|\bterminada?\s+en\s+\d{3,4}|\bcuenta\s+\d|\btarjeta\s+\d/i.test(text);
 
@@ -165,7 +187,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
         return {
           amount,
           type: isIncome ? 'income' : 'expense',
-          description: subject.trim() || 'Transacción Davivienda',
+          description: subject.trim() || 'Transacción · Davivienda',
           category: inferCategory(subject),
           date: new Date().toISOString(),
           rawText: text,
