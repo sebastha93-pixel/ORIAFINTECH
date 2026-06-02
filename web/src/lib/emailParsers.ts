@@ -4,6 +4,7 @@ export interface ParsedEmail {
   description: string;
   category: string;
   merchant?: string;
+  accountSuffix?: string; // last 4 digits of source account
 }
 
 function parseAmount(raw: string): number {
@@ -32,45 +33,56 @@ function inferCategory(text: string): string {
   return 'Otros';
 }
 
+function extractBancolombiaAccountSuffix(text: string): string | undefined {
+  // "desde tu producto 7070" or "desde tu cuenta 7070"
+  const fromMatch = text.match(/desde\s+tu\s+(?:cuenta|producto)\s+\*?(\d+)/i);
+  if (fromMatch) return fromMatch[1].slice(-4);
+  // Generic "*XXXX" pattern
+  const starMatch = text.match(/\*(\d{4})\b/);
+  if (starMatch) return starMatch[1];
+  return undefined;
+}
+
 function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   const text = body + ' ' + subject;
+  const accountSuffix = extractBancolombiaAccountSuffix(text);
 
   const pagoMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+a\s+([\w\s]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
   if (pagoMatch) {
     const amount = parseAmount(pagoMatch[1]);
     const merchant = pagoMatch[2].trim().replace(/\s+/g, ' ');
-    return { amount, type: 'expense', description: `Pago a ${merchant}`, category: inferCategory(merchant), merchant };
+    return { amount, type: 'expense', description: `Pago a ${merchant}`, category: inferCategory(merchant), merchant, accountSuffix };
   }
 
   const transferisteMatch = text.match(/transferiste\s+\$?\s*([\d.,]+)/i);
   if (transferisteMatch) {
     const amount = parseAmount(transferisteMatch[1]);
-    return { amount, type: 'expense', description: 'Transferencia enviada Bancolombia', category: 'Transferencias' };
+    return { amount, type: 'expense', description: 'Transferencia enviada Bancolombia', category: 'Transferencias', accountSuffix };
   }
 
   const compraMatch = text.match(/[Cc]ompra\s+aprobada\s+por\s+\$?\s*([\d.,]+)\s+en\s+([^\n\r.]+)/);
   if (compraMatch) {
     const amount = parseAmount(compraMatch[1]);
     const merchant = compraMatch[2].trim().replace(/\s+/g, ' ');
-    return { amount, type: 'expense', description: `Compra en ${merchant}`, category: inferCategory(merchant), merchant };
+    return { amount, type: 'expense', description: `Compra en ${merchant}`, category: inferCategory(merchant), merchant, accountSuffix };
   }
 
   const transRecibidaMatch = text.match(/[Tt]ransferencia\s+recibida\s+por\s+\$?\s*([\d.,]+)/);
   if (transRecibidaMatch) {
     const amount = parseAmount(transRecibidaMatch[1]);
-    return { amount, type: 'income', description: 'Transferencia recibida Bancolombia', category: 'Transferencias' };
+    return { amount, type: 'income', description: 'Transferencia recibida Bancolombia', category: 'Transferencias', accountSuffix };
   }
 
   const recibisteMatch = text.match(/(?:[Tt]e\s+lleg[oó]|[Rr]ecibiste)\s+(?:una\s+transferencia\s+de\s+)?\$?\s*([\d.,]+)/);
   if (recibisteMatch) {
     const amount = parseAmount(recibisteMatch[1]);
-    return { amount, type: 'income', description: 'Transferencia recibida Bancolombia', category: 'Transferencias' };
+    return { amount, type: 'income', description: 'Transferencia recibida Bancolombia', category: 'Transferencias', accountSuffix };
   }
 
   const retiroMatch = text.match(/[Rr]etiro\s+en\s+cajero\s+por\s+\$?\s*([\d.,]+)/);
   if (retiroMatch) {
     const amount = parseAmount(retiroMatch[1]);
-    return { amount, type: 'expense', description: 'Retiro en cajero Bancolombia', category: 'Efectivo' };
+    return { amount, type: 'expense', description: 'Retiro en cajero Bancolombia', category: 'Efectivo', accountSuffix };
   }
 
   // Generic fallback: any $X in the email
@@ -84,6 +96,7 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
         type: isIncome ? 'income' : 'expense',
         description: subject.trim() || 'Transacción Bancolombia',
         category: inferCategory(subject),
+        accountSuffix,
       };
     }
   }
@@ -91,8 +104,17 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   return null;
 }
 
+function extractDaviviendaAccountSuffix(text: string): string | undefined {
+  const match = text.match(/(?:tarjeta|cuenta)[^:]*\*(\d{4})/i);
+  if (match) return match[1];
+  const numMatch = text.match(/(?:N[oúu]\.?|N[úu]mero)\s*(?:de\s+)?(?:cuenta|tarjeta)[^:]*:\s*\*?(\d{4,})/i);
+  if (numMatch) return numMatch[1].slice(-4);
+  return undefined;
+}
+
 function parseDavivienda(body: string, subject: string): ParsedEmail | null {
   const text = body + ' ' + subject;
+  const accountSuffix = extractDaviviendaAccountSuffix(text);
 
   const valorMatch = text.match(/Valor\s+Transacci[oó]n[^:]*:\s*([\d.,]+)/i);
   if (valorMatch) {
@@ -108,7 +130,7 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
     const description = merchant
       ? (isIncome ? `Abono en ${merchant}` : `Compra en ${merchant}`)
       : (isIncome ? 'Ingreso Davivienda' : 'Gasto Davivienda');
-    return { amount, type, description, category: inferCategory(merchant || clase), merchant: merchant || undefined };
+    return { amount, type, description, category: inferCategory(merchant || clase), merchant: merchant || undefined, accountSuffix };
   }
 
   const genericMatch = text.match(/\$?\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/);
@@ -121,6 +143,7 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
         type: isIncome ? 'income' : 'expense',
         description: subject.trim() || 'Transacción Davivienda',
         category: inferCategory(subject),
+        accountSuffix,
       };
     }
   }

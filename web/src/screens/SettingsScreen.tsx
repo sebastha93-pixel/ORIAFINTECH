@@ -14,6 +14,15 @@ interface Transaction {
   bank:        string;
 }
 
+interface BankAccount {
+  id:             string;
+  name:           string;
+  institution:    string;
+  account_type:   string;
+  account_suffix: string | null;
+  currency_code:  string;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function guessCategory(desc: string, type: 'income' | 'expense'): string {
@@ -80,6 +89,18 @@ function parseCSV(text: string, bank: string): Transaction[] {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+const INSTITUTIONS = [
+  { id: 'bancolombia', name: 'Bancolombia', color: '#FFCD00', types: ['savings','checking','credit_card'] },
+  { id: 'davivienda',  name: 'Davivienda',  color: '#E8192C', types: ['savings','checking','credit_card'] },
+  { id: 'nequi',       name: 'Nequi',       color: '#7B3FF2', types: ['savings'] },
+];
+
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  savings:     'Ahorros',
+  checking:    'Corriente',
+  credit_card: 'Crédito',
+};
+
 const BANKS = [
   { id:'bancolombia', name:'Bancolombia', icon:'🏦', color:'#FFCD00',
     steps:['Ingresa a la app o web de Bancolombia','Ve a Cuentas → tu cuenta → Extracto','Selecciona el período','Descarga en formato Excel o CSV'] },
@@ -92,7 +113,7 @@ const BANKS = [
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SettingsScreen({ userId }: { userId: string }) {
-  const [tab, setTab]               = useState<'gmail'|'csv'>('gmail');
+  const [tab, setTab]               = useState<'gmail'|'cuentas'|'csv'>('gmail');
   const [selectedBank, setSelectedBank] = useState<string|null>(null);
   const [imported, setImported]     = useState<Transaction[]>([]);
   const [csvStatus, setCsvStatus]   = useState<'idle'|'done'|'error'>('idle');
@@ -107,10 +128,57 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [syncing, setSyncing]               = useState(false);
   const [lastSync, setLastSync]             = useState<string|null>(null);
 
+  // Bank accounts state
+  const [accounts, setAccounts]           = useState<BankAccount[]>([]);
+  const [showAddAccount, setShowAddAccount] = useState(false);
+  const [newInstitution, setNewInstitution] = useState('bancolombia');
+  const [newAccountType, setNewAccountType] = useState('savings');
+  const [newSuffix, setNewSuffix]           = useState('');
+  const [newNickname, setNewNickname]       = useState('');
+  const [savingAccount, setSavingAccount]   = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
 
-  // Check connection status on mount
+  async function loadAccounts() {
+    const { data } = await supabase
+      .from('accounts')
+      .select('id,name,institution,account_type,account_suffix,currency_code')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true });
+    setAccounts((data as BankAccount[]) ?? []);
+  }
+
+  async function addAccount() {
+    if (!newSuffix.trim() || newSuffix.length < 4) return;
+    setSavingAccount(true);
+    const inst = INSTITUTIONS.find(i => i.id === newInstitution);
+    const name = newNickname.trim() || `${inst?.name} ${ACCOUNT_TYPE_LABELS[newAccountType]} *${newSuffix.slice(-4)}`;
+    const { error } = await supabase.from('accounts').insert({
+      user_id: userId,
+      name,
+      institution: inst?.name ?? newInstitution,
+      account_type: newAccountType,
+      account_suffix: newSuffix.slice(-4),
+      currency_code: 'COP',
+      is_active: true,
+    });
+    if (!error) {
+      await loadAccounts();
+      setShowAddAccount(false);
+      setNewSuffix('');
+      setNewNickname('');
+    }
+    setSavingAccount(false);
+  }
+
+  async function removeAccount(id: string) {
+    await supabase.from('accounts').update({ is_active: false }).eq('id', id).eq('user_id', userId);
+    setAccounts(prev => prev.filter(a => a.id !== id));
+  }
+
+  // Check connection status and load accounts on mount
   useEffect(() => {
     fetch(`${RAILWAY_API}/email-sync/status-public?userId=${encodeURIComponent(userId)}`)
       .then(r => r.json() as Promise<{ connected: boolean; lastSync: string | null }>)
@@ -122,6 +190,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
         }
       })
       .catch(() => {/* silent */});
+    loadAccounts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -167,10 +236,23 @@ export function SettingsScreen({ userId }: { userId: string }) {
       const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
 
       // Step 2: Parse emails in the browser using the local parser
+      const registeredAccounts = accounts.filter(a => a.account_suffix);
       const parsed = emails.flatMap(email => {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) return [];
-        return [{ ...result, messageId: email.messageId, date: email.date }];
+
+        let account_id: string | undefined;
+        if (registeredAccounts.length > 0 && result.accountSuffix) {
+          const match = registeredAccounts.find(
+            a => a.account_suffix === result.accountSuffix &&
+                 a.institution?.toLowerCase().includes(email.bank)
+          );
+          // Has account number in email but doesn't match any registered account → skip
+          if (!match) return [];
+          account_id = match.id;
+        }
+
+        return [{ ...result, messageId: email.messageId, date: email.date, account_id }];
       });
 
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
@@ -194,7 +276,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
           date: txn.date,
           gmail_message_id: txn.messageId,
           currency_code: 'COP',
-          notes: `Auto-importado`,
+          notes: 'Auto-importado',
+          ...(txn.account_id ? { to_account_id: txn.account_id } : {}),
         });
         if (!error) {
           created++;
@@ -276,12 +359,16 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       {/* Tab switcher */}
       <div style={{ display:'flex', gap:0, margin:'16px 16px 0', borderRadius:14, overflow:'hidden', border:`1px solid ${C.border}` }}>
-        {(['gmail','csv'] as const).map(t => (
+        {([
+          ['gmail',   '✉️ Gmail'],
+          ['cuentas', '🏦 Cuentas'],
+          ['csv',     '📂 Extracto'],
+        ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
-            style={{ flex:1, padding:'11px 0', border:'none', cursor:'pointer', fontWeight:700, fontSize:13,
+            style={{ flex:1, padding:'11px 0', border:'none', cursor:'pointer', fontWeight:700, fontSize:12,
               background: tab===t ? 'linear-gradient(135deg,#1d4ed8,#7c3aed)' : C.surface,
               color: tab===t ? '#fff' : C.textMuted }}>
-            {t === 'gmail' ? '✉️  Gmail automático' : '📂  Subir extracto'}
+            {label}
           </button>
         ))}
       </div>
@@ -362,6 +449,143 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 </div>
               ))}
             </div>
+          </>
+        )}
+
+        {/* ── CUENTAS TAB ── */}
+        {tab === 'cuentas' && (
+          <>
+            <div style={{ ...card }}>
+              <div style={{ color:C.text, fontSize:15, fontWeight:700, marginBottom:4 }}>Mis productos bancarios</div>
+              <div style={{ color:C.textMuted, fontSize:12, lineHeight:1.6, marginBottom:16 }}>
+                Registra tus cuentas para que Nexo solo importe movimientos que pertenecen a tus productos.
+              </div>
+
+              {accounts.length === 0 && !showAddAccount && (
+                <div style={{ textAlign:'center', padding:'16px 0', color:C.textMuted, fontSize:13 }}>
+                  Sin cuentas registradas. Los movimientos de todas tus cuentas serán importados.
+                </div>
+              )}
+
+              {accounts.map(acc => {
+                const inst = INSTITUTIONS.find(i => i.name.toLowerCase() === acc.institution?.toLowerCase());
+                return (
+                  <div key={acc.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0',
+                    borderBottom:`1px solid ${C.border}` }}>
+                    <div style={{ width:40, height:40, borderRadius:12, flexShrink:0,
+                      background:`${inst?.color ?? '#3b82f6'}22`,
+                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>
+                      🏦
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {acc.name}
+                      </div>
+                      <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
+                        {acc.institution} · *{acc.account_suffix}
+                      </div>
+                    </div>
+                    <button onClick={() => removeAccount(acc.id)}
+                      style={{ background:'rgba(239,68,68,0.1)', border:'none', borderRadius:8, padding:'6px 10px',
+                        color:C.danger, fontSize:12, cursor:'pointer', flexShrink:0 }}>
+                      Quitar
+                    </button>
+                  </div>
+                );
+              })}
+
+              {showAddAccount ? (
+                <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:12 }}>
+                  <div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Banco</div>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      {INSTITUTIONS.map(inst => (
+                        <button key={inst.id} onClick={() => { setNewInstitution(inst.id); setNewAccountType(inst.types[0]); }}
+                          style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newInstitution===inst.id ? inst.color : C.border}`,
+                            background: newInstitution===inst.id ? `${inst.color}22` : C.surface,
+                            color: newInstitution===inst.id ? inst.color : C.textMuted,
+                            fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                          {inst.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Tipo de cuenta</div>
+                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                      {(INSTITUTIONS.find(i => i.id === newInstitution)?.types ?? ['savings']).map(t => (
+                        <button key={t} onClick={() => setNewAccountType(t)}
+                          style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newAccountType===t ? C.primaryGlow : C.border}`,
+                            background: newAccountType===t ? 'rgba(59,130,246,0.15)' : C.surface,
+                            color: newAccountType===t ? C.primaryGlow : C.textMuted,
+                            fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                          {ACCOUNT_TYPE_LABELS[t]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Últimos 4 dígitos de la cuenta</div>
+                    <input
+                      type="number"
+                      placeholder="ej. 7070"
+                      value={newSuffix}
+                      maxLength={4}
+                      onChange={e => setNewSuffix(e.target.value.slice(-4))}
+                      style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
+                        background:C.surface, color:C.text, fontSize:15, fontWeight:700,
+                        letterSpacing:4, boxSizing:'border-box', outline:'none' }}
+                    />
+                  </div>
+
+                  <div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Nombre personalizado (opcional)</div>
+                    <input
+                      type="text"
+                      placeholder="ej. Cuenta principal"
+                      value={newNickname}
+                      onChange={e => setNewNickname(e.target.value)}
+                      style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
+                        background:C.surface, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none' }}
+                    />
+                  </div>
+
+                  <div style={{ display:'flex', gap:8 }}>
+                    <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); }}
+                      style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`,
+                        background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer' }}>
+                      Cancelar
+                    </button>
+                    <button onClick={addAccount} disabled={newSuffix.length < 4 || savingAccount}
+                      style={{ flex:2, padding:'12px 0', borderRadius:12, border:'none',
+                        background: newSuffix.length < 4 ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                        color: newSuffix.length < 4 ? C.textMuted : '#fff',
+                        fontSize:13, fontWeight:700, cursor: newSuffix.length < 4 ? 'default' : 'pointer' }}>
+                      {savingAccount ? 'Guardando…' : 'Guardar cuenta'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowAddAccount(true)}
+                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:`1px dashed ${C.border}`,
+                    background:'transparent', color:C.primaryGlow, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                  + Agregar cuenta
+                </button>
+              )}
+            </div>
+
+            {accounts.length > 0 && (
+              <div style={{ background:'rgba(59,130,246,0.07)', border:`1px solid rgba(59,130,246,0.2)`, borderRadius:12, padding:'12px 16px' }}>
+                <div style={{ color:C.primaryGlow, fontSize:12, fontWeight:600, marginBottom:4 }}>
+                  Filtro activo
+                </div>
+                <div style={{ color:C.textSec, fontSize:12, lineHeight:1.6 }}>
+                  Solo se importarán movimientos de tus {accounts.length} cuenta{accounts.length!==1?'s':''} registrada{accounts.length!==1?'s':''}.
+                </div>
+              </div>
+            )}
           </>
         )}
 
