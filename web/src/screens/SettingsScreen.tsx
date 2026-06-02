@@ -750,8 +750,17 @@ export function SettingsScreen({ userId }: { userId: string }) {
         )}
       </div>
 
-      {/* Logout */}
-      <div style={{ padding:'8px 16px 32px' }}>
+      {/* Danger zone */}
+      <div style={{ padding:'8px 16px 32px', display:'flex', flexDirection:'column', gap:10 }}>
+        <button
+          onClick={async () => {
+            const ok = window.confirm('¿Borrar TODOS los movimientos? Esta acción no se puede deshacer.');
+            if (!ok) return;
+            await supabase.from('transactions').delete().eq('user_id', userId);
+          }}
+          style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.2)`, background:'transparent', color:C.textMuted, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+          🗑️ Borrar todos los movimientos
+        </button>
         <button
           onClick={() => { localStorage.removeItem('nexo_gmail_connected'); localStorage.removeItem('nexo_gmail_email'); supabase.auth.signOut(); }}
           style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.3)`, background:'rgba(239,68,68,0.07)', color:C.danger, fontSize:15, fontWeight:700, cursor:'pointer' }}>
