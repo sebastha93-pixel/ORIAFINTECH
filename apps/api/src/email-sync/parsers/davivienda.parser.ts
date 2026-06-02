@@ -38,11 +38,11 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   // "Valor Transacción: 68,150"
   // "Clase de Movimiento: Compra" (or Abono, Retiro, Transferencia, etc.)
   // "Lugar de Transacción: RAPPI GENERAL"
-  const valorMatch = text.match(/Valor\s+Transacci[oó]n[^:]*:\s*([\d.,]+)/i);
+  const valorMatch = text.match(/Valor\s+Transacci[oó]n[^:]*:\s*\$?\s*([\d.,]+)/i);
   if (valorMatch) {
     const amount = parseAmount(valorMatch[1]);
-    // Capture only the first word for clase (e.g. "Compra", "Abono", "Retiro")
-    const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*(\w+)/i);
+    // Capture full clase text: "Abono Pago de Nomina" not just first word
+    const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*([^\n\r,]+)/i);
     // Capture merchant: grab everything after the label, then strip email closing phrases
     const lugarRaw = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
     const lugarMatch = lugarRaw
@@ -53,7 +53,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
           .trim()]
       : null;
 
-    const clase = (claseMatch?.[1] ?? '').trim().toLowerCase();
+    const claseRaw = (claseMatch?.[1] ?? '').trim();
+    const clase = claseRaw.toLowerCase();
     const merchant = lugarMatch ? lugarMatch[1].trim().replace(/\s+/g, ' ') : '';
 
     const isIncome = /abono|cr[eé]dito|ingreso|recib/.test(clase);
@@ -61,10 +62,9 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
 
     let description: string;
     if (merchant) {
-      description = isIncome ? `Abono en ${merchant}` : `Compra en ${merchant}`;
-    } else if (claseMatch) {
-      const claseLabel = claseMatch[1].trim();
-      description = isIncome ? `${claseLabel} Davivienda` : `${claseLabel} Davivienda`;
+      description = isIncome ? `${claseRaw} - ${merchant}` : `Compra en ${merchant}`;
+    } else if (claseRaw) {
+      description = `${claseRaw} Davivienda`;
     } else {
       description = isIncome ? 'Ingreso Davivienda' : 'Gasto Davivienda';
     }
@@ -73,7 +73,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       amount,
       type,
       description,
-      category: inferCategory(merchant || clase),
+      category: inferCategory(merchant + ' ' + clase),
       date: new Date().toISOString(),
       merchant: merchant || undefined,
       rawText: text,

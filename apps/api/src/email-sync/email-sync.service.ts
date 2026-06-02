@@ -340,7 +340,17 @@ export class EmailSyncService {
 
     if (payload.mimeType === 'text/html' && payload.body?.data) {
       const html = this.decodeBase64(payload.body.data);
-      return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      return html
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&oacute;/gi, 'ó').replace(/&eacute;/gi, 'é')
+        .replace(/&iacute;/gi, 'í').replace(/&uacute;/gi, 'ú')
+        .replace(/&aacute;/gi, 'á').replace(/&ntilde;/gi, 'ñ')
+        .replace(/&Oacute;/gi, 'Ó').replace(/&Eacute;/gi, 'É')
+        .replace(/&Iacute;/gi, 'Í').replace(/&Uacute;/gi, 'Ú')
+        .replace(/&Aacute;/gi, 'Á').replace(/&Ntilde;/gi, 'Ñ')
+        .replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ')
+        .replace(/&#\d+;/g, ' ')
+        .replace(/\s+/g, ' ');
     }
 
     if (payload.parts) {

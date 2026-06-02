@@ -114,31 +114,9 @@ export function DashboardScreen() {
 
         {/* Total balance card */}
         <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:20, padding:20, border:`1px solid ${C.border}` }}>
-          <div style={{ color:C.textMuted, fontSize:11, marginBottom:4, letterSpacing:0.5 }}>SALDO DISPONIBLE</div>
-          <div style={{ color: totalBalance >= 0 ? C.text : C.danger, fontSize:36, fontWeight:800, marginBottom:12 }}>
+          <div style={{ color:C.textMuted, fontSize:11, marginBottom:4, letterSpacing:0.5 }}>BALANCE</div>
+          <div style={{ color: totalBalance >= 0 ? C.text : C.danger, fontSize:36, fontWeight:800 }}>
             {fmt(totalBalance)}
-          </div>
-
-          {/* Breakdown row */}
-          <div style={{ display:'flex', gap:0, borderTop:`1px solid ${C.border}`, paddingTop:12 }}>
-            <div style={{ flex:1, paddingRight:12, borderRight:`1px solid ${C.border}` }}>
-              <div style={{ color:C.textMuted, fontSize:10, marginBottom:3 }}>Saldo anterior</div>
-              <div style={{ color: prevNet >= 0 ? C.accent : C.danger, fontSize:13, fontWeight:700 }}>
-                {prevNet >= 0 ? '+' : ''}{fmt(prevNet)}
-              </div>
-              <div style={{ color:C.textMuted, fontSize:9, marginTop:1 }}>
-                {prevSummaries.length} mes{prevSummaries.length !== 1 ? 'es' : ''} cerrado{prevSummaries.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-            <div style={{ flex:1, paddingLeft:12 }}>
-              <div style={{ color:C.textMuted, fontSize:10, marginBottom:3 }}>Este mes</div>
-              <div style={{ color: curNet >= 0 ? C.accent : C.danger, fontSize:13, fontWeight:700 }}>
-                {curNet >= 0 ? '+' : ''}{fmt(curNet)}
-              </div>
-              <div style={{ color:C.textMuted, fontSize:9, marginTop:1 }}>
-                {currentTxns.length} movimiento{currentTxns.length !== 1 ? 's' : ''}
-              </div>
-            </div>
           </div>
         </div>
       </div>
