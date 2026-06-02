@@ -20,6 +20,7 @@ interface BankAccount {
   institution:    string;
   account_type:   string;
   account_suffix: string | null;
+  account_holder: string | null;
   currency_code:  string;
 }
 
@@ -144,6 +145,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newAccountType, setNewAccountType] = useState('savings');
   const [newSuffix, setNewSuffix]           = useState('');
   const [newNickname, setNewNickname]       = useState('');
+  const [newHolder, setNewHolder]           = useState('');
   const [savingAccount, setSavingAccount]   = useState(false);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -152,7 +154,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function loadAccounts() {
     const { data } = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,currency_code')
+      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code')
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
@@ -170,6 +172,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       institution: inst?.name ?? newInstitution,
       account_type: newAccountType,
       account_suffix: newSuffix.slice(-4),
+      account_holder: newHolder.trim().toUpperCase() || null,
       currency_code: 'COP',
       is_active: true,
     });
@@ -178,6 +181,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setShowAddAccount(false);
       setNewSuffix('');
       setNewNickname('');
+      setNewHolder('');
     }
     setSavingAccount(false);
   }
@@ -259,10 +263,19 @@ export function SettingsScreen({ userId }: { userId: string }) {
         if (registeredAccounts.length > 0) {
           // Email must contain an account number matching a registered account
           if (!result.accountSuffix) continue;
-          const match = registeredAccounts.find(
-            a => a.account_suffix === result.accountSuffix &&
-                 a.institution?.toLowerCase().includes(email.bank)
-          );
+          const match = registeredAccounts.find(a => {
+            if (a.account_suffix !== result.accountSuffix) return false;
+            if (!a.institution?.toLowerCase().includes(email.bank)) return false;
+            // If titular is registered and email has a greeting name, they must match
+            if (a.account_holder && result.accountHolder) {
+              const registered = a.account_holder.toLowerCase();
+              const fromEmail  = result.accountHolder.toLowerCase();
+              // At least the first word of the registered titular must appear in the email name
+              const firstWord = registered.split(' ')[0];
+              if (firstWord.length > 2 && !fromEmail.includes(firstWord)) return false;
+            }
+            return true;
+          });
           if (!match) continue;
           parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
         } else {
@@ -498,6 +511,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       </div>
                       <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
                         {acc.institution} · *{acc.account_suffix}
+                        {acc.account_holder && <span> · {acc.account_holder}</span>}
                       </div>
                     </div>
                     <button onClick={() => removeAccount(acc.id)}
@@ -565,6 +579,23 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
                         background:C.surface, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none' }}
                     />
+                  </div>
+
+                  <div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>
+                      Titular de la cuenta — nombre como aparece en el correo del banco
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="ej. SEBASTIAN HURTADO"
+                      value={newHolder}
+                      onChange={e => setNewHolder(e.target.value)}
+                      style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
+                        background:C.surface, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none' }}
+                    />
+                    <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
+                      Recomendado — evita importar movimientos de otras cuentas en el mismo Gmail.
+                    </div>
                   </div>
 
                   <div style={{ display:'flex', gap:8 }}>
