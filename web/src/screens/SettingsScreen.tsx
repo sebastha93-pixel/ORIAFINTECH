@@ -334,6 +334,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
           return true;
         });
         if (!match) continue;
+
+        // Only import transactions from the date the initial balance was set onwards
+        if (match.initial_balance_set_date && email.date < match.initial_balance_set_date) continue;
+
         parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
       }
 

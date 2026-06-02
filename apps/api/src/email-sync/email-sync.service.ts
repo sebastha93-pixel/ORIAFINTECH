@@ -431,7 +431,7 @@ export class EmailSyncService {
     // Load user's registered accounts
     const { data: userAccounts } = await this.supabase
       .from('accounts')
-      .select('id, institution, account_suffix, account_holder')
+      .select('id, institution, account_suffix, account_holder, initial_balance_set_date')
       .eq('user_id', userId)
       .eq('is_active', true);
 
@@ -447,7 +447,7 @@ export class EmailSyncService {
       return false;
     }
 
-    const matchedAccount = userAccounts.find((a: { institution: string; account_suffix: string; account_holder: string | null }) => {
+    const matchedAccount = userAccounts.find((a: { institution: string; account_suffix: string; account_holder: string | null; initial_balance_set_date: string | null }) => {
       if (a.account_suffix !== parsed.accountSuffix) return false;
       if (!a.institution?.toLowerCase().includes(bank)) return false;
       // If titular registered and email has a greeting name, first word must match
@@ -468,6 +468,13 @@ export class EmailSyncService {
     const emailDate = message.internalDate
       ? new Date(parseInt(message.internalDate, 10)).toISOString().split('T')[0]
       : parsed.date.split('T')[0];
+
+    // Only import transactions from the date the initial balance was set onwards
+    const cutoffDate = (matchedAccount as { initial_balance_set_date: string | null }).initial_balance_set_date;
+    if (cutoffDate && emailDate < cutoffDate) {
+      this.logger.debug(`Message ${messageId} (${emailDate}) is before initial balance cutoff (${cutoffDate}), skipping`);
+      return false;
+    }
 
     // Resolve category_id from category name
     const categoryId = await this.resolveCategoryId(userId, parsed.category, parsed.type);
