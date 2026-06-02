@@ -277,7 +277,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
           gmail_message_id: txn.messageId,
           currency_code: 'COP',
           notes: 'Auto-importado',
-          ...(txn.account_id ? { to_account_id: txn.account_id } : {}),
+          ...(txn.account_id ? { account_id: txn.account_id } : {}),
         });
         if (!error) {
           created++;
