@@ -32,6 +32,12 @@ function inferCategory(text: string): string {
 }
 
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
+  // Reject promotional/marketing emails that are not transaction notifications
+  if (/bono|beneficio|oferta|promoci[oó]n|descuento|gana\s+m[aá]s|cashback|recompensa/i.test(subject) &&
+      !/compra|transacci[oó]n|d[eé]bito|abono|retiro|transferencia/i.test(subject)) {
+    return null;
+  }
+
   const text = emailBody + ' ' + subject;
 
   // Davivienda structured format:
@@ -144,20 +150,27 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
-  // Generic fallback — any standalone number pattern in a Davivienda email
-  const genericMatch = text.match(/\$?\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/);
-  if (genericMatch) {
-    const amount = parseAmount(genericMatch[1]);
-    if (amount > 1000) {
-      const isIncome = /recib|abono|cr[eé]dit|ingreso|lleg/i.test(text);
-      return {
-        amount,
-        type: isIncome ? 'income' : 'expense',
-        description: subject.trim() || 'Transacción Davivienda',
-        category: inferCategory(subject),
-        date: new Date().toISOString(),
-        rawText: text,
-      };
+  // Generic fallback — only for emails that look like real transaction notifications.
+  // Reject marketing/promotional emails (bonos, ofertas, etc.) that contain amounts
+  // but are not account-specific transaction alerts.
+  const hasTransactionKeyword = /compra|débito|debito|cr[eé]dito|transacci[oó]n|retiro|abono|transferencia|pago\s+realizad/i.test(text);
+  const hasAccountRef = /\*{2,}\d{3,4}|\bterminada?\s+en\s+\d{3,4}|\bcuenta\s+\d|\btarjeta\s+\d/i.test(text);
+
+  if (hasTransactionKeyword && hasAccountRef) {
+    const genericMatch = text.match(/\$?\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/);
+    if (genericMatch) {
+      const amount = parseAmount(genericMatch[1]);
+      if (amount > 1000) {
+        const isIncome = /recib|abono|cr[eé]dit|ingreso|lleg/i.test(text);
+        return {
+          amount,
+          type: isIncome ? 'income' : 'expense',
+          description: subject.trim() || 'Transacción Davivienda',
+          category: inferCategory(subject),
+          date: new Date().toISOString(),
+          rawText: text,
+        };
+      }
     }
   }
 
