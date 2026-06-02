@@ -184,9 +184,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       // Step 3: Insert via Supabase JS (user is authenticated → no RLS issues)
       let created = 0;
-      const errors: string[] = [];
+      const upsertErrors: string[] = [];
       for (const txn of parsed) {
-        const { error } = await supabase.from('transactions').upsert({
+        const { error } = await supabase.from('transactions').insert({
           user_id: userId,
           transaction_type: txn.type,
           amount: txn.amount,
@@ -195,13 +195,17 @@ export function SettingsScreen({ userId }: { userId: string }) {
           gmail_message_id: txn.messageId,
           currency_code: 'COP',
           notes: `Auto-importado`,
-        }, { onConflict: 'user_id,gmail_message_id' });
-        if (!error) created++;
-        else errors.push(error.message);
+        });
+        if (!error) {
+          created++;
+        } else if (error.code !== '23505') {
+          // 23505 = duplicate (already imported) → silently skip
+          upsertErrors.push(error.message.slice(0, 60));
+        }
       }
 
       setGmailCount(prev => prev + created);
-      const errStr = errors.length > 0 ? ` ⚠️ err: ${errors[0].slice(0,40)}` : '';
+      const errStr = upsertErrors.length > 0 ? ` ⚠️ ${upsertErrors[0]}` : '';
       setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${errStr}`);
     } catch (e) {
       setLastSync('Error al sincronizar');
