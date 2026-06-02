@@ -160,7 +160,9 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
       : '';
     const claseRaw = (claseMatch?.[1] ?? '').trim();
     const clase    = claseRaw.toLowerCase();
-    const isIncome = /abono|cr[eé]dito|ingreso|recib/.test(clase);
+    const isIncome =
+      /cr[eé]dito|ingreso|recibid|nómin|nomin/i.test(clase) ||
+      (/abono/i.test(clase) && !/transferencia|pago\s+a\s+tercero|d[eé]bito/i.test(clase));
     const type: 'income' | 'expense' = isIncome ? 'income' : 'expense';
 
     // Use clase for category when merchant category is too generic

@@ -105,7 +105,11 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     const clase = claseRaw.toLowerCase();
     const merchant = lugarMatch ? lugarMatch[1].trim().replace(/\s+/g, ' ') : '';
 
-    const isIncome = /abono|cr[eé]dito|ingreso|recib/.test(clase);
+    // "Abono Transferencia" = YOU sent money (debit) → expense
+    // "Abono Pago Nómina" / "Abono Recibido" / bare "Abono" = credit received → income
+    const isIncome =
+      /cr[eé]dito|ingreso|recibid|nómin|nomin/i.test(clase) ||
+      (/abono/i.test(clase) && !/transferencia|pago\s+a\s+tercero|d[eé]bito/i.test(clase));
     const type: 'income' | 'expense' = isIncome ? 'income' : 'expense';
 
     let description: string;
