@@ -189,10 +189,20 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function removeAccount(id: string) {
     const ok = window.confirm('¿Eliminar esta cuenta y todos sus movimientos importados?');
     if (!ok) return;
-    // Delete transactions linked to this account first
+    const remaining = accounts.filter(a => a.id !== id);
+    // Delete transactions linked to this specific account
     await supabase.from('transactions').delete().eq('account_id', id).eq('user_id', userId);
+    // If this was the last account, also clean up orphaned Gmail transactions (account_id IS NULL)
+    if (remaining.length === 0) {
+      await supabase
+        .from('transactions')
+        .delete()
+        .eq('user_id', userId)
+        .not('gmail_message_id', 'is', null)
+        .is('account_id', null);
+    }
     await supabase.from('accounts').update({ is_active: false }).eq('id', id).eq('user_id', userId);
-    setAccounts(prev => prev.filter(a => a.id !== id));
+    setAccounts(remaining);
   }
 
   // Check connection status and load accounts on mount
