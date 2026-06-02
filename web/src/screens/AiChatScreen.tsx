@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { C, fmt } from '../theme';
+import { C, fmt, gradAccent, gradHero } from '../theme';
 
 interface Msg { role:'user'|'ai'; text:string; ts:Date; }
 
@@ -29,7 +29,7 @@ function getReply(msg: string): string {
 
 export function AiChatScreen() {
   const [msgs, setMsgs]   = useState<Msg[]>([
-    { role:'ai', text:'¡Hola Sebastián! 👋 Soy **Nexo AI**, tu asesor financiero inteligente.\n\nPuedo analizar tus gastos, evaluar tus metas y darte recomendaciones personalizadas. ¿En qué te ayudo hoy?', ts:new Date() },
+    { role:'ai', text:'¡Hola! 👋 Soy **ORIA**, tu asesora financiera inteligente.\n\nPuedo analizar tus gastos, evaluar tus metas y darte recomendaciones personalizadas. ¿En qué te ayudo hoy?', ts:new Date() },
   ]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
@@ -52,11 +52,11 @@ export function AiChatScreen() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', paddingBottom:80 }}>
       {/* Header */}
-      <div style={{ background:'linear-gradient(135deg,#0F2563,#070B14)', padding:'48px 20px 20px', flexShrink:0 }}>
+      <div style={{ background:gradHero, padding:'48px 20px 20px', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-          <div style={{ width:48, height:48, borderRadius:16, background:'linear-gradient(135deg,#22C55E,#16A34A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24 }}>🤖</div>
+          <div style={{ width:48, height:48, borderRadius:16, background:gradAccent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24 }}>🤖</div>
           <div>
-            <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>Nexo AI</div>
+            <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>ORIA</div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               <div style={{ width:7, height:7, borderRadius:'50%', background:C.accent }} />
               <span style={{ color:C.accent, fontSize:12 }}>Activo</span>
@@ -70,7 +70,7 @@ export function AiChatScreen() {
         {msgs.map((m,i)=>(
           <div key={i} style={{ display:'flex', justifyContent:m.role==='user'?'flex-end':'flex-start', marginBottom:12 }}>
             {m.role==='ai' && (
-              <div style={{ width:32, height:32, borderRadius:10, background:'linear-gradient(135deg,#22C55E,#16A34A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, marginRight:8, flexShrink:0, alignSelf:'flex-end' }}>🤖</div>
+              <div style={{ width:32, height:32, borderRadius:10, background:gradAccent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, marginRight:8, flexShrink:0, alignSelf:'flex-end' }}>🤖</div>
             )}
             <div style={{
               maxWidth:'80%',
@@ -89,7 +89,7 @@ export function AiChatScreen() {
         ))}
         {typing && (
           <div style={{ display:'flex', alignItems:'flex-end', marginBottom:12 }}>
-            <div style={{ width:32, height:32, borderRadius:10, background:'linear-gradient(135deg,#22C55E,#16A34A)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, marginRight:8, flexShrink:0 }}>🤖</div>
+            <div style={{ width:32, height:32, borderRadius:10, background:gradAccent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, marginRight:8, flexShrink:0 }}>🤖</div>
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:'18px 18px 18px 4px', padding:'14px 18px', display:'flex', gap:5 }}>
               {[0,1,2].map(i=>(
                 <div key={i} style={{ width:6, height:6, borderRadius:'50%', background:C.textMuted, animation:`bounce 1.2s ${i*0.2}s infinite` }} />
@@ -119,7 +119,7 @@ export function AiChatScreen() {
             onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&send(input)}
           />
-          <button onClick={()=>send(input)} style={{ width:40, height:40, borderRadius:12, border:'none', background:input.trim()?'linear-gradient(135deg,#22C55E,#16A34A)':C.surfaceEl, color:'#fff', cursor:input.trim()?'pointer':'default', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.2s' }}>
+          <button onClick={()=>send(input)} style={{ width:40, height:40, borderRadius:12, border:'none', background:input.trim() ? gradAccent : C.surfaceEl, color:'#fff', cursor:input.trim()?'pointer':'default', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.2s' }}>
             ↑
           </button>
         </div>

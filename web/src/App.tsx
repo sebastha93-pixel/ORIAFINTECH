@@ -37,9 +37,12 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={{ minHeight:'100vh', background:'#070B14', display:'flex', alignItems:'center', justifyContent:'center' }}>
-        <div style={{ color:'#22C55E', fontSize:32, fontWeight:800, letterSpacing:4 }}>NEXO</div>
-      </div>
+    <div style={{ minHeight:'100vh', background:'#081426', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:14 }}>
+      <svg width="56" height="56" viewBox="0 0 56 56" style={{ display:'block' }}>
+        <circle cx="28" cy="28" r="22" fill="none" stroke="#31D67B" strokeWidth="4" strokeLinecap="round" strokeDasharray="115 23" transform="rotate(-110 28 28)" />
+      </svg>
+      <div style={{ color:'#F7F9FC', fontSize:20, fontWeight:800, letterSpacing:6 }}>ORIA</div>
+    </div>
     );
   }
 

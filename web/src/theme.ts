@@ -1,13 +1,13 @@
 export const C = {
-  bg: '#070B14', surface: '#0F172A', surfaceEl: '#162033',
-  border: '#1E2D45', borderLight: '#243553',
+  bg: '#081426', surface: '#0C1929', surfaceEl: '#112035',
+  border: '#1A2D44', borderLight: '#243650',
   primary: '#1E3A8A', primaryLight: '#2563EB', primaryGlow: '#3B82F6',
-  accent: '#22C55E', accentDark: '#16A34A', accentLight: '#4ADE80',
-  text: '#F8FAFC', textSec: '#94A3B8', textMuted: '#64748B',
-  success: '#22C55E', successBg: '#052E16',
+  accent: '#31D67B', accentDark: '#22A85A', accentLight: '#5DE89A',
+  text: '#F7F9FC', textSec: '#94A3B8', textMuted: '#5B7285',
+  success: '#31D67B', successBg: '#042914',
   danger: '#EF4444', dangerBg: '#1F0808',
   warning: '#F59E0B',
-  chart: ['#22C55E','#3B82F6','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#F97316','#64748B'],
+  chart: ['#31D67B','#3B82F6','#F59E0B','#8B5CF6','#EC4899','#06B6D4','#F97316','#64748B'],
 };
 
 export const fmt = (n: number) =>
@@ -23,4 +23,4 @@ export const card: React.CSSProperties = {
 
 export const gradAccent = `linear-gradient(135deg, ${C.accent}, ${C.accentDark})`;
 export const gradBlue   = `linear-gradient(135deg, ${C.primaryGlow}, ${C.primary})`;
-export const gradHero   = `linear-gradient(135deg, #0F2563, ${C.bg})`;
+export const gradHero   = `linear-gradient(160deg, #102040, ${C.bg})`;

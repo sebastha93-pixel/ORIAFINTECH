@@ -367,7 +367,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   return (
     <div style={{ paddingBottom: 100 }}>
       {/* Header */}
-      <div style={{ background:'linear-gradient(135deg,#0F2563,#070B14)', padding:'48px 20px 24px' }}>
+      <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 24px' }}>
         <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Sincronizar banco</div>
         <div style={{ color:C.textMuted, fontSize:13 }}>Conecta Gmail o sube un extracto CSV</div>
       </div>
@@ -397,7 +397,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
               <div style={{ ...card }}>
                 <div style={{ color:C.text, fontSize:16, fontWeight:800, marginBottom:8 }}>Sincronización automática</div>
                 <div style={{ color:C.textSec, fontSize:13, lineHeight:1.7, marginBottom:20 }}>
-                  Nexo lee los correos de alerta de <strong style={{color:C.text}}>Bancolombia</strong>, <strong style={{color:C.text}}>Davivienda</strong> y <strong style={{color:C.text}}>Nequi</strong> y registra tus movimientos automáticamente. Solo lectura — Nexo nunca modifica tu correo.
+                  ORIA lee los correos de alerta de <strong style={{color:C.text}}>Bancolombia</strong>, <strong style={{color:C.text}}>Davivienda</strong> y <strong style={{color:C.text}}>Nequi</strong> y registra tus movimientos automáticamente. Solo lectura — ORIA nunca modifica tu correo.
                 </div>
 
                 {gmailError && (
@@ -416,20 +416,20 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 <div style={{ marginTop:12, display:'flex', alignItems:'flex-start', gap:8 }}>
                   <span style={{ color:C.accent, fontSize:12, marginTop:1 }}>🔒</span>
                   <div style={{ color:C.textMuted, fontSize:11, lineHeight:1.6 }}>
-                    Usa OAuth 2.0 seguro. Nexo nunca almacena tu contraseña. Puedes revocar el acceso en cualquier momento desde tu cuenta Google.
+                    Usa OAuth 2.0 seguro. ORIA nunca almacena tu contraseña. Puedes revocar el acceso en cualquier momento desde tu cuenta Google.
                   </div>
                 </div>
               </div>
             ) : (
-              <div style={{ ...card, border:`1px solid rgba(34,197,94,0.3)`, background:'rgba(34,197,94,0.05)' }}>
+              <div style={{ ...card, border:`1px solid rgba(49,214,123,0.3)`, background:'rgba(49,214,123,0.05)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-                  <div style={{ width:44, height:44, borderRadius:14, background:'rgba(34,197,94,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✅</div>
+                  <div style={{ width:44, height:44, borderRadius:14, background:'rgba(49,214,123,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✅</div>
                   <div>
                     <div style={{ color:C.text, fontSize:15, fontWeight:700 }}>Gmail conectado</div>
                     <div style={{ color:C.textMuted, fontSize:12 }}>{gmailEmail}</div>
                   </div>
                 </div>
-                <div style={{ background:'rgba(34,197,94,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
+                <div style={{ background:'rgba(49,214,123,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
                   {gmailCount} movimiento{gmailCount !== 1 ? 's' : ''} importado{gmailCount !== 1 ? 's' : ''} automáticamente
                 </div>
                 {lastSync && (
@@ -439,12 +439,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 )}
                 <button onClick={syncNow} disabled={syncing}
                   style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:'none', cursor: syncing ? 'default' : 'pointer',
-                    background: syncing ? C.surface : 'rgba(34,197,94,0.15)',
+                    background: syncing ? C.surface : 'rgba(49,214,123,0.15)',
                     color: C.accent, fontSize:14, fontWeight:700, opacity: syncing ? 0.7 : 1 }}>
                   {syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar ahora'}
                 </button>
                 <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
-                  Nexo sincroniza automáticamente 2 veces al día (6am y 8pm).
+                  ORIA sincroniza automáticamente 2 veces al día (6am y 8pm).
                 </div>
               </div>
             )}
@@ -454,7 +454,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
               <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:12 }}>CÓMO FUNCIONA</div>
               {[
                 ['1','Conecta tu Gmail con un clic usando Google OAuth'],
-                ['2','Nexo busca correos de Bancolombia, Davivienda y Nequi'],
+                ['2','ORIA busca correos de Bancolombia, Davivienda y Nequi'],
                 ['3','Extrae el monto, comercio y fecha de cada alerta'],
                 ['4','Los movimientos aparecen en tu historial automáticamente'],
               ].map(([n, text]) => (
@@ -473,7 +473,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
             <div style={{ ...card }}>
               <div style={{ color:C.text, fontSize:15, fontWeight:700, marginBottom:4 }}>Mis productos bancarios</div>
               <div style={{ color:C.textMuted, fontSize:12, lineHeight:1.6, marginBottom:16 }}>
-                Registra tus cuentas para que Nexo solo importe movimientos que pertenecen a tus productos.
+                Registra tus cuentas para que ORIA solo importe movimientos que pertenecen a tus productos.
               </div>
 
               {accounts.length === 0 && !showAddAccount && (
@@ -671,7 +671,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       marginBottom:  i < Math.min(imported.length,10)-1 ? 12:0,
                       borderBottom:  i < Math.min(imported.length,10)-1 ? `1px solid ${C.border}` : 'none' }}>
                       <div style={{ width:38, height:38, borderRadius:11,
-                        background:t.type==='income'?'rgba(34,197,94,0.15)':'rgba(59,130,246,0.15)',
+                        background:t.type==='income'?'rgba(49,214,123,0.15)':'rgba(59,130,246,0.15)',
                         display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
                         {t.type==='income'?'💰':'💳'}
                       </div>

@@ -104,7 +104,7 @@ export function TransactionsScreen() {
 
   return (
     <div style={{ paddingBottom: 100 }}>
-      <div style={{ background:'linear-gradient(135deg,#0F2563,#070B14)', padding:'48px 20px 20px' }}>
+      <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 20px' }}>
         <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:2 }}>Movimientos</div>
 
         {/* Month selector */}
@@ -133,7 +133,7 @@ export function TransactionsScreen() {
         </div>
 
         <div style={{ display:'flex', gap:10 }}>
-          <div style={{ flex:1, background:'rgba(34,197,94,0.12)', border:'1px solid rgba(34,197,94,0.25)', borderRadius:14, padding:'10px 14px' }}>
+          <div style={{ flex:1, background:'rgba(49,214,123,0.12)', border:'1px solid rgba(49,214,123,0.25)', borderRadius:14, padding:'10px 14px' }}>
             <div style={{ color:C.textMuted, fontSize:11, marginBottom:2 }}>Ingresos</div>
             <div style={{ color:C.accent, fontSize:15, fontWeight:700 }}>{fmt(totalIncome)}</div>
           </div>

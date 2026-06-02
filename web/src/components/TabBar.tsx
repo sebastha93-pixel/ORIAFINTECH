@@ -35,10 +35,10 @@ export function TabBar({ active, onTab }: Props) {
             {isAdd ? (
               <div style={{
                 width:52, height:52, borderRadius:16, marginTop:-24,
-                background:'linear-gradient(135deg,#22C55E,#16A34A)',
+                background:'linear-gradient(135deg,#31D67B,#22A85A)',
                 display:'flex', alignItems:'center', justifyContent:'center',
                 fontSize:26, color:'#fff',
-                boxShadow:'0 4px 20px rgba(34,197,94,0.45)',
+                boxShadow:'0 4px 20px rgba(49,214,123,0.4)',
               }}>{t.icon}</div>
             ) : (
               <>

@@ -66,19 +66,23 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
   };
 
   return (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(160deg,#050A18,#070B14)', display:'flex', alignItems:'center', justifyContent:'center', padding:24, position:'relative', overflow:'hidden' }}>
-      <div style={{ position:'absolute', width:320, height:320, borderRadius:'50%', background:'#1E3A8A', opacity:.12, top:-100, left:-100, filter:'blur(40px)' }} />
-      <div style={{ position:'absolute', width:220, height:220, borderRadius:'50%', background:'#22C55E', opacity:.1, bottom:80, right:-60, filter:'blur(40px)' }} />
+    <div style={{ minHeight:'100vh', background:'linear-gradient(160deg,#060F20,#081426)', display:'flex', alignItems:'center', justifyContent:'center', padding:24, position:'relative', overflow:'hidden' }}>
+      <div style={{ position:'absolute', width:320, height:320, borderRadius:'50%', background:'#1E3A8A', opacity:.1, top:-100, left:-100, filter:'blur(50px)' }} />
+      <div style={{ position:'absolute', width:240, height:240, borderRadius:'50%', background:'#31D67B', opacity:.07, bottom:80, right:-60, filter:'blur(50px)' }} />
 
       <div style={{ width:'100%', maxWidth:400 }}>
-        {/* Logo */}
+        {/* Logo ORIA */}
         <div style={{ textAlign:'center', marginBottom:40 }}>
-          <div style={{ width:68, height:68, borderRadius:18, background:gradAccent, display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
-            <span style={{ color:'#fff', fontSize:32, fontWeight:800 }}>N</span>
+          <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
+            <svg width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="32" fill="none" stroke="#31D67B" strokeWidth="5" strokeLinecap="round" strokeDasharray="168 34" transform="rotate(-110 40 40)" />
+            </svg>
           </div>
-          <div style={{ color:C.text, fontSize:26, fontWeight:800, letterSpacing:4 }}>NEXO</div>
-          <div style={{ color:C.textMuted, fontSize:9, letterSpacing:6, marginTop:-2, marginBottom:12 }}>FINANZAS</div>
-          <div style={{ color:C.textSec, fontSize:13, lineHeight:1.6 }}>Tu dinero conectado.<br/>Tus decisiones más claras.</div>
+          <div style={{ color:C.text, fontSize:28, fontWeight:900, letterSpacing:8, marginTop:-8 }}>ORIA</div>
+          <div style={{ color:C.accent, fontSize:9, letterSpacing:5, marginTop:3, marginBottom:12 }}>INTELLIGENCE</div>
+          <div style={{ color:C.textSec, fontSize:13, lineHeight:1.7 }}>
+            Entiende tu dinero.<br/>Construye tu futuro.
+          </div>
         </div>
 
         <div style={{ background:C.surface, borderRadius:28, padding:24, border:`1px solid ${C.border}` }}>
@@ -90,7 +94,7 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
             </div>
           )}
           {info && (
-            <div style={{ background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:12, padding:'10px 14px', marginBottom:16, color:C.accent, fontSize:13 }}>
+            <div style={{ background:'rgba(49,214,123,0.1)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:12, padding:'10px 14px', marginBottom:16, color:C.accent, fontSize:13 }}>
               {info}
             </div>
           )}
@@ -155,10 +159,10 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
 
 const inputWrap: React.CSSProperties = {
   display:'flex', alignItems:'center',
-  background:'#162033', borderRadius:14,
+  background:'#112035', borderRadius:14,
   border:`1px solid ${C.border}`, padding:'0 14px', height:52,
 };
 const inputStyle: React.CSSProperties = {
   flex:1, background:'none', border:'none', outline:'none',
-  color:'#F8FAFC', fontSize:15,
+  color:'#F7F9FC', fontSize:15,
 };

@@ -13,7 +13,7 @@ export function GoalsScreen() {
   return (
     <div style={{ paddingBottom: 100 }}>
       {/* Header */}
-      <div style={{ background:'linear-gradient(135deg,#0F2563,#070B14)', padding:'48px 20px 24px' }}>
+      <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 24px' }}>
         <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Metas financieras</div>
         <div style={{ color:C.textMuted, fontSize:13, marginBottom:20 }}>Tu progreso hacia la libertad</div>
 

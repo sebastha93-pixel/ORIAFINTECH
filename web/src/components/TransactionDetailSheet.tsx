@@ -63,7 +63,7 @@ export function TransactionDetailSheet({ tx, onClose }: Props) {
 
   return (
     <div
-      style={{ position:'fixed', inset:0, background:'rgba(7,11,20,0.75)', zIndex:300, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+      style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.8)', zIndex:300, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, border:`1px solid ${C.border}`, paddingBottom:32 }}>

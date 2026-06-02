@@ -8,8 +8,8 @@ const CATEGORIES = [
   { name:'Salud',        icon:'💊', color:'#EC4899' },
   { name:'Entretenimiento', icon:'🎬', color:'#8B5CF6' },
   { name:'Deporte',      icon:'🏋️', color:'#06B6D4' },
-  { name:'Salario',      icon:'💼', color:'#22C55E' },
-  { name:'Freelance',    icon:'💻', color:'#22C55E' },
+  { name:'Salario',      icon:'💼', color:'#31D67B' },
+  { name:'Freelance',    icon:'💻', color:'#31D67B' },
   { name:'Otros',        icon:'📦', color:'#64748B' },
 ];
 
@@ -27,7 +27,7 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
   }
 
   if (saved) return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(7,11,20,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
       <div style={{ textAlign:'center' }}>
         <div style={{ fontSize:64, marginBottom:16 }}>✅</div>
         <div style={{ color:C.text, fontSize:18, fontWeight:700 }}>¡Guardado!</div>
@@ -36,7 +36,7 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
   );
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(7,11,20,0.85)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:200 }} onClick={e=>{ if(e.target===e.currentTarget)onClose(); }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.85)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:200 }} onClick={e=>{ if(e.target===e.currentTarget)onClose(); }}>
       <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', padding:24, border:`1px solid ${C.border}` }}>
         {/* Handle */}
         <div style={{ width:40, height:4, borderRadius:2, background:C.border, margin:'0 auto 20px' }} />
@@ -103,7 +103,7 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
         {/* Save */}
         <button onClick={handleSave} style={{
           width:'100%', padding:'15px 0', borderRadius:16, border:'none',
-          background: (!amount||!desc) ? C.border : (type==='expense'?'linear-gradient(135deg,#EF4444,#B91C1C)':'linear-gradient(135deg,#22C55E,#16A34A)'),
+          background: (!amount||!desc) ? C.border : (type==='expense'?'linear-gradient(135deg,#EF4444,#B91C1C)':'linear-gradient(135deg,#31D67B,#22A85A)'),
           color:'#fff', fontSize:16, fontWeight:800, cursor: (!amount||!desc)?'not-allowed':'pointer',
           transition:'all 0.2s',
         }}>

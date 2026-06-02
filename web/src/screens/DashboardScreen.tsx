@@ -108,7 +108,7 @@ export function DashboardScreen() {
       <div style={{ background: gradHero, padding:'48px 20px 24px', borderRadius:'0 0 28px 28px' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
           <div>
-            <div style={{ color:C.textMuted, fontSize:12, letterSpacing:1 }}>NEXO FINANZAS</div>
+            <div style={{ color:C.textMuted, fontSize:12, letterSpacing:1 }}>ORIA</div>
             <div style={{ color:C.text, fontSize:17, fontWeight:700 }}>Bienvenido 👋</div>
           </div>
           <div style={{ background:'rgba(255,255,255,0.07)', borderRadius:10, padding:'5px 12px' }}>
@@ -156,7 +156,7 @@ export function DashboardScreen() {
                   }}>
                     <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                       <div style={{ width:36, height:36, borderRadius:10,
-                        background: net >= 0 ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+                        background: net >= 0 ? 'rgba(49,214,123,0.15)' : 'rgba(239,68,68,0.15)',
                         display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
                         {net >= 0 ? '📈' : '📉'}
                       </div>
@@ -180,7 +180,7 @@ export function DashboardScreen() {
         )}
 
         {/* Spending by category (current month) */}
-        <Section title="Gastos por categoría">
+        <Section title="Flujo por categoría">
           {curExpense === 0
             ? <Empty icon="📊" text="Los gastos del mes aparecerán aquí automáticamente" />
             : (() => {
@@ -273,7 +273,7 @@ function Section({ title, action, children }: { title:string; action?:string; ch
     <div>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <div style={{ color:'#F8FAFC', fontSize:16, fontWeight:700 }}>{title}</div>
-        {action && <span style={{ color:'#22C55E', fontSize:13 }}>{action}</span>}
+        {action && <span style={{ color:C.accent, fontSize:13 }}>{action}</span>}
       </div>
       {children}
     </div>
