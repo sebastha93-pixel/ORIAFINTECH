@@ -72,6 +72,14 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
     return { amount, type: 'expense', description: `Pago a ${merchant}`, category: inferCategory(merchant), merchant, accountSuffix, accountHolder };
   }
 
+  // "pagaste $X por codigo QR / por débito automático / etc."
+  const pagoQRMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+por\s+([\w\s]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+a\s+la\s+llave|$)/i);
+  if (pagoQRMatch) {
+    const amount = parseAmount(pagoQRMatch[1]);
+    const method = pagoQRMatch[2].trim().replace(/\s+/g, ' ').slice(0, 30);
+    return { amount, type: 'expense', description: `Pago ${method} · Bancolombia`, category: 'Otros', accountSuffix, accountHolder };
+  }
+
   const transferisteMatch = text.match(/transferiste\s+\$?\s*([\d.,]+)/i);
   if (transferisteMatch) {
     const amount = parseAmount(transferisteMatch[1]);
@@ -108,7 +116,8 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   if (genericMatch) {
     const amount = parseAmount(genericMatch[1]);
     if (amount > 1000) {
-      const isIncome = /recib|abono|crédit|credit|ingreso|lleg/i.test(text);
+      const isExpenseKeyword = /pagaste|transferiste|retiro|compra|d[eé]bito/i.test(text);
+      const isIncome = !isExpenseKeyword && /recib|abono|crédit|credit|ingreso|lleg/i.test(text);
       return {
         amount,
         type: isIncome ? 'income' : 'expense',

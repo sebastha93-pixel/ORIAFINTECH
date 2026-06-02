@@ -99,6 +99,23 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
+  // "pagaste $X por codigo QR / por débito automático / etc." → expense
+  const pagoQRMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+por\s+([\w\s]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+a\s+la\s+llave|$)/i);
+  if (pagoQRMatch) {
+    const amount = parseAmount(pagoQRMatch[1]);
+    const method = cleanName(pagoQRMatch[2]).slice(0, 30);
+    return {
+      amount,
+      type: 'expense',
+      description: `Pago ${method} · Bancolombia`,
+      category: 'Otros',
+      date: new Date().toISOString(),
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
   // "transferiste $X a DESTINATARIO" → expense
   const transferisteMatch = text.match(
     /transferiste\s+\$?\s*([\d.,]+)(?:\s+a\s+([\w\sáéíóúÁÉÍÓÚñÑ*\d\-]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+de\s+tu\s|[.,\n\r]|$))?/i,
@@ -220,13 +237,16 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   if (genericMatch) {
     const amount = parseAmount(genericMatch[1]);
     if (amount > 1000) {
-      const isIncome = /recib|abono|crédit|credit|ingreso|lleg/i.test(text);
+      const isExpenseKeyword = /pagaste|transferiste|retiro|compra|d[eé]bito/i.test(text);
+      const isIncome = !isExpenseKeyword && /recib|abono|crédit|credit|ingreso|lleg/i.test(text);
       return {
         amount,
         type: isIncome ? 'income' : 'expense',
         description: subject.trim() || 'Transacción · Bancolombia',
         category: inferCategory(subject),
         date: new Date().toISOString(),
+        accountSuffix,
+        accountHolder,
         rawText: text,
       };
     }
