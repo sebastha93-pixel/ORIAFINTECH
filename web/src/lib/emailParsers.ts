@@ -20,7 +20,7 @@ function parseAmount(raw: string): number {
 
 function inferCategory(text: string): string {
   const t = text.toLowerCase();
-  if (/nómina|nomina|salario/.test(t)) return 'Salario';
+  if (/nómin|nomin|salari|pago\s+de\s+n/.test(t)) return 'Salario';
   if (/cajero|retiro|efectivo/.test(t)) return 'Efectivo';
   if (/arriendo|renta/.test(t)) return 'Vivienda';
   if (/supermercado|éxito|exito|carulla|jumbo|olímpica|olimpica|d1|ara|mercado/.test(t)) return 'Alimentación';
@@ -105,10 +105,12 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
 }
 
 function extractDaviviendaAccountSuffix(text: string): string | undefined {
-  const match = text.match(/(?:tarjeta|cuenta)[^:]*\*(\d{4})/i);
-  if (match) return match[1];
-  const numMatch = text.match(/(?:N[oúu]\.?|N[úu]mero)\s*(?:de\s+)?(?:cuenta|tarjeta)[^:]*:\s*\*?(\d{4,})/i);
-  if (numMatch) return numMatch[1].slice(-4);
+  // Matches "****4716" or "**4716" patterns (Davivienda format)
+  const starMatch = text.match(/\*{2,}(\d{4})/);
+  if (starMatch) return starMatch[1];
+  // Fallback: "cuenta *XXXX" or "tarjeta *XXXX"
+  const wordMatch = text.match(/(?:tarjeta|cuenta|cta)[^:]*\*(\d{4})/i);
+  if (wordMatch) return wordMatch[1];
   return undefined;
 }
 
@@ -116,24 +118,37 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
   const text = body + ' ' + subject;
   const accountSuffix = extractDaviviendaAccountSuffix(text);
 
-  const valorMatch = text.match(/Valor\s+Transacci[oó]n[^:]*:\s*([\d.,]+)/i);
+  // "Valor Transacción: $2,285,018" — $ sign is optional
+  const valorMatch = text.match(/Valor\s+Transacci[oó]n[^:]*:\s*\$?\s*([\d.,]+)/i);
   if (valorMatch) {
     const amount = parseAmount(valorMatch[1]);
-    const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*(\w+)/i);
-    const lugarRaw = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
+    // Capture full clase text: "Abono Pago de Nomina" not just first word
+    const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*([^\n\r,]+)/i);
+    const lugarRaw   = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
     const merchant = lugarRaw
-      ? lugarRaw[1].replace(/\s+Atentamente.*/i, '').replace(/\s+Cordialmente.*/i, '').replace(/\s+\w[\wáéíóúÁÉÍÓÚ]+\s*:.*$/, '').trim()
+      ? lugarRaw[1]
+          .replace(/\s+Atentamente.*/i, '')
+          .replace(/\s+Cordialmente.*/i, '')
+          .replace(/\s+Banco\s+Davivienda.*/i, '')
+          .trim()
       : '';
-    const clase = (claseMatch?.[1] ?? '').toLowerCase();
+    const claseRaw = (claseMatch?.[1] ?? '').trim();
+    const clase    = claseRaw.toLowerCase();
     const isIncome = /abono|cr[eé]dito|ingreso|recib/.test(clase);
     const type: 'income' | 'expense' = isIncome ? 'income' : 'expense';
+
+    // Use clase for category when merchant category is too generic
+    const categoryText = merchant + ' ' + claseRaw;
+    const category = inferCategory(categoryText);
+
     const description = merchant
-      ? (isIncome ? `Abono en ${merchant}` : `Compra en ${merchant}`)
-      : (isIncome ? 'Ingreso Davivienda' : 'Gasto Davivienda');
-    return { amount, type, description, category: inferCategory(merchant || clase), merchant: merchant || undefined, accountSuffix };
+      ? (isIncome ? `${claseRaw} - ${merchant}` : `Compra en ${merchant}`)
+      : (isIncome ? claseRaw || 'Ingreso Davivienda' : 'Gasto Davivienda');
+
+    return { amount, type, description, category, merchant: merchant || undefined, accountSuffix };
   }
 
-  const genericMatch = text.match(/\$?\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/);
+  const genericMatch = text.match(/\$\s*([\d]{1,3}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)/);
   if (genericMatch) {
     const amount = parseAmount(genericMatch[1]);
     if (amount > 1000) {
