@@ -188,6 +188,7 @@ export class EmailSyncController {
     message: string;
     emailsProcessed: number;
     transactionsCreated: number;
+    errors: string[];
   }> {
     this.logger.log(`Public manual sync triggered for user ${userId}`);
     const { emailsProcessed, transactionsCreated, errors } = await this.emailSyncService.syncEmails(userId);
