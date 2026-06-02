@@ -43,16 +43,20 @@ window.addEventListener('unhandledrejection', (e) => {
 // ── React error boundary ──────────────────────────────────────────────────────
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { error: Error | null }
+  { error: Error | null; componentStack: string }
 > {
-  state = { error: null };
+  state = { error: null, componentStack: '' };
   static getDerivedStateFromError(e: Error) { return { error: e }; }
+  componentDidCatch(e: Error, info: React.ErrorInfo) {
+    // info.componentStack shows exactly which component caused the error
+    this.setState({ componentStack: info.componentStack ?? '' });
+    showOverlay(
+      'Error de renderizado',
+      `${e.name}: ${e.message}\n\nComponente:\n${info.componentStack ?? ''}\n\nStack:\n${e.stack ?? ''}`,
+    );
+  }
   render() {
-    if (this.state.error) {
-      const e = this.state.error as Error;
-      showOverlay('Error de renderizado', `${e.name}: ${e.message}\n\n${e.stack ?? ''}`);
-      return null;
-    }
+    if (this.state.error) return null;
     return this.props.children;
   }
 }
