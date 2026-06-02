@@ -187,6 +187,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
   }
 
   async function removeAccount(id: string) {
+    const ok = window.confirm('¿Eliminar esta cuenta y todos sus movimientos importados?');
+    if (!ok) return;
+    // Delete transactions linked to this account first
+    await supabase.from('transactions').delete().eq('account_id', id).eq('user_id', userId);
     await supabase.from('accounts').update({ is_active: false }).eq('id', id).eq('user_id', userId);
     setAccounts(prev => prev.filter(a => a.id !== id));
   }
@@ -253,6 +257,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       // Step 2: Parse emails — only import from registered accounts
       const registeredAccounts = accounts.filter(a => a.account_suffix);
+
+      // No accounts registered → nothing to import
+      if (registeredAccounts.length === 0) {
+        const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+        setLastSync(`${time} · Registra al menos una cuenta para importar movimientos`);
+        setSyncing(false);
+        return;
+      }
+
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
 
@@ -260,27 +273,22 @@ export function SettingsScreen({ userId }: { userId: string }) {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) continue;
 
-        if (registeredAccounts.length > 0) {
-          // Email must contain an account number matching a registered account
-          if (!result.accountSuffix) continue;
-          const match = registeredAccounts.find(a => {
-            if (a.account_suffix !== result.accountSuffix) return false;
-            if (!a.institution?.toLowerCase().includes(email.bank)) return false;
-            // If titular is registered and email has a greeting name, they must match
-            if (a.account_holder && result.accountHolder) {
-              const registered = a.account_holder.toLowerCase();
-              const fromEmail  = result.accountHolder.toLowerCase();
-              // At least the first word of the registered titular must appear in the email name
-              const firstWord = registered.split(' ')[0];
-              if (firstWord.length > 2 && !fromEmail.includes(firstWord)) return false;
-            }
-            return true;
-          });
-          if (!match) continue;
-          parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
-        } else {
-          parsed.push({ ...result, messageId: email.messageId, date: email.date });
-        }
+        // Email must contain an account number matching a registered account
+        if (!result.accountSuffix) continue;
+        const match = registeredAccounts.find(a => {
+          if (a.account_suffix !== result.accountSuffix) return false;
+          if (!a.institution?.toLowerCase().includes(email.bank)) return false;
+          // If titular is registered and email has a greeting name, they must match
+          if (a.account_holder && result.accountHolder) {
+            const registered = a.account_holder.toLowerCase();
+            const fromEmail  = result.accountHolder.toLowerCase();
+            const firstWord = registered.split(' ')[0];
+            if (firstWord.length > 2 && !fromEmail.includes(firstWord)) return false;
+          }
+          return true;
+        });
+        if (!match) continue;
+        parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
       }
 
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
