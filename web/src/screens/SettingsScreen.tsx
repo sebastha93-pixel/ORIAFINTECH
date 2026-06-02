@@ -247,25 +247,28 @@ export function SettingsScreen({ userId }: { userId: string }) {
       const emailsRes = await fetch(`${RAILWAY_API}/email-sync/fetch-emails`, { headers });
       const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
 
-      // Step 2: Parse emails in the browser using the local parser
+      // Step 2: Parse emails — only import from registered accounts
       const registeredAccounts = accounts.filter(a => a.account_suffix);
-      const parsed = emails.flatMap(email => {
-        const result = parseEmail(email.bank, email.body, email.subject);
-        if (!result || result.amount <= 0) return [];
+      type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
+      const parsed: NonNullable<ParsedTxn>[] = [];
 
-        let account_id: string | undefined;
-        if (registeredAccounts.length > 0 && result.accountSuffix) {
+      for (const email of emails) {
+        const result = parseEmail(email.bank, email.body, email.subject);
+        if (!result || result.amount <= 0) continue;
+
+        if (registeredAccounts.length > 0) {
+          // Email must contain an account number matching a registered account
+          if (!result.accountSuffix) continue;
           const match = registeredAccounts.find(
             a => a.account_suffix === result.accountSuffix &&
                  a.institution?.toLowerCase().includes(email.bank)
           );
-          // Has account number in email but doesn't match any registered account → skip
-          if (!match) return [];
-          account_id = match.id;
+          if (!match) continue;
+          parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
+        } else {
+          parsed.push({ ...result, messageId: email.messageId, date: email.date });
         }
-
-        return [{ ...result, messageId: email.messageId, date: email.date, account_id }];
-      });
+      }
 
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
 
