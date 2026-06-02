@@ -43,10 +43,14 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     const amount = parseAmount(valorMatch[1]);
     // Capture only the first word for clase (e.g. "Compra", "Abono", "Retiro")
     const claseMatch = text.match(/Clase\s+de\s+Movimiento[^:]*:\s*(\w+)/i);
-    // Capture merchant: grab everything after the label, then strip any trailing "Word:" labels
+    // Capture merchant: grab everything after the label, then strip email closing phrases
     const lugarRaw = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
     const lugarMatch = lugarRaw
-      ? [lugarRaw[0], lugarRaw[1].replace(/\s+\w[\wáéíóúÁÉÍÓÚ]+\s*:.*$/, '').trim()]
+      ? [lugarRaw[0], lugarRaw[1]
+          .replace(/\s+Atentamente.*/i, '')
+          .replace(/\s+Cordialmente.*/i, '')
+          .replace(/\s+\w[\wáéíóúÁÉÍÓÚ]+\s*:.*$/, '')
+          .trim()]
       : null;
 
     const clase = (claseMatch?.[1] ?? '').trim().toLowerCase();
