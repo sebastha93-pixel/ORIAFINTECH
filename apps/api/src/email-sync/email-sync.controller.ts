@@ -9,7 +9,7 @@ import {
   Header,
   Logger,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { User } from '@supabase/supabase-js';
 import { EmailSyncService } from './email-sync.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -86,7 +86,6 @@ export class EmailSyncController {
 
   @Get('auth/google')
   @ApiOperation({ summary: 'Get Google OAuth authorization URL' })
-  @ApiQuery({ name: 'state', required: false })
   getAuthUrl(@Query('state') state?: string): { url: string } {
     const url = this.emailSyncService.getAuthUrl(state);
     return { url };
@@ -123,6 +122,11 @@ export class EmailSyncController {
       if (errors.length) {
         this.logger.warn(`Initial sync had ${errors.length} errors: ${errors.join('; ')}`);
       }
+
+      // Backfill monthly summaries for all past months in background
+      this.emailSyncService.backfillMonthlySummaries(state).catch((e: unknown) => {
+        this.logger.warn(`Backfill failed for user ${state}: ${String(e)}`);
+      });
 
       const frontendUrl = this.emailSyncService.getFrontendUrl();
       return successHtml(email, state, transactionsCreated, frontendUrl);
@@ -162,45 +166,13 @@ export class EmailSyncController {
     return this.emailSyncService.getStatus(user.id);
   }
 
-  @Get('status-public')
-  @ApiOperation({ summary: 'Get Gmail connection status by user ID (no auth required)' })
-  @ApiQuery({ name: 'userId', required: true })
-  async getStatusPublic(@Query('userId') userId: string): Promise<{
-    connected: boolean;
-    lastSync: string | null;
-    emailsProcessed: number;
-    transactionsCreated: number;
-  }> {
-    return this.emailSyncService.getStatus(userId);
-  }
-
-  @Get('fetch-emails-public')
-  @ApiOperation({ summary: 'Fetch raw bank emails for client-side parsing (no auth required)' })
-  @ApiQuery({ name: 'userId', required: true })
-  async fetchEmailsPublic(@Query('userId') userId: string): Promise<{
+  @Get('fetch-emails')
+  @ApiOperation({ summary: 'Fetch raw bank emails for client-side parsing' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async fetchEmails(@CurrentUser() user: User): Promise<{
     messageId: string; bank: string; subject: string; body: string; date: string;
   }[]> {
-    return this.emailSyncService.fetchEmailsForClient(userId);
-  }
-
-  @Get('debug-public')
-  @ApiQuery({ name: 'userId', required: true })
-  async debugPublic(@Query('userId') userId: string): Promise<{ sample: string; subject: string; from: string; parsed: string; bodyLen: number }[]> {
-    return this.emailSyncService.debugSample(userId);
-  }
-
-  @Post('sync-public')
-  @ApiOperation({ summary: 'Manually trigger Gmail sync by user ID (no auth required)' })
-  @ApiQuery({ name: 'userId', required: true })
-  @HttpCode(HttpStatus.OK)
-  async triggerSyncPublic(@Query('userId') userId: string): Promise<{
-    message: string;
-    emailsProcessed: number;
-    transactionsCreated: number;
-    errors: string[];
-  }> {
-    this.logger.log(`Public manual sync triggered for user ${userId}`);
-    const { emailsProcessed, transactionsCreated, errors } = await this.emailSyncService.syncEmails(userId);
-    return { message: 'Sync completed', emailsProcessed, transactionsCreated, errors: errors.slice(0, 5) };
+    return this.emailSyncService.fetchEmailsForClient(user.id);
   }
 }

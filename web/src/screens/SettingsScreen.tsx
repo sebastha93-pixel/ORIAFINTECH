@@ -110,6 +110,15 @@ const BANKS = [
     steps:['Abre Nequi','Ve a Movimientos','Toca los tres puntos (⋮)','Exportar movimientos → CSV'] },
 ];
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token
+    ? { Authorization: `Bearer ${session.access_token}` }
+    : {};
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SettingsScreen({ userId }: { userId: string }) {
@@ -180,16 +189,18 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
   // Check connection status and load accounts on mount
   useEffect(() => {
-    fetch(`${RAILWAY_API}/email-sync/status-public?userId=${encodeURIComponent(userId)}`)
-      .then(r => r.json() as Promise<{ connected: boolean; lastSync: string | null }>)
-      .then(d => {
-        if (d.connected) {
-          setGmailConnected(true);
-          localStorage.setItem('nexo_gmail_connected', '1');
-          setLastSync(d.lastSync ? new Date(d.lastSync).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }) : null);
-        }
-      })
-      .catch(() => {/* silent */});
+    getAuthHeaders().then(headers => {
+      fetch(`${RAILWAY_API}/email-sync/status`, { headers })
+        .then(r => r.json() as Promise<{ connected: boolean; lastSync: string | null }>)
+        .then(d => {
+          if (d.connected) {
+            setGmailConnected(true);
+            localStorage.setItem('nexo_gmail_connected', '1');
+            setLastSync(d.lastSync ? new Date(d.lastSync).toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' }) : null);
+          }
+        })
+        .catch(() => {/* silent */});
+    });
     loadAccounts();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -231,8 +242,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function syncNow() {
     setSyncing(true);
     try {
-      // Step 1: Fetch raw emails from backend (Railway only does Gmail proxy)
-      const emailsRes = await fetch(`${RAILWAY_API}/email-sync/fetch-emails-public?userId=${encodeURIComponent(userId)}`);
+      // Step 1: Fetch raw emails from backend (authenticated)
+      const headers = await getAuthHeaders();
+      const emailsRes = await fetch(`${RAILWAY_API}/email-sync/fetch-emails`, { headers });
       const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
 
       // Step 2: Parse emails in the browser using the local parser

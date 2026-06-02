@@ -558,6 +558,57 @@ export class EmailSyncService {
     return results;
   }
 
+  // ─── Backfill monthly summaries for past months ──────────────────────────
+
+  async backfillMonthlySummaries(userId: string): Promise<void> {
+    // Find oldest transaction date for this user
+    const { data: oldest } = await this.supabase
+      .from('transactions')
+      .select('date')
+      .eq('user_id', userId)
+      .order('date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!oldest) return;
+
+    const now = new Date();
+    const start = new Date(oldest.date + 'T00:00:00');
+    let y = start.getFullYear();
+    let m = start.getMonth() + 1;
+
+    while (y < now.getFullYear() || (y === now.getFullYear() && m < now.getMonth() + 1)) {
+      const firstDay = `${y}-${String(m).padStart(2, '0')}-01`;
+      const lastDay  = new Date(y, m, 0).toISOString().slice(0, 10);
+
+      const { data: txns } = await this.supabase
+        .from('transactions')
+        .select('transaction_type, amount')
+        .eq('user_id', userId)
+        .gte('date', firstDay)
+        .lte('date', lastDay);
+
+      if (txns && txns.length > 0) {
+        const totalIncome   = txns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
+        const totalExpenses = txns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+        const savingsRate   = totalIncome > 0 ? (totalIncome - totalExpenses) / totalIncome : 0;
+
+        await this.supabase.from('monthly_summaries').upsert({
+          user_id: userId,
+          year: y,
+          month: m,
+          total_income: totalIncome,
+          total_expenses: totalExpenses,
+          savings_rate: savingsRate,
+        }, { onConflict: 'user_id,year,month' });
+      }
+
+      if (m === 12) { y++; m = 1; } else { m++; }
+    }
+
+    this.logger.log(`Backfill complete for user ${userId}`);
+  }
+
   // ─── Cron: sync all users every day at 6am and 8pm Colombia time (UTC-5) ──
 
   @Cron('0 11,19,1 * * *') // 06:00, 14:00 and 20:00 COT = 11:00, 19:00 and 01:00 UTC
