@@ -173,13 +173,18 @@ export function SettingsScreen({ userId }: { userId: string }) {
         return [{ ...result, messageId: email.messageId, date: email.date }];
       });
 
+      const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
+
       if (parsed.length === 0) {
-        setLastSync(`${new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })} · ${emails.length} correos / 0 nuevos`);
+        const e0 = emails[0];
+        const dbg = e0 ? `[${e0.bank} ${e0.body.length}b "${e0.body.slice(60,100)}"]` : '[sin emails]';
+        setLastSync(`${time} · ${emails.length} correos / 0 parseados ${dbg}`);
         return;
       }
 
       // Step 3: Insert via Supabase JS (user is authenticated → no RLS issues)
       let created = 0;
+      const errors: string[] = [];
       for (const txn of parsed) {
         const { error } = await supabase.from('transactions').upsert({
           user_id: userId,
@@ -192,10 +197,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
           notes: `Auto-importado`,
         }, { onConflict: 'user_id,gmail_message_id' });
         if (!error) created++;
+        else errors.push(error.message);
       }
 
       setGmailCount(prev => prev + created);
-      setLastSync(`${new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' })} · ${emails.length} correos / ${created} nuevos`);
+      const errStr = errors.length > 0 ? ` ⚠️ err: ${errors[0].slice(0,40)}` : '';
+      setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${errStr}`);
     } catch (e) {
       setLastSync('Error al sincronizar');
       console.error('Sync error:', e);
