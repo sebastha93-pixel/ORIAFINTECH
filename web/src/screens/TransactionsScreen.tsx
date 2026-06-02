@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
+import { TransactionDetailSheet, type TxDetail } from '../components/TransactionDetailSheet';
 
 interface Txn {
   id: string;
@@ -9,6 +10,7 @@ interface Txn {
   description: string | null;
   date: string;
   notes: string | null;
+  gmail_message_id?: string | null;
 }
 
 function txIcon(t: Txn): string {
@@ -50,13 +52,14 @@ export function TransactionsScreen() {
   const [search, setSearch]             = useState('');
   const [selYear, setSelYear]           = useState(now.getFullYear());
   const [selMonth, setSelMonth]         = useState(now.getMonth()); // 0-indexed
+  const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) { setLoading(false); return; }
       supabase
         .from('transactions')
-        .select('id, transaction_type, amount, description, date, notes')
+        .select('id, transaction_type, amount, description, date, notes, gmail_message_id')
         .eq('user_id', user.id)
         .order('date', { ascending: false })
         .then(({ data }) => {
@@ -189,17 +192,22 @@ export function TransactionsScreen() {
               </div>
               <div style={{ ...card }}>
                 {txns.map((t, i) => (
-                  <div key={t.id} style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<txns.length-1?12:0, marginBottom:i<txns.length-1?12:0, borderBottom:i<txns.length-1?`1px solid ${C.border}`:'none' }}>
+                  <div key={t.id}
+                    onClick={() => setSelectedTx(t)}
+                    style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<txns.length-1?12:0, marginBottom:i<txns.length-1?12:0, borderBottom:i<txns.length-1?`1px solid ${C.border}`:'none', cursor:'pointer' }}>
                     <div style={{ width:42, height:42, borderRadius:13, background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>{txIcon(t)}</div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ color:C.text, fontSize:14, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description ?? 'Movimiento'}</div>
                       <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>{txCategory(t)}</div>
                     </div>
-                    <div style={{ textAlign:'right', flexShrink:0 }}>
-                      <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700 }}>
-                        {t.transaction_type==='income'?'+':'-'}{fmt(Number(t.amount))}
+                    <div style={{ textAlign:'right', flexShrink:0, display:'flex', alignItems:'center', gap:8 }}>
+                      <div>
+                        <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700 }}>
+                          {t.transaction_type==='income'?'+':'-'}{fmt(Number(t.amount))}
+                        </div>
+                        <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>{t.transaction_type==='income'?'Ingreso':'Gasto'}</div>
                       </div>
-                      <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>{t.transaction_type==='income'?'Ingreso':'Gasto'}</div>
+                      <span style={{ color:C.border, fontSize:16 }}>›</span>
                     </div>
                   </div>
                 ))}
@@ -208,6 +216,7 @@ export function TransactionsScreen() {
           ))
         )}
       </div>
+      <TransactionDetailSheet tx={selectedTx} onClose={() => setSelectedTx(null)} />
     </div>
   );
 }

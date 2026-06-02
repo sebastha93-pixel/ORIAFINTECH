@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { C, fmt, card, gradHero } from '../theme';
 import { GOALS } from '../mockData';
 import { supabase } from '../lib/supabase';
+import { TransactionDetailSheet, type TxDetail } from '../components/TransactionDetailSheet';
 
 interface Txn {
   id: string;
@@ -9,6 +10,8 @@ interface Txn {
   amount: number;
   description: string | null;
   date: string;
+  notes?: string | null;
+  gmail_message_id?: string | null;
 }
 
 interface MonthlySummary {
@@ -57,6 +60,7 @@ export function DashboardScreen() {
   const [currentTxns, setCurrentTxns]   = useState<Txn[]>([]);
   const [prevSummaries, setPrevSummaries] = useState<MonthlySummary[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -68,7 +72,7 @@ export function DashboardScreen() {
         // Current month transactions
         supabase
           .from('transactions')
-          .select('id, transaction_type, amount, description, date')
+          .select('id, transaction_type, amount, description, date, notes, gmail_message_id')
           .eq('user_id', user.id)
           .gte('date', first)
           .lte('date', last)
@@ -237,7 +241,9 @@ export function DashboardScreen() {
               ? <Empty icon="💸" text="Ve a Configurar y conecta Gmail para importar movimientos" />
               : <div style={{ ...card }}>
                   {currentTxns.slice(0,5).map((t, i) => (
-                    <div key={t.id} style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<4?12:0, marginBottom:i<4?12:0, borderBottom:i<4?`1px solid ${C.border}`:'none' }}>
+                    <div key={t.id}
+                      onClick={() => setSelectedTx(t)}
+                      style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<4?12:0, marginBottom:i<4?12:0, borderBottom:i<4?`1px solid ${C.border}`:'none', cursor:'pointer' }}>
                       <div style={{ width:40, height:40, borderRadius:12,
                         background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`,
                         display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
@@ -247,8 +253,9 @@ export function DashboardScreen() {
                         <div style={{ color:C.text, fontSize:14, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description ?? 'Movimiento'}</div>
                         <div style={{ color:C.textMuted, fontSize:11 }}>{txCategory(t)} · {t.date.slice(5)}</div>
                       </div>
-                      <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700, flexShrink:0 }}>
+                      <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700, flexShrink:0, display:'flex', alignItems:'center', gap:6 }}>
                         {t.transaction_type==='income'?'+':'-'}{fmt(Number(t.amount))}
+                        <span style={{ color:C.border, fontSize:14 }}>›</span>
                       </div>
                     </div>
                   ))}
@@ -256,6 +263,7 @@ export function DashboardScreen() {
           }
         </Section>
       </div>
+      <TransactionDetailSheet tx={selectedTx} onClose={() => setSelectedTx(null)} />
     </div>
   );
 }
