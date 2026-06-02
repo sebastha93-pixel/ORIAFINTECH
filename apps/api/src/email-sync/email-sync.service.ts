@@ -427,6 +427,43 @@ export class EmailSyncService {
       return false;
     }
 
+    // ── Account filtering ────────────────────────────────────────────────────
+    // Load user's registered accounts
+    const { data: userAccounts } = await this.supabase
+      .from('accounts')
+      .select('id, institution, account_suffix, account_holder')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    // No registered accounts → block all imports
+    if (!userAccounts || userAccounts.length === 0) {
+      this.logger.debug(`No registered accounts for user ${userId}, skipping message ${messageId}`);
+      return false;
+    }
+
+    // Must match an account by suffix + institution
+    if (!parsed.accountSuffix) {
+      this.logger.debug(`No account suffix parsed from message ${messageId}, skipping`);
+      return false;
+    }
+
+    const matchedAccount = userAccounts.find((a: { institution: string; account_suffix: string; account_holder: string | null }) => {
+      if (a.account_suffix !== parsed.accountSuffix) return false;
+      if (!a.institution?.toLowerCase().includes(bank)) return false;
+      // If titular registered and email has a greeting name, first word must match
+      if (a.account_holder && parsed.accountHolder) {
+        const firstWord = a.account_holder.toLowerCase().split(' ')[0];
+        if (firstWord.length > 2 && !parsed.accountHolder.toLowerCase().includes(firstWord)) return false;
+      }
+      return true;
+    });
+
+    if (!matchedAccount) {
+      this.logger.debug(`Message ${messageId}: suffix ${parsed.accountSuffix} (${bank}) doesn't match any registered account for user ${userId}`);
+      return false;
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     // Determine the email date from internalDate (ms since epoch) or fallback
     const emailDate = message.internalDate
       ? new Date(parseInt(message.internalDate, 10)).toISOString().split('T')[0]
@@ -435,8 +472,7 @@ export class EmailSyncService {
     // Resolve category_id from category name
     const categoryId = await this.resolveCategoryId(userId, parsed.category, parsed.type);
 
-    // Resolve default account for user
-    const accountId = await this.resolveDefaultAccountId(userId);
+    const accountId: string = (matchedAccount as { id: string }).id;
 
     const transactionPayload: Record<string, unknown> = {
       user_id: userId,

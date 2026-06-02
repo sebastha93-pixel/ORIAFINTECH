@@ -43,6 +43,27 @@ function cleanName(raw: string): string {
     .replace(/\s+/g, ' ');
 }
 
+function extractDaviviendaAccountSuffix(text: string): string | undefined {
+  const starMatch = text.match(/\*{2,}(\d{4})/);
+  if (starMatch) return starMatch[1];
+  const wordMatch = text.match(/(?:tarjeta|cuenta|cta)[^:]*\*(\d{4})/i);
+  if (wordMatch) return wordMatch[1];
+  const cuentaMatch = text.match(/(?:cuenta|tarjeta|tc)[^\d]*(?:\*+\s*)?(\d{3,4})\b/i);
+  if (cuentaMatch) return cuentaMatch[1].slice(-4);
+  return undefined;
+}
+
+function extractEmailHolderDav(text: string): string | undefined {
+  const est = text.match(
+    /(?:Estimado|Apreciado)\(?a\)?\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]{2,60}?)(?:\s*[,:]|\s+te\s|\s+le\s|\s+se\s|\s+su\s)/
+  );
+  if (est) {
+    const name = est[1].trim();
+    if (!/^(cliente|usuario|socio|afiliado)$/i.test(name)) return name;
+  }
+  return undefined;
+}
+
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
   // Reject promotional/marketing emails that are not transaction notifications
   if (/bono|beneficio|oferta|promoci[oó]n|descuento|gana\s+m[aá]s|cashback|recompensa/i.test(subject) &&
@@ -51,6 +72,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   }
 
   const text = emailBody + ' ' + subject;
+  const accountSuffix = extractDaviviendaAccountSuffix(text);
+  const accountHolder = extractEmailHolderDav(text);
 
   // Davivienda structured format:
   // "Valor Transacción: $68,150"
@@ -97,6 +120,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: inferCategory(merchant + ' ' + clase),
       date: new Date().toISOString(),
       merchant: merchant || undefined,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -115,6 +140,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: inferCategory(merchant),
       date: new Date().toISOString(),
       merchant,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -135,6 +162,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: recipient || undefined,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -155,6 +184,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: sender || undefined,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -169,6 +200,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       description: 'Retiro en cajero · Davivienda',
       category: 'Efectivo',
       date: new Date().toISOString(),
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }

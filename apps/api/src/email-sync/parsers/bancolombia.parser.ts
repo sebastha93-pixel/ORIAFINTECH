@@ -5,6 +5,8 @@ export interface ParsedTransaction {
   category: string;
   date: string;
   merchant?: string;
+  accountSuffix?: string;  // last 4 digits of the SOURCE account in the email
+  accountHolder?: string;  // name from email greeting (e.g. "Estimado(a) SEBASTIAN HURTADO")
   rawText: string;
 }
 
@@ -53,8 +55,31 @@ function cleanName(raw: string): string {
     .replace(/\s+/g, ' ');
 }
 
+function extractBancolombiaAccountSuffix(text: string): string | undefined {
+  const fromMatch = text.match(/desde\s+tu\s+(?:cuenta|producto)\s+\*?(\d+)/i);
+  if (fromMatch) return fromMatch[1].slice(-4);
+  const starMatch = text.match(/\*(\d{4})\b/);
+  if (starMatch) return starMatch[1];
+  return undefined;
+}
+
+function extractEmailHolder(text: string): string | undefined {
+  const est = text.match(
+    /(?:Estimado|Apreciado)\(?a\)?\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ\s]{2,60}?)(?:\s*[,:]|\s+te\s|\s+le\s|\s+se\s|\s+su\s)/
+  );
+  if (est) {
+    const name = est[1].trim();
+    if (!/^(cliente|usuario|socio|afiliado)$/i.test(name)) return name;
+  }
+  const hola = text.match(/[Hh]ola[,\s]+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]+)*)/);
+  if (hola) return hola[1];
+  return undefined;
+}
+
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
   const text = emailBody + ' ' + subject;
+  const accountSuffix = extractBancolombiaAccountSuffix(text);
+  const accountHolder = extractEmailHolder(text);
 
   // "Pagaste $X a MERCHANT desde" → expense
   const pagoMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+a\s+([\w\s]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
@@ -68,6 +93,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: inferCategory(merchant, merchant),
       date: new Date().toISOString(),
       merchant,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -88,6 +115,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: recipient || undefined,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -104,6 +133,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: inferCategory('compra ' + merchant, merchant),
       date: new Date().toISOString(),
       merchant,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -124,6 +155,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: sender || undefined,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -144,6 +177,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: sender || undefined,
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -158,6 +193,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       description: 'Retiro en cajero · Bancolombia',
       category: 'Efectivo',
       date: new Date().toISOString(),
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
@@ -172,6 +209,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       description: 'Pago de nómina · Bancolombia',
       category: 'Salario',
       date: new Date().toISOString(),
+      accountSuffix,
+      accountHolder,
       rawText: text,
     };
   }
