@@ -186,9 +186,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
   }
 
   async function saveInitialBalance(acc: BankAccount) {
-    const raw = (balanceDraft[acc.id] ?? '').replace(/\./g, '').replace(',', '.');
-    const parsed = parseFloat(raw);
-    const amount = isNaN(parsed) ? 0 : parsed;
+    const digits = (balanceDraft[acc.id] ?? '').replace(/\D/g, '');
+    const amount = digits ? parseInt(digits, 10) : 0;
     setSavingBalance(prev => ({ ...prev, [acc.id]: true }));
     const { error } = await supabase.from('accounts').update({
       initial_balance: amount,
@@ -593,10 +592,18 @@ export function SettingsScreen({ userId }: { userId: string }) {
                           <div style={{ position:'relative', flex:1 }}>
                             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="numeric"
                               placeholder="0"
-                              value={balanceDraft[acc.id] ?? ''}
-                              onChange={e => setBalanceDraft(prev => ({ ...prev, [acc.id]: e.target.value }))}
+                              value={
+                                balanceDraft[acc.id]
+                                  ? Number(balanceDraft[acc.id].replace(/\D/g, '') || 0).toLocaleString('es-CO')
+                                  : ''
+                              }
+                              onChange={e => {
+                                const digits = e.target.value.replace(/\D/g, '');
+                                setBalanceDraft(prev => ({ ...prev, [acc.id]: digits }));
+                              }}
                               style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:8, paddingBottom:8,
                                 borderRadius:10, border:`1px solid ${C.border}`,
                                 background:C.surface, color:C.text, fontSize:14, fontWeight:600,
