@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
 import { DashboardScreen }      from './screens/DashboardScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
@@ -16,14 +16,13 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [screen, setScreen]   = useState<Screen>('dashboard');
   const [showAdd, setShowAdd] = useState(false);
+  const containerRef          = useRef<HTMLDivElement>(null);
 
-  // Restore session on mount (persisted by Supabase in localStorage)
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setUserId(data.session?.user.id ?? null);
       setLoading(false);
     });
-    // Keep session in sync when it changes (token refresh, sign-out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user.id ?? null);
     });
@@ -43,15 +42,21 @@ export default function App() {
   function handleTab(id: string) {
     if (id === 'add') { setShowAdd(true); return; }
     setScreen(id as Screen);
+    // Reset scroll to top instantly on tab change
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    containerRef.current?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }
 
+  // Screens stay mounted (display:none when inactive) to avoid re-fetching data on every navigation
+  const hide = (s: Screen): React.CSSProperties => ({ display: screen === s ? 'block' : 'none' });
+
   return (
-    <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14', overflowX:'hidden' }}>
-      {screen === 'dashboard'    && <DashboardScreen />}
-      {screen === 'transactions' && <TransactionsScreen />}
-      {screen === 'goals'        && <GoalsScreen />}
-      {screen === 'ai'           && <AiChatScreen />}
-      {screen === 'settings'     && <SettingsScreen userId={userId} />}
+    <div ref={containerRef} style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14', overflowX:'hidden' }}>
+      <div style={hide('dashboard')}>    <DashboardScreen /> </div>
+      <div style={hide('transactions')}> <TransactionsScreen /> </div>
+      <div style={hide('goals')}>        <GoalsScreen /> </div>
+      <div style={hide('ai')}>           <AiChatScreen /> </div>
+      <div style={hide('settings')}>     <SettingsScreen userId={userId} /> </div>
 
       <TabBar active={screen} onTab={handleTab} />
 
