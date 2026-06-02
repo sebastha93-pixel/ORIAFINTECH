@@ -149,6 +149,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newNickname, setNewNickname]       = useState('');
   const [newHolder, setNewHolder]           = useState('');
   const [savingAccount, setSavingAccount]   = useState(false);
+  const [addAccountError, setAddAccountError] = useState('');
 
   // Initial balance editing: keyed by account id
   const [balanceDraft, setBalanceDraft]   = useState<Record<string, string>>({});
@@ -200,6 +201,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function addAccount() {
     if (!newSuffix.trim() || newSuffix.length < 4) return;
     setSavingAccount(true);
+    setAddAccountError('');
     const inst = INSTITUTIONS.find(i => i.id === newInstitution);
     const name = newNickname.trim() || `${inst?.name} ${ACCOUNT_TYPE_LABELS[newAccountType]} *${newSuffix.slice(-4)}`;
     const { error } = await supabase.from('accounts').insert({
@@ -218,6 +220,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setNewSuffix('');
       setNewNickname('');
       setNewHolder('');
+    } else {
+      setAddAccountError(error.message);
     }
     setSavingAccount(false);
   }
@@ -714,8 +718,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     </div>
                   </div>
 
+                  {addAccountError && (
+                    <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`,
+                      borderRadius:10, padding:'10px 14px', color:C.danger, fontSize:12, lineHeight:1.5 }}>
+                      ⚠️ {addAccountError}
+                    </div>
+                  )}
+
                   <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); }}
+                    <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setAddAccountError(''); }}
                       style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`,
                         background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer' }}>
                       Cancelar
