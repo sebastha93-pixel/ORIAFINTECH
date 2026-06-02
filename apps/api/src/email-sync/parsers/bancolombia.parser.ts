@@ -1,3 +1,5 @@
+import { classifyTransaction } from './classifier';
+
 export interface ParsedTransaction {
   amount: number;
   type: 'income' | 'expense';
@@ -237,11 +239,9 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   if (genericMatch) {
     const amount = parseAmount(genericMatch[1]);
     if (amount > 1000) {
-      const isExpenseKeyword = /pagaste|transferiste|retiro|compra|d[eé]bito/i.test(text);
-      const isIncome = !isExpenseKeyword && /recib|abono|crédit|credit|ingreso|lleg/i.test(text);
       return {
         amount,
-        type: isIncome ? 'income' : 'expense',
+        type: classifyTransaction(text),
         description: subject.trim() || 'Transacción · Bancolombia',
         category: inferCategory(subject),
         date: new Date().toISOString(),

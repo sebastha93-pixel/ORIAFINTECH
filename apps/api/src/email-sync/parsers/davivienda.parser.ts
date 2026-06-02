@@ -1,4 +1,5 @@
 import { ParsedTransaction } from './bancolombia.parser';
+import { classifyTransaction } from './classifier';
 
 function parseAmount(raw: string): number {
   const s = raw.trim();
@@ -105,12 +106,8 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     const clase = claseRaw.toLowerCase();
     const merchant = lugarMatch ? lugarMatch[1].trim().replace(/\s+/g, ' ') : '';
 
-    // "Abono Transferencia" = YOU sent money (debit) → expense
-    // "Abono Pago Nómina" / "Abono Recibido" / bare "Abono" = credit received → income
-    const isIncome =
-      /cr[eé]dito|ingreso|recibid|nómin|nomin/i.test(clase) ||
-      (/abono/i.test(clase) && !/transferencia|pago\s+a\s+tercero|d[eé]bito/i.test(clase));
-    const type: 'income' | 'expense' = isIncome ? 'income' : 'expense';
+    const type = classifyTransaction(text, claseRaw);
+    const isIncome = type === 'income';
 
     let description: string;
     if (merchant) {
@@ -228,10 +225,9 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     if (genericMatch) {
       const amount = parseAmount(genericMatch[1]);
       if (amount > 1000) {
-        const isIncome = /recib|abono|cr[eé]dit|ingreso|lleg/i.test(text);
         return {
           amount,
-          type: isIncome ? 'income' : 'expense',
+          type: classifyTransaction(text),
           description: subject.trim() || 'Transacción · Davivienda',
           category: inferCategory(subject),
           date: new Date().toISOString(),

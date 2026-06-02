@@ -1,3 +1,5 @@
+import { classifyTransaction } from './transactionClassifier';
+
 export interface ParsedEmail {
   type: 'income' | 'expense';
   amount: number;
@@ -116,11 +118,9 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   if (genericMatch) {
     const amount = parseAmount(genericMatch[1]);
     if (amount > 1000) {
-      const isExpenseKeyword = /pagaste|transferiste|retiro|compra|d[eé]bito/i.test(text);
-      const isIncome = !isExpenseKeyword && /recib|abono|crédit|credit|ingreso|lleg/i.test(text);
       return {
         amount,
-        type: isIncome ? 'income' : 'expense',
+        type: classifyTransaction(text),
         description: subject.trim() || 'Transacción Bancolombia',
         category: inferCategory(subject),
         accountSuffix,
@@ -169,10 +169,8 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
       : '';
     const claseRaw = (claseMatch?.[1] ?? '').trim();
     const clase    = claseRaw.toLowerCase();
-    const isIncome =
-      /cr[eé]dito|ingreso|recibid|nómin|nomin/i.test(clase) ||
-      (/abono/i.test(clase) && !/transferencia|pago\s+a\s+tercero|d[eé]bito/i.test(clase));
-    const type: 'income' | 'expense' = isIncome ? 'income' : 'expense';
+    const type = classifyTransaction(text, claseRaw);
+    const isIncome = type === 'income';
 
     // Use clase for category when merchant category is too generic
     const categoryText = merchant + ' ' + claseRaw;
@@ -223,10 +221,9 @@ function parseNequi(body: string, subject: string): ParsedEmail | null {
   if (genericMatch) {
     const amount = parseAmount(genericMatch[1]);
     if (amount > 1000) {
-      const isIncome = /recib|ingreso/i.test(text);
       return {
         amount,
-        type: isIncome ? 'income' : 'expense',
+        type: classifyTransaction(text),
         description: subject.trim() || 'Transacción Nequi',
         category: inferCategory(subject),
       };
