@@ -187,14 +187,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
   async function saveInitialBalance(acc: BankAccount) {
     const raw = (balanceDraft[acc.id] ?? '').replace(/\./g, '').replace(',', '.');
-    const amount = parseFloat(raw) || 0;
+    const parsed = parseFloat(raw);
+    const amount = isNaN(parsed) ? 0 : parsed;
     setSavingBalance(prev => ({ ...prev, [acc.id]: true }));
-    await supabase.from('accounts').update({
+    const { error } = await supabase.from('accounts').update({
       initial_balance: amount,
       initial_balance_set_date: todayISO(),
     }).eq('id', acc.id).eq('user_id', userId);
     setSavingBalance(prev => ({ ...prev, [acc.id]: false }));
-    await loadAccounts();
+    if (!error) await loadAccounts();
   }
 
   async function addAccount() {
