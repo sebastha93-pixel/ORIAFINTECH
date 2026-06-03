@@ -94,9 +94,25 @@ function parseCSV(text: string, bank: string): Transaction[] {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const INSTITUTIONS = [
-  { id: 'bancolombia', name: 'Bancolombia', color: '#FFCD00', types: ['savings','checking','credit_card'] },
-  { id: 'davivienda',  name: 'Davivienda',  color: '#E8192C', types: ['savings','checking','credit_card'] },
-  { id: 'nequi',       name: 'Nequi',       color: '#7B3FF2', types: ['savings'] },
+  // ── Con sync automático de Gmail ──────────────────────────────────────────
+  { id: 'bancolombia',  name: 'Bancolombia',          color: '#FFCD00', types: ['savings','checking','credit_card'], gmailSync: true },
+  { id: 'davivienda',   name: 'Davivienda',            color: '#E8192C', types: ['savings','checking','credit_card'], gmailSync: true },
+  { id: 'nequi',        name: 'Nequi',                 color: '#7B3FF2', types: ['savings'],                         gmailSync: true },
+  // ── Registro manual ───────────────────────────────────────────────────────
+  { id: 'bogota',       name: 'Banco de Bogotá',       color: '#003DA5', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'bbva',         name: 'BBVA',                  color: '#004B91', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'itau',         name: 'Itaú',                  color: '#EC7000', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'colpatria',    name: 'Scotiabank Colpatria',   color: '#EC111A', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'popular',      name: 'Banco Popular',          color: '#005BAA', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'avvillas',     name: 'AV Villas',              color: '#FF6B00', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'cajasocial',   name: 'Banco Caja Social',      color: '#D4002B', types: ['savings','checking'],               gmailSync: false },
+  { id: 'occidente',    name: 'Banco de Occidente',     color: '#0072BC', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'gnb',          name: 'GNB Sudameris',          color: '#1A5276', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'nubank',       name: 'Nubank',                 color: '#820AD1', types: ['savings','credit_card'],            gmailSync: false },
+  { id: 'lulo',         name: 'Lulo Bank',              color: '#00C896', types: ['savings'],                         gmailSync: false },
+  { id: 'rappipay',     name: 'RappiPay',               color: '#FF441F', types: ['savings'],                         gmailSync: false },
+  { id: 'dale',         name: 'Dale!',                  color: '#6C00EA', types: ['savings'],                         gmailSync: false },
+  { id: 'otro',         name: 'Otro banco',             color: '#6b7280', types: ['savings','checking','credit_card'], gmailSync: false },
 ];
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
@@ -649,13 +665,18 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       {INSTITUTIONS.map(inst => (
                         <button key={inst.id} onClick={() => { setNewInstitution(inst.id); setNewAccountType(inst.types[0]); }}
                           style={{ display:'flex', alignItems:'center', gap:8,
-                            padding:'8px 14px', borderRadius:10,
+                            padding:'8px 12px', borderRadius:10,
                             border:`1px solid ${newInstitution===inst.id ? inst.color : C.border}`,
                             background: newInstitution===inst.id ? `${inst.color}22` : C.surface,
                             cursor:'pointer' }}>
                           <BankLogo institution={inst.name} size={22} borderRadius={6} />
-                          <span style={{ color: newInstitution===inst.id ? inst.color : C.textMuted,
-                            fontSize:12, fontWeight:600 }}>{inst.name}</span>
+                          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:1 }}>
+                            <span style={{ color: newInstitution===inst.id ? inst.color : C.textMuted,
+                              fontSize:12, fontWeight:600 }}>{inst.name}</span>
+                            {inst.gmailSync && (
+                              <span style={{ fontSize:9, color:'#31D67B', fontWeight:700, letterSpacing:0.3 }}>✉ Gmail sync</span>
+                            )}
+                          </div>
                         </button>
                       ))}
                     </div>
