@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
 import { parseEmail } from '../lib/emailParsers';
+import { BankLogo } from '../components/BankLogo';
 
 const RAILWAY_API = import.meta.env.VITE_API_URL as string ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
 
@@ -564,10 +565,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
                     {/* Account row */}
                     <div style={{ display:'flex', alignItems:'center', gap:12, paddingTop:12 }}>
-                      <div style={{ width:40, height:40, borderRadius:12, flexShrink:0,
-                        background:`${inst?.color ?? '#3b82f6'}22`,
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>
-                        🏦
+                      <div style={{ flexShrink:0 }}>
+                        <BankLogo institution={acc.institution} size={40} borderRadius={12} />
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -649,11 +648,14 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                       {INSTITUTIONS.map(inst => (
                         <button key={inst.id} onClick={() => { setNewInstitution(inst.id); setNewAccountType(inst.types[0]); }}
-                          style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newInstitution===inst.id ? inst.color : C.border}`,
+                          style={{ display:'flex', alignItems:'center', gap:8,
+                            padding:'8px 14px', borderRadius:10,
+                            border:`1px solid ${newInstitution===inst.id ? inst.color : C.border}`,
                             background: newInstitution===inst.id ? `${inst.color}22` : C.surface,
-                            color: newInstitution===inst.id ? inst.color : C.textMuted,
-                            fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                          {inst.name}
+                            cursor:'pointer' }}>
+                          <BankLogo institution={inst.name} size={22} borderRadius={6} />
+                          <span style={{ color: newInstitution===inst.id ? inst.color : C.textMuted,
+                            fontSize:12, fontWeight:600 }}>{inst.name}</span>
                         </button>
                       ))}
                     </div>
