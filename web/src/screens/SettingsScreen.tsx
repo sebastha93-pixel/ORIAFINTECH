@@ -171,6 +171,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
   // Initial balance editing: keyed by account id
   const [balanceDraft, setBalanceDraft]   = useState<Record<string, string>>({});
   const [savingBalance, setSavingBalance] = useState<Record<string, boolean>>({});
+  // Cuentas que el usuario ha desbloqueado manualmente para re-editar hoy
+  const [editingBalance, setEditingBalance] = useState<Record<string, boolean>>({});
 
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
@@ -194,10 +196,14 @@ export function SettingsScreen({ userId }: { userId: string }) {
     setBalanceDraft(prev => ({ ...drafts, ...prev }));
   }
 
-  function canEditBalance(acc: BankAccount): boolean {
-    if (!acc.initial_balance_set_at) return true;
-    const setDay = new Date(acc.initial_balance_set_at).toDateString();
-    return setDay === new Date().toDateString();
+  // Candado activo en cuanto initial_balance_set_at esté fijado
+  function isBalanceLocked(acc: BankAccount): boolean {
+    return !!acc.initial_balance_set_at && !editingBalance[acc.id];
+  }
+  // Solo se puede desbloquear manualmente si se guardó hoy
+  function canUnlockToday(acc: BankAccount): boolean {
+    if (!acc.initial_balance_set_at) return false;
+    return new Date(acc.initial_balance_set_at).toDateString() === new Date().toDateString();
   }
 
   async function saveInitialBalance(acc: BankAccount) {
@@ -209,7 +215,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
       initial_balance_set_at: new Date().toISOString(),
     }).eq('id', acc.id).eq('user_id', userId);
     setSavingBalance(prev => ({ ...prev, [acc.id]: false }));
-    if (!error) await loadAccounts();
+    if (!error) {
+      setEditingBalance(prev => ({ ...prev, [acc.id]: false })); // vuelve a bloquear
+      await loadAccounts();
+    }
   }
 
   async function addAccount() {
@@ -586,7 +595,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
               {accounts.map(acc => {
                 const inst = INSTITUTIONS.find(i => i.name.toLowerCase() === acc.institution?.toLowerCase());
-                const editable = canEditBalance(acc);
+                const locked  = isBalanceLocked(acc);
+                const editable = !locked;
                 const isSaving = savingBalance[acc.id] ?? false;
                 return (
                   <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
@@ -648,19 +658,24 @@ export function SettingsScreen({ userId }: { userId: string }) {
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <span style={{ color:C.text, fontSize:14, fontWeight:700 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                          <span style={{ color:C.accent, fontSize:14, fontWeight:700 }}>
                             {fmt(acc.initial_balance ?? 0)}
                           </span>
-                          <span style={{ fontSize:12, color:C.textMuted }}>🔒</span>
+                          <span style={{ fontSize:13 }}>🔒</span>
                           <span style={{ color:C.textMuted, fontSize:10 }}>
-                            fijado el {acc.initial_balance_set_at ? new Date(acc.initial_balance_set_at).toLocaleString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : ''}
+                            fijado el {acc.initial_balance_set_at
+                              ? new Date(acc.initial_balance_set_at).toLocaleString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
+                              : ''}
                           </span>
-                        </div>
-                      )}
-                      {editable && (
-                        <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
-                          Ingresa el saldo real de tu cuenta hoy. Solo podrás editarlo hasta mañana.
+                          {canUnlockToday(acc) && (
+                            <button
+                              onClick={() => setEditingBalance(prev => ({ ...prev, [acc.id]: true }))}
+                              style={{ background:'none', border:'none', color:C.primaryGlow, fontSize:11,
+                                cursor:'pointer', padding:0, fontWeight:600 }}>
+                              Editar
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
