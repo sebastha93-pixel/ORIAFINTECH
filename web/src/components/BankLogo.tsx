@@ -30,9 +30,12 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="40" height="40" rx={r} fill="#FFCD00"/>
-        <path d="M11 9h10.5c3.5 0 6 2 6 5.2 0 1.8-.9 3.3-2.3 4.1 2 .8 3.3 2.5 3.3 4.7 0 3.5-2.8 5.8-6.8 5.8H11V9z" fill="#1A1A1A"/>
-        <path d="M15.2 17.2h5.8c1.5 0 2.5-.9 2.5-2.2s-1-2.1-2.5-2.1h-5.8v4.3z" fill="#FFCD00"/>
-        <path d="M15.2 24.8h6.3c1.7 0 2.8-1 2.8-2.4s-1.1-2.4-2.8-2.4h-6.3v4.8z" fill="#FFCD00"/>
+        {/* Top bar — short, upper-left area, slight rightward offset */}
+        <rect x="7" y="9" width="17" height="5.5" rx="2.75" fill="#1D1D1B"/>
+        {/* Middle bar — longest, center, slight diagonal offset */}
+        <rect x="9" y="17.25" width="22" height="5.5" rx="2.75" fill="#1D1D1B"/>
+        {/* Bottom bar — medium, lower-right area */}
+        <rect x="16" y="25.5" width="17" height="5.5" rx="2.75" fill="#1D1D1B"/>
       </svg>
     );
   }
@@ -41,9 +44,16 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
   if (inst.includes('davivienda')) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="40" height="40" rx={r} fill="#E8192C"/>
-        <path d="M20 8L8 18.5h4V32h16V18.5h4L20 8z" fill="white"/>
-        <rect x="16" y="23" width="8" height="9" rx="1" fill="#E8192C"/>
+        <rect width="40" height="40" rx={r} fill="#ED1C24"/>
+        {/* Casita Davivienda: body + two humps on top + chimney upper-right */}
+        <path
+          d="M8 28 Q8 33 12 33 L28 33 Q30 33 30 28 L30 19.5 L33 19.5 L33 11 L26 11 L26 19.5 Q24 8 20 12 Q16 8 8 19.5 Z"
+          fill="none"
+          stroke="white"
+          strokeWidth="2.2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
       </svg>
     );
   }
@@ -52,9 +62,13 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
   if (inst.includes('nequi')) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="40" height="40" rx={r} fill="#7B3FF2"/>
-        <path d="M10 20c3-6 7-6 10 0s7 6 10 0" stroke="white" strokeWidth="3.5" strokeLinecap="round" fill="none"/>
-        <path d="M10 26c3-5 7-5 10 0s7 5 10 0" stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.5"/>
+        <rect width="40" height="40" rx={r} fill="#120A2C"/>
+        {/* Pink brand square — upper-left accent */}
+        <rect x="5" y="5" width="8" height="8" rx="1.5" fill="#FF2D87"/>
+        {/* Large bold N */}
+        <text x="23" y="25" dominantBaseline="middle" textAnchor="middle"
+              fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900"
+              fontSize="28" fill="white" letterSpacing="-1">N</text>
       </svg>
     );
   }
