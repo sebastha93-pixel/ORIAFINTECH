@@ -336,8 +336,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
         });
         if (!match) continue;
 
-        // Only import transactions from the exact moment the initial balance was set
-        if (match.initial_balance_set_at && email.date < match.initial_balance_set_at) continue;
+        // Block import if initial balance not configured yet — account is not ready
+        if (!match.initial_balance_set_at) continue;
+        // Only import emails after the exact moment the initial balance was set
+        if (email.date < match.initial_balance_set_at) continue;
 
         parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
       }

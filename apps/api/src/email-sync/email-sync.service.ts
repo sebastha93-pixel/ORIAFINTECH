@@ -470,9 +470,14 @@ export class EmailSyncService {
       : parsed.date;
     const emailDate = emailTimestamp.slice(0, 10);
 
-    // Only import transactions from the exact moment the initial balance was set
+    // Only import transactions from the exact moment the initial balance was set.
+    // If initial_balance_set_at is NULL the account is not ready yet — block all imports.
     const cutoffAt = (matchedAccount as { initial_balance_set_at: string | null }).initial_balance_set_at;
-    if (cutoffAt && emailTimestamp < cutoffAt) {
+    if (!cutoffAt) {
+      this.logger.debug(`Account for message ${messageId} has no initial balance set yet, skipping`);
+      return false;
+    }
+    if (emailTimestamp < cutoffAt) {
       this.logger.debug(`Message ${messageId} (${emailTimestamp}) is before initial balance cutoff (${cutoffAt}), skipping`);
       return false;
     }
