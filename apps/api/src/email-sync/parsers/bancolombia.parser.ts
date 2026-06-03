@@ -58,10 +58,16 @@ function cleanName(raw: string): string {
 }
 
 function extractBancolombiaAccountSuffix(text: string): string | undefined {
-  const fromMatch = text.match(/desde\s+tu\s+(?:cuenta|producto)\s+\*?(\d+)/i);
+  // "desde tu cuenta/producto/tarjeta/TC XXXX" → cuenta de origen del usuario
+  const fromMatch = text.match(/desde\s+tu\s+(?:cuenta|producto|tarjeta|tc)\s+\*?(\d+)/i);
   if (fromMatch) return fromMatch[1].slice(-4);
-  const starMatch = text.match(/\*(\d{4})\b/);
-  if (starMatch) return starMatch[1];
+  // Transferencias entrantes: "a tu cuenta XXXX" / "en tu cuenta XXXX"
+  const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)\s+\*?(\d+)/i);
+  if (toMatch) return toMatch[1].slice(-4);
+  // Tarjeta crédito: "Terminación XXXX"
+  const terminMatch = text.match(/[Tt]erminaci[oó]n\s*\*?(\d{4})\b/);
+  if (terminMatch) return terminMatch[1];
+  // Sin fallback genérico — evita capturar números de cuentas ajenas mencionadas en el email
   return undefined;
 }
 

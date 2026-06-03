@@ -337,12 +337,16 @@ export function SettingsScreen({ userId }: { userId: string }) {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) continue;
 
-        // Email must contain an account number matching a registered account
-        if (!result.accountSuffix) continue;
+        // Nequi emails no incluyen número de cuenta — emparejar con la única cuenta Nequi registrada
+        // Para Bancolombia/Davivienda se requiere sufijo explícito del email
+        if (!result.accountSuffix && email.bank !== 'nequi') continue;
+
         const match = registeredAccounts.find(a => {
+          if (email.bank === 'nequi') {
+            return a.institution?.toLowerCase().includes('nequi');
+          }
           if (a.account_suffix !== result.accountSuffix) return false;
           if (!a.institution?.toLowerCase().includes(email.bank)) return false;
-          // If titular is registered and email has a greeting name, they must match
           if (a.account_holder && result.accountHolder) {
             const registered = a.account_holder.toLowerCase();
             const fromEmail  = result.accountHolder.toLowerCase();

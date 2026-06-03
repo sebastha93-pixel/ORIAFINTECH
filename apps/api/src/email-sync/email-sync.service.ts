@@ -441,26 +441,37 @@ export class EmailSyncService {
       return false;
     }
 
-    // Must match an account by suffix + institution
-    if (!parsed.accountSuffix) {
-      this.logger.debug(`No account suffix parsed from message ${messageId}, skipping`);
-      return false;
-    }
+    type AccountRow = { id: string; institution: string; account_suffix: string | null; account_holder: string | null; initial_balance_set_at: string | null };
 
-    const matchedAccount = userAccounts.find((a: { institution: string; account_suffix: string; account_holder: string | null; initial_balance_set_date: string | null }) => {
-      if (a.account_suffix !== parsed.accountSuffix) return false;
-      if (!a.institution?.toLowerCase().includes(bank)) return false;
-      // If titular registered and email has a greeting name, first word must match
-      if (a.account_holder && parsed.accountHolder) {
-        const firstWord = a.account_holder.toLowerCase().split(' ')[0];
-        if (firstWord.length > 2 && !parsed.accountHolder.toLowerCase().includes(firstWord)) return false;
+    let matchedAccount: AccountRow | undefined;
+
+    if (bank === 'nequi') {
+      // Nequi emails no incluyen número de cuenta — emparejar con la única cuenta Nequi registrada
+      matchedAccount = (userAccounts as AccountRow[]).find(a => a.institution?.toLowerCase().includes('nequi'));
+      if (!matchedAccount) {
+        this.logger.debug(`No registered Nequi account for user ${userId}, skipping ${messageId}`);
+        return false;
       }
-      return true;
-    });
-
-    if (!matchedAccount) {
-      this.logger.debug(`Message ${messageId}: suffix ${parsed.accountSuffix} (${bank}) doesn't match any registered account for user ${userId}`);
-      return false;
+    } else {
+      // Para Bancolombia / Davivienda se requiere sufijo de cuenta extraído del email
+      if (!parsed.accountSuffix) {
+        this.logger.debug(`No account suffix parsed from message ${messageId} (${bank}), skipping`);
+        return false;
+      }
+      matchedAccount = (userAccounts as AccountRow[]).find(a => {
+        if (a.account_suffix !== parsed.accountSuffix) return false;
+        if (!a.institution?.toLowerCase().includes(bank)) return false;
+        // Si el titular está registrado y el email tiene saludo, el primer nombre debe coincidir
+        if (a.account_holder && parsed.accountHolder) {
+          const firstWord = a.account_holder.toLowerCase().split(' ')[0];
+          if (firstWord.length > 2 && !parsed.accountHolder.toLowerCase().includes(firstWord)) return false;
+        }
+        return true;
+      });
+      if (!matchedAccount) {
+        this.logger.debug(`Message ${messageId}: suffix ${parsed.accountSuffix} (${bank}) doesn't match any registered account for user ${userId}`);
+        return false;
+      }
     }
     // ────────────────────────────────────────────────────────────────────────
 
@@ -472,7 +483,7 @@ export class EmailSyncService {
 
     // Only import transactions from the exact moment the initial balance was set.
     // If initial_balance_set_at is NULL the account is not ready yet — block all imports.
-    const cutoffAt = (matchedAccount as { initial_balance_set_at: string | null }).initial_balance_set_at;
+    const cutoffAt = matchedAccount.initial_balance_set_at;
     if (!cutoffAt) {
       this.logger.debug(`Account for message ${messageId} has no initial balance set yet, skipping`);
       return false;
@@ -485,7 +496,7 @@ export class EmailSyncService {
     // Resolve category_id from category name
     const categoryId = await this.resolveCategoryId(userId, parsed.category, parsed.type);
 
-    const accountId: string = (matchedAccount as { id: string }).id;
+    const accountId: string = matchedAccount.id;
 
     const transactionPayload: Record<string, unknown> = {
       user_id: userId,
