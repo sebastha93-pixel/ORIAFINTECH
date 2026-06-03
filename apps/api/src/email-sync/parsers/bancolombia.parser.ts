@@ -79,6 +79,12 @@ function extractEmailHolder(text: string): string | undefined {
 }
 
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
+  // Reject generic notification/marketing emails that are not specific transaction alerts
+  if (/alertas?\s+y\s+notificaciones|resumen\s+de\s+movimientos|extracto\s+mensual|estado\s+de\s+cuenta/i.test(subject) &&
+      !/pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg/i.test(emailBody)) {
+    return null;
+  }
+
   const text = emailBody + ' ' + subject;
   const accountSuffix = extractBancolombiaAccountSuffix(text);
   const accountHolder = extractEmailHolder(text);
