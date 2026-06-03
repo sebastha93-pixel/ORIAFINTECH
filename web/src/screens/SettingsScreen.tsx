@@ -333,13 +333,16 @@ export function SettingsScreen({ userId }: { userId: string }) {
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
 
+      // Contadores de diagnóstico
+      let cNoParse = 0, cNoSuffix = 0, cNoMatch = 0, cNoBalance = 0, cBeforeCutoff = 0;
+
       for (const email of emails) {
         const result = parseEmail(email.bank, email.body, email.subject);
-        if (!result || result.amount <= 0) continue;
+        if (!result || result.amount <= 0) { cNoParse++; continue; }
 
         // Nequi emails no incluyen número de cuenta — emparejar con la única cuenta Nequi registrada
         // Para Bancolombia/Davivienda se requiere sufijo explícito del email
-        if (!result.accountSuffix && email.bank !== 'nequi') continue;
+        if (!result.accountSuffix && email.bank !== 'nequi') { cNoSuffix++; continue; }
 
         const match = registeredAccounts.find(a => {
           if (email.bank === 'nequi') {
@@ -355,12 +358,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
           }
           return true;
         });
-        if (!match) continue;
+        if (!match) { cNoMatch++; continue; }
 
-        // Block import if initial balance not configured yet — account is not ready
-        if (!match.initial_balance_set_at) continue;
-        // Only import emails after the exact moment the initial balance was set
-        if (email.date < match.initial_balance_set_at) continue;
+        // Cuenta sin saldo inicial configurado — no está lista aún
+        if (!match.initial_balance_set_at) { cNoBalance++; continue; }
+        // Solo importar emails posteriores al momento exacto del saldo inicial
+        if (email.date < match.initial_balance_set_at) { cBeforeCutoff++; continue; }
 
         parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
       }
@@ -368,9 +371,13 @@ export function SettingsScreen({ userId }: { userId: string }) {
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
 
       if (parsed.length === 0) {
-        const e0 = emails[0];
-        const dbg = e0 ? `[${e0.bank} ${e0.body.length}b "${e0.body.slice(60,100)}"]` : '[sin emails]';
-        setLastSync(`${time} · ${emails.length} correos / 0 parseados ${dbg}`);
+        const reasons: string[] = [];
+        if (cNoParse > 0)      reasons.push(`${cNoParse} sin parsear`);
+        if (cNoSuffix > 0)     reasons.push(`${cNoSuffix} sin nº cuenta`);
+        if (cNoMatch > 0)      reasons.push(`${cNoMatch} cuenta no registrada`);
+        if (cNoBalance > 0)    reasons.push(`${cNoBalance} sin saldo inicial — guarda el saldo inicial de tus cuentas`);
+        if (cBeforeCutoff > 0) reasons.push(`${cBeforeCutoff} anteriores al corte`);
+        setLastSync(`${time} · ${emails.length} correos · ${reasons.join(' · ') || 'sin movimientos nuevos'}`);
         return;
       }
 

@@ -58,16 +58,20 @@ function cleanName(raw: string): string {
 }
 
 function extractBancolombiaAccountSuffix(text: string): string | undefined {
-  // "desde tu cuenta/producto/tarjeta/TC XXXX" → cuenta de origen del usuario
-  const fromMatch = text.match(/desde\s+tu\s+(?:cuenta|producto|tarjeta|tc)\s+\*?(\d+)/i);
+  // "desde/usando/de tu cuenta/producto/tarjeta [texto libre] XXXX"
+  // [^\n\d*]* permite palabras como "de ahorros", "No.", etc. entre keyword y número
+  const fromMatch = text.match(/(?:desde|usando|de)\s+tu\s+(?:cuenta|producto|tarjeta|tc)[^\n\d*]*\*?(\d+)/i);
   if (fromMatch) return fromMatch[1].slice(-4);
-  // Transferencias entrantes: "a tu cuenta XXXX" / "en tu cuenta XXXX"
-  const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)\s+\*?(\d+)/i);
+  // Transferencias entrantes: "a tu cuenta / en tu cuenta [texto] XXXX"
+  const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)[^\n\d*]*\*?(\d+)/i);
   if (toMatch) return toMatch[1].slice(-4);
-  // Tarjeta crédito: "Terminación XXXX"
-  const terminMatch = text.match(/[Tt]erminaci[oó]n\s*\*?(\d{4})\b/);
+  // "Terminación XXXX" — formato tarjeta de crédito Bancolombia
+  const terminMatch = text.match(/[Tt]erminaci[oó]n[^\n\d*]*\*?(\d{4})\b/);
   if (terminMatch) return terminMatch[1];
-  // Sin fallback genérico — evita capturar números de cuentas ajenas mencionadas en el email
+  // "tu cuenta/producto/tarjeta ****XXXX" — formato con asteriscos múltiples
+  const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta)[^\n]*\*{2,}(\d{4})/i);
+  if (starredMatch) return starredMatch[1];
+  // Sin fallback genérico: "tu" posesivo discrimina cuentas del usuario vs. cuentas ajenas
   return undefined;
 }
 
