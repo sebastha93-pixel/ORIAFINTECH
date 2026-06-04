@@ -105,7 +105,7 @@ export function DashboardScreen() {
     });
   }, []);
 
-  const prevNet    = prevSummaries.reduce((s, m) => s + Number(m.net_savings), 0);
+  const prevNet    = prevSummaries.reduce((s, m) => s + (Number(m.total_income) - Number(m.total_expenses)), 0);
   const curIncome  = currentTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const curExpense = currentTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
   const curNet     = curIncome - curExpense;
@@ -156,7 +156,7 @@ export function DashboardScreen() {
           <Section title="Cierres anteriores">
             <div style={{ ...card }}>
               {prevSummaries.slice(0, 4).map((s, i) => {
-                const net = Number(s.net_savings);
+                const net = Number(s.total_income) - Number(s.total_expenses);
                 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
                 return (
                   <div key={`${s.year}-${s.month}`} style={{

@@ -57,13 +57,13 @@ export default function App() {
     <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14' }}>
       {screen === 'dashboard'    && <DashboardScreen />}
       {screen === 'transactions' && <TransactionsScreen />}
-      {screen === 'goals'        && <GoalsScreen />}
+      {screen === 'goals'        && <GoalsScreen userId={userId} />}
       {screen === 'ai'           && <AiChatScreen />}
       {screen === 'settings'     && <SettingsScreen userId={userId} />}
 
       <TabBar active={screen} onTab={handleTab} />
 
-      {showAdd && <AddTransactionScreen onClose={() => setShowAdd(false)} />}
+      {showAdd && <AddTransactionScreen userId={userId} onClose={() => setShowAdd(false)} />}
     </div>
   );
 }

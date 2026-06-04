@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { C, fmt } from '../theme';
+import React, { useState, useEffect } from 'react';
+import { C } from '../theme';
+import { supabase } from '../lib/supabase';
 
 const CATEGORIES = [
   { name:'Alimentación', icon:'🛒', color:'#3B82F6' },
@@ -13,15 +14,52 @@ const CATEGORIES = [
   { name:'Otros',        icon:'📦', color:'#64748B' },
 ];
 
-export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
-  const [type, setType]   = useState<'expense'|'income'>('expense');
+export function AddTransactionScreen({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const [type, setType]     = useState<'expense' | 'income'>('expense');
   const [amount, setAmount] = useState('');
-  const [desc, setDesc]   = useState('');
-  const [cat, setCat]     = useState<string|null>(null);
-  const [saved, setSaved] = useState(false);
+  const [desc, setDesc]     = useState('');
+  const [cat, setCat]       = useState<string | null>(null);
+  const [saved, setSaved]   = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [accountId, setAccountId] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
 
-  function handleSave() {
+  useEffect(() => {
+    supabase
+      .from('accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .then(({ data }) => {
+        if (data && data.length > 0) setAccountId((data[0] as { id: string }).id);
+      });
+  }, [userId]);
+
+  async function handleSave() {
     if (!amount || !desc) return;
+    if (!accountId) {
+      setError('Primero agrega una cuenta en Configuración → Mis cuentas');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    const { error: err } = await supabase.from('transactions').insert({
+      user_id: userId,
+      account_id: accountId,
+      transaction_type: type,
+      amount: parseFloat(amount),
+      description: desc,
+      date: new Date().toISOString().slice(0, 10),
+      currency_code: 'COP',
+      metadata: cat ? { category: cat } : {},
+    });
+    if (err) {
+      setError('Error al guardar. Intenta de nuevo.');
+      setSaving(false);
+      return;
+    }
     setSaved(true);
     setTimeout(onClose, 900);
   }
@@ -38,7 +76,6 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.85)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:200 }} onClick={e=>{ if(e.target===e.currentTarget)onClose(); }}>
       <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', padding:24, border:`1px solid ${C.border}` }}>
-        {/* Handle */}
         <div style={{ width:40, height:4, borderRadius:2, background:C.border, margin:'0 auto 20px' }} />
 
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
@@ -46,7 +83,6 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
           <button onClick={onClose} style={{ background:'none', border:'none', color:C.textMuted, fontSize:22, cursor:'pointer', padding:4 }}>✕</button>
         </div>
 
-        {/* Type toggle */}
         <div style={{ display:'flex', background:C.bg, borderRadius:14, padding:4, marginBottom:20, gap:4 }}>
           {(['expense','income'] as const).map(tp=>(
             <button key={tp} onClick={()=>setType(tp)} style={{
@@ -58,7 +94,6 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
           ))}
         </div>
 
-        {/* Amount */}
         <div style={{ textAlign:'center', marginBottom:24 }}>
           <div style={{ color:C.textMuted, fontSize:12, marginBottom:8 }}>MONTO</div>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4 }}>
@@ -74,7 +109,6 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
           <div style={{ height:2, background:`linear-gradient(90deg,transparent,${type==='expense'?C.danger:C.accent},transparent)`, marginTop:8 }} />
         </div>
 
-        {/* Description */}
         <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:14, padding:'0 14px', height:50, display:'flex', alignItems:'center', marginBottom:16 }}>
           <input
             placeholder="Descripción..."
@@ -84,9 +118,8 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
           />
         </div>
 
-        {/* Categories */}
         <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>CATEGORÍA</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:24 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:16 }}>
           {CATEGORIES.map(c=>(
             <button key={c.name} onClick={()=>setCat(c.name)} style={{
               padding:'10px 6px', borderRadius:12, border:`1px solid ${cat===c.name?c.color:C.border}`,
@@ -100,14 +133,15 @@ export function AddTransactionScreen({ onClose }: { onClose: ()=>void }) {
           ))}
         </div>
 
-        {/* Save */}
-        <button onClick={handleSave} style={{
+        {error && <div style={{ color:C.danger, fontSize:12, marginBottom:12, textAlign:'center' }}>{error}</div>}
+
+        <button onClick={handleSave} disabled={saving} style={{
           width:'100%', padding:'15px 0', borderRadius:16, border:'none',
-          background: (!amount||!desc) ? C.border : (type==='expense'?'linear-gradient(135deg,#EF4444,#B91C1C)':'linear-gradient(135deg,#31D67B,#22A85A)'),
-          color:'#fff', fontSize:16, fontWeight:800, cursor: (!amount||!desc)?'not-allowed':'pointer',
+          background: (!amount||!desc||saving) ? C.border : (type==='expense'?'linear-gradient(135deg,#EF4444,#B91C1C)':'linear-gradient(135deg,#31D67B,#22A85A)'),
+          color:'#fff', fontSize:16, fontWeight:800, cursor: (!amount||!desc||saving)?'not-allowed':'pointer',
           transition:'all 0.2s',
         }}>
-          Guardar movimiento
+          {saving ? 'Guardando...' : 'Guardar movimiento'}
         </button>
       </div>
     </div>
