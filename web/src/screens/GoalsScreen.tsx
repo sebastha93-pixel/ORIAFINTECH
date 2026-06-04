@@ -34,14 +34,17 @@ export function GoalsScreen({ userId }: { userId: string }) {
   const [contribGoal, setContribGoal] = useState<Goal | null>(null);
 
   async function loadGoals() {
-    const { data } = await supabase
-      .from('goals')
-      .select('id, name, goal_type, target_amount, current_amount, monthly_contribution, target_date, icon, color')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .order('created_at', { ascending: false });
-    setGoals((data as Goal[]) ?? []);
-    setLoading(false);
+    try {
+      const { data } = await supabase
+        .from('goals')
+        .select('id, name, goal_type, target_amount, current_amount, monthly_contribution, target_date, icon, color')
+        .eq('user_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      setGoals((data as Goal[]) ?? []);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { loadGoals(); }, [userId]);
@@ -98,7 +101,10 @@ export function GoalsScreen({ userId }: { userId: string }) {
 
             return (
               <div key={g.id}
+                role="button"
+                tabIndex={0}
                 style={{ ...card, cursor: 'pointer', transition: 'all 0.2s', border: isSel ? `1px solid ${color}55` : `1px solid ${C.border}` }}
+                onTouchStart={() => {}}
                 onClick={() => setSelected(isSel ? null : g.id)}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
                   <div style={{ width: 48, height: 48, borderRadius: 14, background: `${color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>{icon}</div>
@@ -277,20 +283,26 @@ function AddContribModal({ goal, userId, onClose, onSaved }: { goal: Goal; userI
     const amt = parseFloat(amount);
     if (!amount || isNaN(amt) || amt <= 0) return;
     setSaving(true);
-    const [{ error: e1 }, { error: e2 }] = await Promise.all([
-      supabase.from('goal_contributions').insert({
-        goal_id: goal.id,
-        user_id: userId,
-        amount: amt,
-        note: note.trim() || null,
-        contribution_date: new Date().toISOString().slice(0, 10),
-      }),
-      supabase.from('goals').update({
-        current_amount: Number(goal.current_amount) + amt,
-      }).eq('id', goal.id),
-    ]);
-    if (e1 || e2) { setError('Error al guardar. Intenta de nuevo.'); setSaving(false); return; }
-    onSaved();
+    try {
+      const [{ error: e1 }, { error: e2 }] = await Promise.all([
+        supabase.from('goal_contributions').insert({
+          goal_id: goal.id,
+          user_id: userId,
+          amount: amt,
+          note: note.trim() || null,
+          contribution_date: new Date().toISOString().slice(0, 10),
+        }),
+        supabase.from('goals').update({
+          current_amount: Number(goal.current_amount) + amt,
+        }).eq('id', goal.id),
+      ]);
+      if (e1 || e2) { setError('Error al guardar. Intenta de nuevo.'); return; }
+      onSaved();
+    } catch {
+      setError('Error al guardar. Intenta de nuevo.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
