@@ -30,10 +30,10 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="40" height="40" rx={r} fill="#FFCD00"/>
-        {/* 3 barras pill inclinadas ~15° — escalonado superior-der → inferior-izq */}
-        <rect x="14" y="7.5"  width="18" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-15 23 11)"/>
-        <rect x="8"  y="16.5" width="24" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-10 20 20)"/>
-        <rect x="8"  y="25.5" width="18" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-15 17 29)"/>
+        {/* 3 barras pill paralelas inclinadas -16° — escalonado sup-der → inf-izq */}
+        <rect x="14.5" y="7.5"  width="18" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-16 23.5 11)"/>
+        <rect x="8"    y="16.5" width="24" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-16 20 20)"/>
+        <rect x="8.5"  y="25.5" width="18" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-16 17.5 29)"/>
       </svg>
     );
   }
@@ -42,13 +42,17 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
   if (inst.includes('davivienda')) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="40" height="40" rx={r} fill="#C2161C"/>
-        {/* Contorno blanco de la casita Davivienda: techo arqueado + chimenea derecha + cuerpo orgánico */}
+        <rect width="40" height="40" rx={r} fill="#CC151A"/>
+        {/*
+          Contorno blanco casita Davivienda:
+          techo arqueado + chimenea sup-der + cuerpo orgánico
+          con dos protuberancias redondeadas en la base (blob inferior)
+        */}
         <path
-          d="M21 12 L21 8 L28 8 L28 14 L33 19 Q36 26 34 32 Q32 36 27 36 L13 36 Q8 36 6 32 Q4 26 7 19 L12 14 Q16 7 20 8 Q21 9 21 12 Z"
+          d="M24 13 L24 8 L30 8 L30 14 Q35 18 34 25 Q35 33 29 36 Q23 38 20 30 Q17 38 11 36 Q5 33 6 25 Q5 18 10 14 Q14 8 19 8 Q22 8 24 13 Z"
           fill="none"
           stroke="white"
-          strokeWidth="2.2"
+          strokeWidth="2.3"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
