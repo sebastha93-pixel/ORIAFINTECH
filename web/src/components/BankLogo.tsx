@@ -28,7 +28,7 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
   /* ── Bancolombia ─────────────────────────────────────────────────────── */
   if (inst.includes('bancolombia')) {
     return (
-      <div style={{ width: s, height: s, borderRadius: r, background: '#FFCD00', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: s, height: s, borderRadius: r, background: '#FFFFFF', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <img src="/logos/bancolombia.png" width={s} height={s} style={{ objectFit: 'contain', display: 'block' }} alt="Bancolombia" />
       </div>
     );
