@@ -333,6 +333,30 @@ export function SettingsScreen({ userId }: { userId: string }) {
     return () => window.removeEventListener('message', onMessage);
   }, []);
 
+  async function cleanAndResync() {
+    const ok = window.confirm(
+      '¿Limpiar movimientos auto-importados y re-sincronizar?\n\n' +
+      'Se borrarán TODOS los movimientos importados desde Gmail y se ' +
+      're-importarán solo los que correspondan a tus cuentas registradas.\n\n' +
+      'Los movimientos añadidos manualmente NO se eliminan.'
+    );
+    if (!ok) return;
+    setSyncing(true);
+    setLastSync('Eliminando movimientos previos…');
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('user_id', userId)
+      .not('gmail_message_id', 'is', null);
+    if (error) {
+      setLastSync(`Error al limpiar: ${error.message.slice(0, 80)}`);
+      setSyncing(false);
+      return;
+    }
+    // syncNow() maneja el estado syncing a partir de aquí
+    await syncNow();
+  }
+
   async function syncNow() {
     setSyncing(true);
     try {
@@ -566,6 +590,11 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     background: syncing ? C.surface : 'rgba(49,214,123,0.15)',
                     color: C.accent, fontSize:14, fontWeight:700, opacity: syncing ? 0.7 : 1 }}>
                   {syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar ahora'}
+                </button>
+                <button onClick={cleanAndResync} disabled={syncing}
+                  style={{ width:'100%', marginTop:8, padding:'10px 0', borderRadius:12, border:`1px solid rgba(239,68,68,0.3)`, cursor: syncing ? 'default' : 'pointer',
+                    background: 'rgba(239,68,68,0.07)', color:'#f87171', fontSize:13, fontWeight:600, opacity: syncing ? 0.5 : 1 }}>
+                  🗑 Limpiar y re-sincronizar desde cero
                 </button>
                 <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
                   ORIA sincroniza automáticamente 2 veces al día (6am y 8pm).
