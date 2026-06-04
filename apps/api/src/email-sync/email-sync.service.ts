@@ -459,12 +459,13 @@ export class EmailSyncService {
         return false;
       }
       matchedAccount = (userAccounts as AccountRow[]).find(a => {
+        // Los últimos 4 dígitos de la cuenta DEBEN coincidir
         if (a.account_suffix !== parsed.accountSuffix) return false;
+        // El banco debe coincidir
         if (!a.institution?.toLowerCase().includes(bank)) return false;
-        // Si el titular está registrado y el email tiene saludo, el primer nombre debe coincidir
+        // Si ambos lados tienen nombre de titular, DEBE coincidir
         if (a.account_holder && parsed.accountHolder) {
-          const firstWord = a.account_holder.toLowerCase().split(' ')[0];
-          if (firstWord.length > 2 && !parsed.accountHolder.toLowerCase().includes(firstWord)) return false;
+          if (!this.holderNamesMatch(a.account_holder, parsed.accountHolder)) return false;
         }
         return true;
       });
@@ -526,6 +527,17 @@ export class EmailSyncService {
   }
 
   // ─── Helper resolvers ─────────────────────────────────────────────────────
+
+  /** Compara nombres ignorando mayúsculas, tildes y palabras cortas. */
+  private holderNamesMatch(registered: string, fromEmail: string): boolean {
+    const normalize = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const reg = normalize(registered);
+    const em  = normalize(fromEmail);
+    if (reg.includes(em) || em.includes(reg)) return true;
+    const regWords = reg.split(/\s+/).filter((w) => w.length > 2);
+    return regWords.some((w) => em.includes(w));
+  }
 
   private async resolveCategoryId(
     userId: string,

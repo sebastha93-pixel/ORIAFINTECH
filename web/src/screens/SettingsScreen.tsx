@@ -132,6 +132,19 @@ const BANKS = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/** Compara nombres ignorando mayúsculas, tildes y palabras cortas.
+ *  Devuelve true si algún apellido/nombre significativo del titular registrado
+ *  aparece en el saludo del email (o viceversa). */
+function holderNamesMatch(registered: string, fromEmail: string): boolean {
+  const normalize = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  const reg = normalize(registered);
+  const em  = normalize(fromEmail);
+  if (reg.includes(em) || em.includes(reg)) return true;
+  const regWords = reg.split(/\s+/).filter(w => w.length > 2);
+  return regWords.some(w => em.includes(w));
+}
+
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
   return session?.access_token
@@ -357,13 +370,13 @@ export function SettingsScreen({ userId }: { userId: string }) {
           if (email.bank === 'nequi') {
             return a.institution?.toLowerCase().includes('nequi');
           }
+          // Los últimos 4 dígitos de la cuenta DEBEN coincidir
           if (a.account_suffix !== result.accountSuffix) return false;
+          // El banco debe coincidir
           if (!a.institution?.toLowerCase().includes(email.bank)) return false;
+          // Si ambos lados tienen nombre de titular, DEBE coincidir
           if (a.account_holder && result.accountHolder) {
-            const registered = a.account_holder.toLowerCase();
-            const fromEmail  = result.accountHolder.toLowerCase();
-            const firstWord = registered.split(' ')[0];
-            if (firstWord.length > 2 && !fromEmail.includes(firstWord)) return false;
+            if (!holderNamesMatch(a.account_holder, result.accountHolder)) return false;
           }
           return true;
         });
