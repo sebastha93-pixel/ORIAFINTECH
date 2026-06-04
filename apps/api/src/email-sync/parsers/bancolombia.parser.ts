@@ -100,7 +100,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   const accountHolder = extractEmailHolder(text);
 
   // "Pagaste $X a MERCHANT desde" → expense
-  const pagoMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+a\s+([\w\s]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
+  const pagoMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+a\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
   if (pagoMatch) {
     const amount = parseAmount(pagoMatch[1]);
     const merchant = cleanName(pagoMatch[2]);

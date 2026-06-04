@@ -349,7 +349,8 @@ export class EmailSyncService {
         .replace(/&Iacute;/gi, 'Í').replace(/&Uacute;/gi, 'Ú')
         .replace(/&Aacute;/gi, 'Á').replace(/&Ntilde;/gi, 'Ñ')
         .replace(/&amp;/gi, '&').replace(/&nbsp;/gi, ' ')
-        .replace(/&#\d+;/g, ' ')
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
         .replace(/\s+/g, ' ');
     }
 
@@ -601,7 +602,7 @@ export class EmailSyncService {
         ? new Date(parseInt(full.internalDate, 10)).toISOString()
         : new Date().toISOString();
 
-      results.push({ messageId: msg.id, bank, subject, body: body.slice(0, 3000), date });
+      results.push({ messageId: msg.id, bank, subject, body: body.slice(0, 6000), date });
     }
     return results;
   }
