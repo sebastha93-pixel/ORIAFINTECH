@@ -53,16 +53,20 @@ function cleanName(raw: string): string {
 }
 
 function extractDaviviendaAccountSuffix(text: string): string | undefined {
-  // Formato propio Davivienda: "****1234" (2+ asteriscos seguidos de 4 dígitos)
-  const starMatch = text.match(/\*{2,}(\d{4})/);
-  if (starMatch) return starMatch[1];
-  // Con etiqueta explícita: "cuenta *XXXX" / "tarjeta *XXXX"
-  const wordMatch = text.match(/(?:tarjeta|cuenta|cta)[^:]*\*(\d{4})/i);
-  if (wordMatch) return wordMatch[1];
-  // "terminada en XXXX" (formato Davivienda)
+  // Davivienda usa "su" (formal) para la cuenta del titular.
+  // Priorizar este patrón evita capturar cuentas de terceros en emails de transferencia
+  // donde el email menciona "****XXXX" del destinatario antes que la cuenta propia.
+  const suMatch = text.match(/\bsu\s+(?:cuenta|tarjeta|cta|producto)[^\n\d*]*\*+(\d{4})\b/i);
+  if (suMatch) return suMatch[1];
+  // Si hay exactamente un número enmascarado en el email, es inequívoco
+  const allMasked = text.match(/\*{2,}\d{4}\b/g) ?? [];
+  if (allMasked.length === 1) {
+    const m = text.match(/\*{2,}(\d{4})\b/);
+    if (m) return m[1];
+  }
+  // "terminada en XXXX" (tarjeta de crédito Davivienda)
   const terminMatch = text.match(/terminada?\s+en\s+(\d{4})\b/i);
   if (terminMatch) return terminMatch[1];
-  // Sin patrón genérico — evita falsos positivos con números cercanos a "cuenta"
   return undefined;
 }
 
@@ -102,13 +106,11 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       ? [lugarRaw[0], cleanName(lugarRaw[1])]
       : null;
 
-    // Capture last 4 digits of the card/account referenced in the email
-    const cuentaMatch = text.match(/(?:cuenta|tarjeta|tc)[^\d]*(?:\*+\s*)?(\d{3,4})\b/i);
-    const accountSuffix = cuentaMatch ? ` ****${cuentaMatch[1]}` : '';
-
     const claseRaw = (claseMatch?.[1] ?? '').trim();
     const clase = claseRaw.toLowerCase();
     const merchant = lugarMatch ? lugarMatch[1].trim().replace(/\s+/g, ' ') : '';
+    // Label solo para mostrar en la descripción (no sobreescribe el sufijo de matching)
+    const suffixLabel = accountSuffix ? ` ****${accountSuffix}` : '';
 
     const type = classifyTransaction(text, claseRaw);
     const isIncome = type === 'income';
@@ -116,14 +118,14 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     let description: string;
     if (merchant) {
       description = isIncome
-        ? `${claseRaw} - ${merchant} · Davivienda${accountSuffix}`
-        : `Compra en ${merchant} · Davivienda${accountSuffix}`;
+        ? `${claseRaw} - ${merchant} · Davivienda${suffixLabel}`
+        : `Compra en ${merchant} · Davivienda${suffixLabel}`;
     } else if (claseRaw) {
-      description = `${claseRaw} · Davivienda${accountSuffix}`;
+      description = `${claseRaw} · Davivienda${suffixLabel}`;
     } else {
       description = isIncome
-        ? `Ingreso · Davivienda${accountSuffix}`
-        : `Gasto · Davivienda${accountSuffix}`;
+        ? `Ingreso · Davivienda${suffixLabel}`
+        : `Gasto · Davivienda${suffixLabel}`;
     }
 
     return {
@@ -133,7 +135,7 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       category: inferCategory(merchant + ' ' + clase),
       date: new Date().toISOString(),
       merchant: merchant || undefined,
-      accountSuffix,
+      accountSuffix,   // usa el sufijo externo (4 dígitos), no uno local
       accountHolder,
       rawText: text,
     };

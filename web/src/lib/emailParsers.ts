@@ -139,12 +139,19 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
 }
 
 function extractDaviviendaAccountSuffix(text: string): string | undefined {
-  // Matches "****4716" or "**4716" patterns (Davivienda format)
-  const starMatch = text.match(/\*{2,}(\d{4})/);
-  if (starMatch) return starMatch[1];
-  // Fallback: "cuenta *XXXX" or "tarjeta *XXXX"
-  const wordMatch = text.match(/(?:tarjeta|cuenta|cta)[^:]*\*(\d{4})/i);
-  if (wordMatch) return wordMatch[1];
+  // Davivienda usa "su" (formal) para la cuenta del titular.
+  // Priorizar evita capturar cuentas de terceros en emails de transferencia.
+  const suMatch = text.match(/\bsu\s+(?:cuenta|tarjeta|cta|producto)[^\n\d*]*\*+(\d{4})\b/i);
+  if (suMatch) return suMatch[1];
+  // Si hay exactamente un número enmascarado, es inequívoco
+  const allMasked = text.match(/\*{2,}\d{4}\b/g) ?? [];
+  if (allMasked.length === 1) {
+    const m = text.match(/\*{2,}(\d{4})\b/);
+    if (m) return m[1];
+  }
+  // "terminada en XXXX"
+  const terminMatch = text.match(/terminada?\s+en\s+(\d{4})\b/i);
+  if (terminMatch) return terminMatch[1];
   return undefined;
 }
 
