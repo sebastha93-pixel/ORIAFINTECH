@@ -222,16 +222,26 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function saveInitialBalance(acc: BankAccount) {
     const digits = (balanceDraft[acc.id] ?? '').replace(/\D/g, '');
     const amount = digits ? parseInt(digits, 10) : 0;
+    const cutoffAt = new Date().toISOString();
     setSavingBalance(prev => ({ ...prev, [acc.id]: true }));
     const { error } = await supabase.from('accounts').update({
       initial_balance: amount,
-      initial_balance_set_at: new Date().toISOString(),
+      initial_balance_set_at: cutoffAt,
     }).eq('id', acc.id).eq('user_id', userId);
-    setSavingBalance(prev => ({ ...prev, [acc.id]: false }));
     if (!error) {
-      setEditingBalance(prev => ({ ...prev, [acc.id]: false })); // vuelve a bloquear
+      // Delete any gmail-imported transactions for this account dated before the cutoff
+      // so that the initial balance correctly represents the starting point
+      await supabase
+        .from('transactions')
+        .delete()
+        .eq('account_id', acc.id)
+        .eq('user_id', userId)
+        .not('gmail_message_id', 'is', null)
+        .lt('date', cutoffAt.slice(0, 10));
+      setEditingBalance(prev => ({ ...prev, [acc.id]: false }));
       await loadAccounts();
     }
+    setSavingBalance(prev => ({ ...prev, [acc.id]: false }));
   }
 
   async function addAccount() {
