@@ -30,10 +30,10 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="40" height="40" rx={r} fill="#FFCD00"/>
-        {/* 3 barras redondeadas oscuras en escalonado diagonal — marca Bancolombia */}
-        <rect x="6"  y="9"  width="15" height="6" rx="3" fill="#1D1D1B"/>
-        <rect x="11" y="17" width="18" height="6" rx="3" fill="#1D1D1B"/>
-        <rect x="16" y="25" width="15" height="6" rx="3" fill="#1D1D1B"/>
+        {/* 3 barras pill inclinadas ~15° — escalonado superior-der → inferior-izq */}
+        <rect x="14" y="7.5"  width="18" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-15 23 11)"/>
+        <rect x="8"  y="16.5" width="24" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-10 20 20)"/>
+        <rect x="8"  y="25.5" width="18" height="7" rx="3.5" fill="#1D1D1B" transform="rotate(-15 17 29)"/>
       </svg>
     );
   }
@@ -42,15 +42,15 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
   if (inst.includes('davivienda')) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="40" height="40" rx={r} fill="#ED1C24"/>
-        {/*
-          Casita Davivienda rellena en blanco:
-          cuerpo (y 19.5–33) + chimenea derecha (x 26–33, y 13–19.5)
-          + dos corcobas que arquean hacia arriba (picos y≈12, valle y=15)
-        */}
+        <rect width="40" height="40" rx={r} fill="#C2161C"/>
+        {/* Contorno blanco de la casita Davivienda: techo arqueado + chimenea derecha + cuerpo orgánico */}
         <path
-          d="M8 28 Q8 33 12 33 L28 33 Q30 33 30 28 L30 19.5 L33 19.5 L33 13 L26 13 L26 19.5 Q27 7 20 15 Q13 7 8 19.5 Z"
-          fill="white"
+          d="M21 12 L21 8 L28 8 L28 14 L33 19 Q36 26 34 32 Q32 36 27 36 L13 36 Q8 36 6 32 Q4 26 7 19 L12 14 Q16 7 20 8 Q21 9 21 12 Z"
+          fill="none"
+          stroke="white"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       </svg>
     );
@@ -60,13 +60,13 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
   if (inst.includes('nequi')) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="40" height="40" rx={r} fill="#1A0B3B"/>
-        {/* Cuadrado rosa magenta — acento de marca Nequi */}
-        <rect x="5" y="5" width="9" height="9" rx="2" fill="#FF2D87"/>
-        {/* N bold grande */}
-        <text x="23" y="26" dominantBaseline="middle" textAnchor="middle"
+        <rect width="40" height="40" rx={r} fill="#150B2E"/>
+        {/* Cuadrado rosa magenta esquina superior-izquierda */}
+        <rect x="3" y="3" width="10" height="10" rx="2" fill="#E8197D"/>
+        {/* N bold — centrada ligeramente a la derecha del cuadrado */}
+        <text x="22" y="23" dominantBaseline="middle" textAnchor="middle"
               fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900"
-              fontSize="26" fill="white">N</text>
+              fontSize="28" fill="white">N</text>
       </svg>
     );
   }
