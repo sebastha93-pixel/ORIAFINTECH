@@ -175,4 +175,16 @@ export class EmailSyncController {
   }[]> {
     return this.emailSyncService.fetchEmailsForClient(user.id);
   }
+
+  @Get('debug-sample')
+  @ApiOperation({ summary: 'Debug: show what the parser extracts from real emails' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  async debugSample(@CurrentUser() user: User): Promise<{
+    bank: string; subject: string; from: string;
+    accountSuffix: string; accountHolder: string;
+    parsed: string; body: string; bodyLen: number;
+  }[]> {
+    return this.emailSyncService.debugSample(user.id);
+  }
 }

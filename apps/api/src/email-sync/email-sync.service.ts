@@ -607,36 +607,52 @@ export class EmailSyncService {
     return results;
   }
 
-  // ─── Debug: return raw text of first 3 bank emails ──────────────────────────
+  // ─── Debug: analyze real bank emails ────────────────────────────────────────
 
-  async debugSample(userId: string): Promise<{ sample: string; subject: string; from: string; parsed: string; bodyLen: number }[]> {
+  async debugSample(userId: string): Promise<{
+    bank: string; subject: string; from: string;
+    accountSuffix: string; accountHolder: string;
+    parsed: string; body: string; bodyLen: number;
+  }[]> {
     const { data: connection } = await this.supabase
       .from('email_connections').select('*').eq('user_id', userId).maybeSingle();
-    if (!connection) return [{ sample: 'No connection found', subject: '', from: '', parsed: 'no-connection', bodyLen: 0 }];
+    if (!connection) return [{
+      bank: 'NO_CONNECTION', subject: '', from: '', accountSuffix: '', accountHolder: '',
+      parsed: 'Gmail no está conectado', body: '', bodyLen: 0,
+    }];
 
     const accessToken = await this.getValidAccessToken(connection as EmailConnection);
     const messages = await this.listMessages(accessToken, BANK_QUERY);
-    const results: { sample: string; subject: string; from: string; parsed: string; bodyLen: number }[] = [];
+    const results: {
+      bank: string; subject: string; from: string;
+      accountSuffix: string; accountHolder: string;
+      parsed: string; body: string; bodyLen: number;
+    }[] = [];
 
-    for (const msg of messages.slice(0, 5)) {
+    for (const msg of messages.slice(0, 15)) {
       const full = await this.getMessage(accessToken, msg.id);
       const from = this.getHeader(full.payload, 'from');
       const subject = this.getHeader(full.payload, 'subject');
       const body = this.extractEmailBody(full.payload);
+      const bank = this.detectBank(from) ?? 'UNKNOWN';
 
-      const bank = this.detectBank(from);
-      let parsed = `bank=${bank ?? 'UNKNOWN'}`;
-      if (bank) {
+      let parsed = 'NO_MATCH';
+      let accountSuffix = '';
+      let accountHolder = '';
+
+      if (bank !== 'UNKNOWN') {
         const result: ParsedTransaction | null =
           bank === 'bancolombia' ? parseBancolombia(body, subject) :
           bank === 'davivienda'  ? parseDavivienda(body, subject) :
           parseNequi(body, subject);
-        parsed = result
-          ? JSON.stringify({ type: result.type, amount: result.amount, desc: result.description })
-          : `${bank}:NO_MATCH`;
+        if (result) {
+          parsed = JSON.stringify({ type: result.type, amount: result.amount, desc: result.description, suffix: result.accountSuffix, holder: result.accountHolder });
+          accountSuffix = result.accountSuffix ?? '';
+          accountHolder = result.accountHolder ?? '';
+        }
       }
 
-      results.push({ from, subject, sample: body.slice(0, 500), parsed, bodyLen: body.length });
+      results.push({ bank, from, subject, accountSuffix, accountHolder, parsed, body: body.slice(0, 1200), bodyLen: body.length });
     }
     return results;
   }
