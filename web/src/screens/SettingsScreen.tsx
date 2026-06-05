@@ -392,33 +392,24 @@ export function SettingsScreen({ userId }: { userId: string }) {
       const parsed: NonNullable<ParsedTxn>[] = [];
 
       // Contadores de diagnóstico
-      let cNoParse = 0, cNoSuffix = 0, cNoMatch = 0, cNoBalance = 0, cBeforeCutoff = 0;
-      // Sufijos encontrados en emails que no hicieron match (para diagnóstico)
+      let cNoParse = 0, cNoSuffix = 0, cNoMatch = 0, cHolderMismatch = 0, cNoBalance = 0, cBeforeCutoff = 0;
       const unmatchedSuffixes: string[] = [];
 
       for (const email of emails) {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) { cNoParse++; continue; }
 
-        // Nequi emails no incluyen número de cuenta — emparejar con la única cuenta Nequi registrada
-        // Para Bancolombia/Davivienda se requiere sufijo explícito del email
         if (!result.accountSuffix && email.bank !== 'nequi') { cNoSuffix++; continue; }
 
-        const match = registeredAccounts.find(a => {
-          if (email.bank === 'nequi') {
-            return a.institution?.toLowerCase().includes('nequi');
-          }
-          // Los últimos 4 dígitos de la cuenta DEBEN coincidir
+        // Primero buscar cuenta con sufijo + banco coincidentes
+        const suffixMatch = registeredAccounts.find(a => {
+          if (email.bank === 'nequi') return a.institution?.toLowerCase().includes('nequi');
           if (a.account_suffix !== result.accountSuffix) return false;
-          // El banco debe coincidir
-          if (!a.institution?.toLowerCase().includes(email.bank)) return false;
-          // Si ambos lados tienen nombre de titular, DEBE coincidir
-          if (a.account_holder && result.accountHolder) {
-            if (!holderNamesMatch(a.account_holder, result.accountHolder)) return false;
-          }
-          return true;
+          return !!a.institution?.toLowerCase().includes(email.bank);
         });
-        if (!match) {
+
+        if (!suffixMatch) {
+          // No hay ninguna cuenta con ese sufijo registrada
           cNoMatch++;
           if (result.accountSuffix) {
             const key = `${email.bank}:${result.accountSuffix}`;
@@ -426,6 +417,17 @@ export function SettingsScreen({ userId }: { userId: string }) {
           }
           continue;
         }
+
+        // Cuenta encontrada por sufijo — verificar titular
+        if (suffixMatch.account_holder && result.accountHolder) {
+          if (!holderNamesMatch(suffixMatch.account_holder, result.accountHolder)) {
+            // Sufijo correcto pero titular no coincide → probable cuenta de otra persona
+            cHolderMismatch++;
+            continue;
+          }
+        }
+
+        const match = suffixMatch;
 
         // Cuenta sin saldo inicial configurado — no está lista aún
         if (!match.initial_balance_set_at) { cNoBalance++; continue; }
@@ -439,16 +441,17 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       if (parsed.length === 0) {
         const reasons: string[] = [];
-        if (cNoParse > 0)      reasons.push(`${cNoParse} sin parsear`);
-        if (cNoSuffix > 0)     reasons.push(`${cNoSuffix} sin nº cuenta`);
+        if (cNoParse > 0)         reasons.push(`${cNoParse} sin parsear`);
+        if (cNoSuffix > 0)        reasons.push(`${cNoSuffix} sin nº cuenta`);
         if (cNoMatch > 0) {
-          const suffixHint = unmatchedSuffixes.length > 0
-            ? ` (encontrados: ${unmatchedSuffixes.slice(0, 5).join(', ')})`
+          const hint = unmatchedSuffixes.length > 0
+            ? ` (agregar: ${unmatchedSuffixes.slice(0, 5).join(', ')})`
             : '';
-          reasons.push(`${cNoMatch} cuenta no registrada${suffixHint}`);
+          reasons.push(`${cNoMatch} cuenta no registrada${hint}`);
         }
-        if (cNoBalance > 0)    reasons.push(`${cNoBalance} sin saldo inicial — guarda el saldo inicial de tus cuentas`);
-        if (cBeforeCutoff > 0) reasons.push(`${cBeforeCutoff} anteriores al corte`);
+        if (cHolderMismatch > 0)  reasons.push(`${cHolderMismatch} titular no coincide`);
+        if (cNoBalance > 0)       reasons.push(`${cNoBalance} sin saldo inicial`);
+        if (cBeforeCutoff > 0)    reasons.push(`${cBeforeCutoff} anteriores al corte`);
         setLastSync(`${time} · ${emails.length} correos · ${reasons.join(' · ') || 'sin movimientos nuevos'}`);
         return;
       }
@@ -882,22 +885,40 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     />
                   </div>
 
-                  <div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>
-                      Titular de la cuenta — nombre como aparece en el correo del banco
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="ej. SEBASTIAN HURTADO"
-                      value={newHolder}
-                      onChange={e => setNewHolder(e.target.value)}
-                      style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
-                        background:C.surface, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none' }}
-                    />
-                    <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
-                      Recomendado — evita importar movimientos de otras cuentas en el mismo Gmail.
-                    </div>
-                  </div>
+                  {(() => {
+                    const inst = INSTITUTIONS.find(i => i.id === newInstitution);
+                    const sameBank = accounts.filter(a =>
+                      a.institution?.toLowerCase() === inst?.name?.toLowerCase()
+                    );
+                    const holderRequired = sameBank.length > 0;
+                    const holderMissing = holderRequired && !newHolder.trim();
+                    return (
+                      <div>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                          <span style={{ color: holderRequired ? C.warning : C.textMuted, fontSize:11, fontWeight: holderRequired ? 700 : 400 }}>
+                            Titular de la cuenta{holderRequired ? ' *' : ''}
+                          </span>
+                          {holderRequired && (
+                            <span style={{ fontSize:10, color:C.warning, background:'rgba(245,158,11,0.12)', padding:'2px 7px', borderRadius:6, fontWeight:600 }}>
+                              Requerido — ya tienes otra cuenta de {inst?.name}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="ej. SEBASTIAN HURTADO"
+                          value={newHolder}
+                          onChange={e => setNewHolder(e.target.value)}
+                          style={{ width:'100%', padding:'10px 14px', borderRadius:10,
+                            border:`1px solid ${holderMissing ? C.warning : C.border}`,
+                            background:C.surface, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none' }}
+                        />
+                        <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
+                          Nombre exactamente como aparece en el correo del banco — distingue tus cuentas de las de otras personas en el mismo Gmail.
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {addAccountError && (
                     <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`,
@@ -906,20 +927,31 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     </div>
                   )}
 
-                  <div style={{ display:'flex', gap:8 }}>
-                    <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setAddAccountError(''); }}
-                      style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`,
-                        background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer' }}>
-                      Cancelar
-                    </button>
-                    <button onClick={addAccount} disabled={newSuffix.length < 4 || savingAccount}
-                      style={{ flex:2, padding:'12px 0', borderRadius:12, border:'none',
-                        background: newSuffix.length < 4 ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
-                        color: newSuffix.length < 4 ? C.textMuted : '#fff',
-                        fontSize:13, fontWeight:700, cursor: newSuffix.length < 4 ? 'default' : 'pointer' }}>
-                      {savingAccount ? 'Guardando…' : 'Guardar cuenta'}
-                    </button>
-                  </div>
+                  {(() => {
+                    const inst = INSTITUTIONS.find(i => i.id === newInstitution);
+                    const sameBank = accounts.filter(a =>
+                      a.institution?.toLowerCase() === inst?.name?.toLowerCase()
+                    );
+                    const holderRequired = sameBank.length > 0;
+                    const holderMissing = holderRequired && !newHolder.trim();
+                    const disabled = newSuffix.length < 4 || savingAccount || holderMissing;
+                    return (
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setAddAccountError(''); }}
+                          style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`,
+                            background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer' }}>
+                          Cancelar
+                        </button>
+                        <button onClick={addAccount} disabled={disabled}
+                          style={{ flex:2, padding:'12px 0', borderRadius:12, border:'none',
+                            background: disabled ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                            color: disabled ? C.textMuted : '#fff',
+                            fontSize:13, fontWeight:700, cursor: disabled ? 'default' : 'pointer' }}>
+                          {savingAccount ? 'Guardando…' : 'Guardar cuenta'}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 <button onClick={() => setShowAddAccount(true)}
