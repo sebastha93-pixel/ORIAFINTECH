@@ -33,14 +33,18 @@ function inferCategory(description: string, merchant?: string): string {
   if (/nómina|nomina|salario/.test(text)) return 'Salario';
   if (/cajero|retiro|efectivo/.test(text)) return 'Efectivo';
   if (/arriendo|renta/.test(text)) return 'Vivienda';
-  if (/supermercado|éxito|exito|carulla|jumbo|olímpica|olimpica|d1|ara|mercado/.test(text)) return 'Alimentación';
-  if (/restaurante|comida|domicilio|rappi|ifood|uber eats/.test(text)) return 'Alimentación';
-  if (/uber|taxi|cabify|didi|transporte|bus|metro|mio/.test(text)) return 'Transporte';
-  if (/netflix|spotify|youtube|prime|disney|hbo|streaming/.test(text)) return 'Entretenimiento';
-  if (/farmacia|cruz verde|drogas|droguería|clínica|clinica|hospital|médico|medico|salud/.test(text)) return 'Salud';
+  if (/gasolina|combustible|terpel|primax|biomax|esso|gulf|zeuss|mobil|texaco/.test(text)) return 'Gasolina';
+  if (/parqueadero|peaje|autopista/.test(text)) return 'Transporte';
+  if (/uber|taxi|cabify|didi|transporte|bus|metro|mio|sitp/.test(text)) return 'Transporte';
+  if (/supermercado|éxito|exito|carulla|jumbo|olímpica|olimpica|d1|ara|alkosto|minimercado/.test(text)) return 'Alimentación';
+  if (/restaurante|comida|domicilio|rappi|ifood|uber\s*eats|mcdonald|burger|kfc|subway|pizza/.test(text)) return 'Restaurante';
+  if (/panadería|panaderia|cafetería|cafeteria|heladería|heladeria/.test(text)) return 'Alimentación';
+  if (/cine|cinemark|cine\s*colombia|procinal|teatro|concierto/.test(text)) return 'Entretenimiento';
+  if (/netflix|spotify|youtube|prime|disney|hbo|streaming|deezer/.test(text)) return 'Entretenimiento';
+  if (/farmacia|droguería|drogueria|cruz\s*verde|drogas|clínica|clinica|hospital|médico|medico|salud|óptica|optica/.test(text)) return 'Salud';
   if (/gym|bodytech|smartfit|gimnasio|deporte|fitness/.test(text)) return 'Deporte';
   if (/colegio|universidad|escuela|curso|educación|educacion/.test(text)) return 'Educación';
-  if (/agua|energía|energia|gas|internet|teléfono|telefono|celular|epm|acueducto/.test(text)) return 'Servicios';
+  if (/agua|energía|energia|gas\b|internet|teléfono|telefono|celular|epm|acueducto|claro|movistar|tigo|wom/.test(text)) return 'Servicios';
   if (/ropa|calzado|almacén|almacen|falabella|ripley|zara/.test(text)) return 'Ropa';
   return 'Otros';
 }

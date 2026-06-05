@@ -32,6 +32,9 @@ export function GoalsScreen({ userId }: { userId: string }) {
   const [selected, setSelected]       = useState<string | null>(null);
   const [showNew, setShowNew]         = useState(false);
   const [contribGoal, setContribGoal] = useState<Goal | null>(null);
+  const [editGoal, setEditGoal]       = useState<Goal | null>(null);
+  const [deleteId, setDeleteId]       = useState<string | null>(null);
+  const [deleting, setDeleting]       = useState(false);
 
   async function loadGoals() {
     try {
@@ -139,6 +142,16 @@ export function GoalsScreen({ userId }: { userId: string }) {
                       style={{ gridColumn: '1/-1', marginTop: 4, padding: '12px 0', borderRadius: 12, border: `1px solid ${color}`, background: `${color}18`, color, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                       + Agregar aporte
                     </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setEditGoal(g); }}
+                      style={{ padding: '10px 0', borderRadius: 12, border: `1px solid ${C.border}`, background: 'transparent', color: C.textSec, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      ✏️ Editar
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteId(g.id); }}
+                      style={{ padding: '10px 0', borderRadius: 12, border: `1px solid ${C.danger}33`, background: `${C.danger}11`, color: C.danger, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      🗑️ Eliminar
+                    </button>
                   </div>
                 )}
               </div>
@@ -168,6 +181,42 @@ export function GoalsScreen({ userId }: { userId: string }) {
           onClose={() => setContribGoal(null)}
           onSaved={() => { setContribGoal(null); loadGoals(); }}
         />
+      )}
+
+      {editGoal && (
+        <EditGoalModal
+          goal={editGoal}
+          userId={userId}
+          onClose={() => setEditGoal(null)}
+          onSaved={() => { setEditGoal(null); loadGoals(); }}
+        />
+      )}
+
+      {deleteId && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.92)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:300, padding:24 }}>
+          <div style={{ background:C.surface, borderRadius:24, padding:28, maxWidth:340, width:'100%', textAlign:'center' }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>🗑️</div>
+            <div style={{ color:C.text, fontSize:16, fontWeight:700, marginBottom:8 }}>Eliminar meta</div>
+            <div style={{ color:C.textMuted, fontSize:13, marginBottom:24 }}>Esta acción no se puede deshacer. ¿Eliminar la meta?</div>
+            <div style={{ display:'flex', gap:12 }}>
+              <button onClick={() => setDeleteId(null)}
+                style={{ flex:1, padding:'13px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+                Cancelar
+              </button>
+              <button disabled={deleting} onClick={async () => {
+                setDeleting(true);
+                await supabase.from('goals').update({ status: 'deleted' }).eq('id', deleteId);
+                setDeleting(false);
+                setDeleteId(null);
+                setSelected(null);
+                loadGoals();
+              }}
+                style={{ flex:1, padding:'13px 0', borderRadius:14, border:'none', background:C.danger, color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer' }}>
+                {deleting ? '…' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -264,6 +313,99 @@ function NewGoalModal({ userId, onClose, onSaved }: { userId: string; onClose: (
             cursor: !name.trim() || !target ? 'not-allowed' : 'pointer',
           }}>
           {saving ? 'Guardando...' : 'Crear meta'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditGoalModal({ goal, userId, onClose, onSaved }: { goal: Goal; userId: string; onClose: () => void; onSaved: () => void }) {
+  const [name, setName]       = useState(goal.name);
+  const [gtype, setGtype]     = useState(goal.goal_type);
+  const [target, setTarget]   = useState(String(goal.target_amount));
+  const [monthly, setMonthly] = useState(goal.monthly_contribution ? String(goal.monthly_contribution) : '');
+  const [date, setDate]       = useState(goal.target_date ?? '');
+  const [saving, setSaving]   = useState(false);
+  const [error, setError]     = useState<string | null>(null);
+
+  async function handleSave() {
+    if (!name.trim() || !target) return;
+    setSaving(true);
+    const tm = TYPE_META[gtype] ?? TYPE_META.other;
+    const { error: err } = await supabase.from('goals').update({
+      name: name.trim(),
+      goal_type: gtype,
+      target_amount: parseFloat(target),
+      monthly_contribution: monthly ? parseFloat(monthly) : null,
+      target_date: date || null,
+      icon: tm.icon,
+      color: tm.color,
+    }).eq('id', goal.id).eq('user_id', userId);
+    if (err) { setError('Error al guardar. Intenta de nuevo.'); setSaving(false); return; }
+    onSaved();
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,20,38,0.92)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: C.border, margin: '0 auto 20px' }} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div style={{ color: C.text, fontSize: 18, fontWeight: 800 }}>Editar meta</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.textMuted, fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+        </div>
+
+        <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>NOMBRE</div>
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+          <input placeholder="Ej: Viaje a Europa" value={name} onChange={e => setName(e.target.value)}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
+        </div>
+
+        <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 8 }}>TIPO</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 16 }}>
+          {Object.entries(TYPE_META).map(([key, tm]) => (
+            <button key={key} onClick={() => setGtype(key)} style={{
+              padding: '10px 6px', borderRadius: 12,
+              border: `1px solid ${gtype === key ? tm.color : C.border}`,
+              background: gtype === key ? `${tm.color}22` : C.bg,
+              cursor: 'pointer', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 18, marginBottom: 2 }}>{tm.icon}</div>
+              <div style={{ color: gtype === key ? tm.color : C.textMuted, fontSize: 9, fontWeight: 600 }}>{tm.label}</div>
+            </button>
+          ))}
+        </div>
+
+        <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>MONTO OBJETIVO</div>
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+          <span style={{ color: C.textMuted }}>$</span>
+          <input type="number" placeholder="0" value={target} onChange={e => setTarget(e.target.value)}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
+        </div>
+
+        <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>APORTE MENSUAL (opcional)</div>
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
+          <span style={{ color: C.textMuted }}>$</span>
+          <input type="number" placeholder="0" value={monthly} onChange={e => setMonthly(e.target.value)}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
+        </div>
+
+        <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>FECHA OBJETIVO (opcional)</div>
+        <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', marginBottom: 24 }}>
+          <input type="date" value={date} onChange={e => setDate(e.target.value)}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
+        </div>
+
+        {error && <div style={{ color: C.danger, fontSize: 13, marginBottom: 12, textAlign: 'center' }}>{error}</div>}
+
+        <button onClick={handleSave} disabled={saving || !name.trim() || !target}
+          style={{
+            width: '100%', padding: '15px 0', borderRadius: 16, border: 'none',
+            background: !name.trim() || !target ? C.border : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+            color: '#fff', fontSize: 16, fontWeight: 800,
+            cursor: !name.trim() || !target ? 'not-allowed' : 'pointer',
+          }}>
+          {saving ? 'Guardando...' : 'Guardar cambios'}
         </button>
       </div>
     </div>

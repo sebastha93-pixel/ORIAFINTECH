@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
-import { TransactionDetailSheet, type TxDetail } from '../components/TransactionDetailSheet';
+import { TransactionDetailSheet, txIcon, txCategory, type TxDetail } from '../components/TransactionDetailSheet';
 
 interface Txn {
   id: string;
@@ -11,29 +11,7 @@ interface Txn {
   date: string;
   notes: string | null;
   gmail_message_id?: string | null;
-}
-
-function txIcon(t: Txn): string {
-  const d = (t.description ?? '').toLowerCase();
-  if (t.transaction_type === 'income') return '💰';
-  if (/éxito|carulla|jumbo|d1|ara|supermercad|alkosto/i.test(d)) return '🛒';
-  if (/uber|taxi|didi|cabify|sitp/i.test(d)) return '🚗';
-  if (/netflix|spotify|disney|hbo|cine/i.test(d)) return '🎬';
-  if (/farmacia|droguería|salud|clínica/i.test(d)) return '💊';
-  if (/arriendo|renta/i.test(d)) return '🏠';
-  if (/retiro|cajero/i.test(d)) return '🏧';
-  return '💳';
-}
-
-function txCategory(t: Txn): string {
-  const d = (t.description ?? '').toLowerCase();
-  if (t.transaction_type === 'income') return 'Ingreso';
-  if (/éxito|carulla|jumbo|d1|ara|supermercad|alkosto/i.test(d)) return 'Alimentación';
-  if (/uber|taxi|didi|cabify|sitp/i.test(d)) return 'Transporte';
-  if (/netflix|spotify|disney|hbo|cine/i.test(d)) return 'Entretenimiento';
-  if (/farmacia|droguería|salud|clínica/i.test(d)) return 'Salud';
-  if (/arriendo|renta/i.test(d)) return 'Vivienda';
-  return 'Otros';
+  category?: string | null;
 }
 
 const TABS = ['Todos', 'Ingresos', 'Gastos'];
@@ -51,23 +29,22 @@ export function TransactionsScreen() {
   const [tab, setTab]                   = useState(0);
   const [search, setSearch]             = useState('');
   const [selYear, setSelYear]           = useState(now.getFullYear());
-  const [selMonth, setSelMonth]         = useState(now.getMonth()); // 0-indexed
+  const [selMonth, setSelMonth]         = useState(now.getMonth());
   const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
 
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) { setLoading(false); return; }
-      supabase
-        .from('transactions')
-        .select('id, transaction_type, amount, description, date, notes, gmail_message_id')
-        .eq('user_id', user.id)
-        .order('date', { ascending: false })
-        .then(({ data }) => {
-          setTransactions((data as Txn[]) ?? []);
-          setLoading(false);
-        });
-    });
+  const loadTransactions = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
+    const { data } = await supabase
+      .from('transactions')
+      .select('id, transaction_type, amount, description, date, notes, gmail_message_id, category')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
+    setTransactions((data as Txn[]) ?? []);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { loadTransactions(); }, [loadTransactions]);
 
   function prevMonth() {
     if (selMonth === 0) { setSelYear(y => y - 1); setSelMonth(11); }
@@ -75,13 +52,22 @@ export function TransactionsScreen() {
   }
 
   function nextMonth() {
-    const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth();
-    if (isCurrentMonth) return;
+    const isCurrent = selYear === now.getFullYear() && selMonth === now.getMonth();
+    if (isCurrent) return;
     if (selMonth === 11) { setSelYear(y => y + 1); setSelMonth(0); }
     else setSelMonth(m => m + 1);
   }
 
-  const isCurrentMonth = selYear === now.getFullYear() && selMonth === now.getMonth();
+  function handleCategoryChanged(id: string, category: string) {
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, category } : t));
+    setSelectedTx(prev => prev && prev.id === id ? { ...prev, category } : prev);
+  }
+
+  function handleDeleted(id: string) {
+    setTransactions(prev => prev.filter(t => t.id !== id));
+  }
+
+  const isCurrent = selYear === now.getFullYear() && selMonth === now.getMonth();
   const monthPrefix = `${selYear}-${String(selMonth + 1).padStart(2, '0')}`;
 
   const monthTxns = transactions.filter(t => t.date.startsWith(monthPrefix));
@@ -89,7 +75,10 @@ export function TransactionsScreen() {
   const filtered = monthTxns.filter(t => {
     if (tab === 1 && t.transaction_type !== 'income')  return false;
     if (tab === 2 && t.transaction_type !== 'expense') return false;
-    if (search && !(t.description ?? '').toLowerCase().includes(search.toLowerCase())) return false;
+    if (search) {
+      const haystack = ((t.description ?? '') + ' ' + (t.category ?? '')).toLowerCase();
+      if (!haystack.includes(search.toLowerCase())) return false;
+    }
     return true;
   });
 
@@ -107,7 +96,6 @@ export function TransactionsScreen() {
       <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 20px' }}>
         <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:2 }}>Movimientos</div>
 
-        {/* Month selector */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:12, marginBottom:16 }}>
           <button onClick={prevMonth}
             style={{ background:'rgba(255,255,255,0.07)', border:'none', borderRadius:10, width:36, height:36,
@@ -118,15 +106,15 @@ export function TransactionsScreen() {
             <div style={{ color:C.text, fontSize:15, fontWeight:700, textTransform:'capitalize' }}>
               {formatMonthLabel(selYear, selMonth)}
             </div>
-            {isCurrentMonth && (
+            {isCurrent && (
               <div style={{ color:C.accent, fontSize:10, fontWeight:600, marginTop:1 }}>MES ACTUAL</div>
             )}
           </div>
           <button onClick={nextMonth}
-            style={{ background: isCurrentMonth ? 'transparent' : 'rgba(255,255,255,0.07)',
+            style={{ background: isCurrent ? 'transparent' : 'rgba(255,255,255,0.07)',
               border:'none', borderRadius:10, width:36, height:36,
-              color: isCurrentMonth ? C.border : C.text,
-              fontSize:18, cursor: isCurrentMonth ? 'default' : 'pointer',
+              color: isCurrent ? C.border : C.text,
+              fontSize:18, cursor: isCurrent ? 'default' : 'pointer',
               display:'flex', alignItems:'center', justifyContent:'center' }}>
             ›
           </button>
@@ -153,7 +141,7 @@ export function TransactionsScreen() {
           <span style={{ color:C.textMuted, marginRight:8, fontSize:15 }}>🔍</span>
           <input
             style={{ flex:1, background:'none', border:'none', outline:'none', color:C.text, fontSize:14 }}
-            placeholder="Buscar movimiento..."
+            placeholder="Buscar por descripción o categoría..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -195,10 +183,12 @@ export function TransactionsScreen() {
                   <div key={t.id}
                     onClick={() => setSelectedTx(t)}
                     style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<txns.length-1?12:0, marginBottom:i<txns.length-1?12:0, borderBottom:i<txns.length-1?`1px solid ${C.border}`:'none', cursor:'pointer' }}>
-                    <div style={{ width:42, height:42, borderRadius:13, background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>{txIcon(t)}</div>
+                    <div style={{ width:42, height:42, borderRadius:13, background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
+                      {txIcon(t.description ?? '', t.transaction_type, t.category)}
+                    </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ color:C.text, fontSize:14, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description ?? 'Movimiento'}</div>
-                      <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>{txCategory(t)}</div>
+                      <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>{txCategory(t.description ?? '', t.transaction_type, t.category)}</div>
                     </div>
                     <div style={{ textAlign:'right', flexShrink:0, display:'flex', alignItems:'center', gap:8 }}>
                       <div>
@@ -216,7 +206,13 @@ export function TransactionsScreen() {
           ))
         )}
       </div>
-      <TransactionDetailSheet tx={selectedTx} onClose={() => setSelectedTx(null)} />
+
+      <TransactionDetailSheet
+        tx={selectedTx}
+        onClose={() => setSelectedTx(null)}
+        onDeleted={handleDeleted}
+        onCategoryChanged={handleCategoryChanged}
+      />
     </div>
   );
 }

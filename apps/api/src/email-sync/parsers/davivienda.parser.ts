@@ -22,13 +22,19 @@ function inferCategory(text: string): string {
   if (/nómina|nomina|salario/.test(lower)) return 'Salario';
   if (/cajero|retiro|efectivo/.test(lower)) return 'Efectivo';
   if (/arriendo|renta/.test(lower)) return 'Vivienda';
-  if (/supermercado|éxito|exito|carulla|jumbo|olímpica|olimpica|d1|ara|mercado/.test(lower)) return 'Alimentación';
-  if (/restaurante|comida|domicilio|rappi/.test(lower)) return 'Alimentación';
-  if (/uber|taxi|cabify|didi|transporte|bus|metro/.test(lower)) return 'Transporte';
-  if (/netflix|spotify|streaming|entretenimiento/.test(lower)) return 'Entretenimiento';
-  if (/farmacia|cruz verde|clínica|clinica|hospital|médico|medico|salud/.test(lower)) return 'Salud';
-  if (/gym|bodytech|smartfit|gimnasio|deporte/.test(lower)) return 'Deporte';
-  if (/agua|energía|energia|gas|internet|teléfono|telefono|epm/.test(lower)) return 'Servicios';
+  if (/gasolina|combustible|terpel|primax|biomax|esso|gulf|zeuss/.test(lower)) return 'Gasolina';
+  if (/parqueadero|peaje|autopista/.test(lower)) return 'Transporte';
+  if (/uber|taxi|cabify|didi|transporte|bus|metro|sitp/.test(lower)) return 'Transporte';
+  if (/supermercado|éxito|exito|carulla|jumbo|olímpica|olimpica|d1|ara|alkosto|minimercado/.test(lower)) return 'Alimentación';
+  if (/restaurante|comida|domicilio|rappi|ifood|mcdonald|kfc|subway|pizza/.test(lower)) return 'Restaurante';
+  if (/panadería|panaderia|cafetería|cafeteria|heladería|heladeria/.test(lower)) return 'Alimentación';
+  if (/cine|cinemark|cine\s*colombia|procinal|teatro|concierto/.test(lower)) return 'Entretenimiento';
+  if (/netflix|spotify|streaming|disney|hbo|prime|deezer/.test(lower)) return 'Entretenimiento';
+  if (/farmacia|droguería|drogueria|cruz\s*verde|clínica|clinica|hospital|médico|medico|salud|óptica/.test(lower)) return 'Salud';
+  if (/gym|bodytech|smartfit|gimnasio|deporte|fitness/.test(lower)) return 'Deporte';
+  if (/colegio|universidad|escuela|curso|educación|educacion/.test(lower)) return 'Educación';
+  if (/agua|energía|energia|gas\b|internet|teléfono|telefono|epm|claro|movistar|tigo/.test(lower)) return 'Servicios';
+  if (/ropa|calzado|falabella|ripley|zara/.test(lower)) return 'Ropa';
   return 'Otros';
 }
 

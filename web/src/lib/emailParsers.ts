@@ -26,15 +26,19 @@ function inferCategory(text: string): string {
   if (/nómin|nomin|salari|pago\s+de\s+n/.test(t)) return 'Salario';
   if (/cajero|retiro|efectivo/.test(t)) return 'Efectivo';
   if (/arriendo|renta/.test(t)) return 'Vivienda';
-  if (/supermercado|éxito|exito|carulla|jumbo|olímpica|olimpica|d1|ara|mercado/.test(t)) return 'Alimentación';
-  if (/restaurante|comida|domicilio|rappi|ifood|uber eats/.test(t)) return 'Alimentación';
-  if (/uber|taxi|cabify|didi|transporte|bus|metro|mio/.test(t)) return 'Transporte';
-  if (/netflix|spotify|youtube|prime|disney|hbo|streaming/.test(t)) return 'Entretenimiento';
-  if (/farmacia|cruz verde|drogas|droguería|clínica|clinica|hospital|médico|medico|salud/.test(t)) return 'Salud';
-  if (/gym|bodytech|smartfit|gimnasio|deporte|fitness/.test(t)) return 'Deporte';
-  if (/colegio|universidad|escuela|curso|educación|educacion/.test(t)) return 'Educación';
-  if (/agua|energía|energia|gas|internet|teléfono|telefono|celular|epm|acueducto/.test(t)) return 'Servicios';
-  if (/ropa|calzado|almacén|almacen|falabella|ripley|zara/.test(t)) return 'Ropa';
+  if (/gasolina|combustible|terpel|primax|biomax|esso|gulf|zeuss|mobil|texaco/.test(t)) return 'Gasolina';
+  if (/parqueadero|peaje|autopista/.test(t)) return 'Transporte';
+  if (/uber|taxi|cabify|didi|transporte|bus|metro|mio|sitp/.test(t)) return 'Transporte';
+  if (/supermercado|éxito|exito|carulla|jumbo|olímpica|olimpica|d1|ara|alkosto|minimercado|fruver/.test(t)) return 'Alimentación';
+  if (/restaurante|comida|domicilio|rappi|ifood|uber\s*eats|mcdonald|burger|kfc|subway|pizza/.test(t)) return 'Restaurante';
+  if (/panadería|panaderia|cafetería|cafeteria|heladería|heladeria|tienda/.test(t)) return 'Alimentación';
+  if (/cine|cinemark|cine\s*colombia|procinal|teatro|concierto|evento/.test(t)) return 'Entretenimiento';
+  if (/netflix|spotify|youtube|prime|disney|hbo|streaming|deezer|crunchyroll/.test(t)) return 'Entretenimiento';
+  if (/farmacia|droguería|drogueria|cruz\s*verde|drogas|clínica|clinica|hospital|médico|medico|salud|óptica|optica|veterinaria/.test(t)) return 'Salud';
+  if (/gym|bodytech|smartfit|gimnasio|deporte|fitness|decathlon/.test(t)) return 'Deporte';
+  if (/colegio|universidad|escuela|curso|educación|educacion|instituto|academia/.test(t)) return 'Educación';
+  if (/agua|energía|energia|gas\b|internet|teléfono|telefono|celular|epm|acueducto|claro|movistar|tigo|wom|directv/.test(t)) return 'Servicios';
+  if (/ropa|calzado|almacén|almacen|falabella|ripley|zara|studio\s*f/.test(t)) return 'Ropa';
   return 'Otros';
 }
 
