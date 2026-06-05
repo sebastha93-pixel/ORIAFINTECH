@@ -101,8 +101,14 @@ function extractDaviviendaAccountSuffix(text: string): string | undefined {
 // ── Bancolombia ───────────────────────────────────────────────────────────────
 
 function parseBancolombia(body: string, subject: string): ParsedEmail | null {
-  if (/alertas?\s+y\s+notificaciones|resumen\s+de\s+movimientos|extracto\s+mensual|estado\s+de\s+cuenta/i.test(subject) &&
-      !/pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg/i.test(body)) {
+  // Bancolombia transaction emails: subject "Alertas y Notificaciones" + body "¡Listo! Todo salió bien"
+  // Accept these; only reject if neither the "¡Listo!" marker nor transaction keywords are present
+  if (/alertas?\s+y\s+notificaciones/i.test(subject)) {
+    if (!/listo|pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg/i.test(body)) {
+      return null;
+    }
+  }
+  if (/resumen\s+de\s+movimientos|extracto\s+mensual|estado\s+de\s+cuenta/i.test(subject)) {
     return null;
   }
 
@@ -211,8 +217,9 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
 // ── Davivienda ────────────────────────────────────────────────────────────────
 
 function parseDavivienda(body: string, subject: string): ParsedEmail | null {
-  if (/bono|beneficio|oferta|promoci[oó]n|descuento|gana\s+m[aá]s|cashback|recompensa/i.test(subject) &&
-      !/compra|transacci[oó]n|d[eé]bito|abono|retiro|transferencia/i.test(subject)) {
+  // Davivienda genuine transaction emails always contain this exact phrase
+  // (followed by the account number). Reject everything else.
+  if (!/Le\s+informamos\s+que\s+se\s+ha\s+registrado\s+el\s+siguiente\s+movimiento/i.test(body)) {
     return null;
   }
 

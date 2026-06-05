@@ -85,8 +85,14 @@ function extractEmailHolder(text: string): string | undefined {
 
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
   // Reject generic notification/marketing emails that are not specific transaction alerts
-  if (/alertas?\s+y\s+notificaciones|resumen\s+de\s+movimientos|extracto\s+mensual|estado\s+de\s+cuenta/i.test(subject) &&
-      !/pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg/i.test(emailBody)) {
+  // Bancolombia transaction emails: subject "Alertas y Notificaciones" + body "¡Listo! Todo salió bien"
+  // Accept these; only reject if neither the "¡Listo!" marker nor transaction keywords are present
+  if (/alertas?\s+y\s+notificaciones/i.test(subject)) {
+    if (!/listo|pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg/i.test(emailBody)) {
+      return null;
+    }
+  }
+  if (/resumen\s+de\s+movimientos|extracto\s+mensual|estado\s+de\s+cuenta/i.test(subject)) {
     return null;
   }
 

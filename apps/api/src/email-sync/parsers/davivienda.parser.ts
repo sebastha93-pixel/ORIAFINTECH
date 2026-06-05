@@ -82,9 +82,9 @@ function extractEmailHolderDav(text: string): string | undefined {
 }
 
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
-  // Reject promotional/marketing emails that are not transaction notifications
-  if (/bono|beneficio|oferta|promoci[oó]n|descuento|gana\s+m[aá]s|cashback|recompensa/i.test(subject) &&
-      !/compra|transacci[oó]n|d[eé]bito|abono|retiro|transferencia/i.test(subject)) {
+  // Davivienda genuine transaction emails always contain this exact phrase
+  // (followed by the account number). Reject everything else.
+  if (!/Le\s+informamos\s+que\s+se\s+ha\s+registrado\s+el\s+siguiente\s+movimiento/i.test(emailBody)) {
     return null;
   }
 
