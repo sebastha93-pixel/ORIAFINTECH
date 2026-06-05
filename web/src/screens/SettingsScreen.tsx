@@ -479,12 +479,25 @@ export function SettingsScreen({ userId }: { userId: string }) {
     try {
       const headers = await getAuthHeaders();
       const res = await fetch(`${RAILWAY_API}/email-sync/debug-sample`, { headers });
-      const data = await res.json() as {
+      const raw = await res.json();
+
+      if (!Array.isArray(raw)) {
+        setDiagResult(`El servidor respondió (HTTP ${res.status}):\n${JSON.stringify(raw, null, 2)}\n\n⚠️ El backend necesita redesploy para activar este endpoint.`);
+        return;
+      }
+
+      const data = raw as {
         bank: string; subject: string; accountSuffix: string;
         accountHolder: string; parsed: string; body: string; bodyLen: number;
       }[];
+
+      if (data.length === 0) {
+        setDiagResult('Sin correos bancarios encontrados en tu Gmail.');
+        return;
+      }
+
       const lines = data.map((d, i) =>
-        `── Email ${i+1} ──────────────────\n` +
+        `── Email ${i + 1} ──────────────────\n` +
         `Banco:    ${d.bank}\n` +
         `Asunto:   ${d.subject}\n` +
         `Sufijo:   ${d.accountSuffix || '❌ no encontrado'}\n` +
@@ -493,9 +506,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
         `Longitud: ${d.bodyLen} chars\n` +
         `Cuerpo:\n${d.body}\n`
       ).join('\n');
-      setDiagResult(lines || 'Sin correos bancarios encontrados.');
+      setDiagResult(lines);
     } catch (e) {
-      setDiagResult('Error al obtener diagnóstico: ' + String(e));
+      setDiagResult('Error de red: ' + String(e));
     } finally {
       setDiagRunning(false);
     }
