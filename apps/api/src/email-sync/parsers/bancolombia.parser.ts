@@ -191,13 +191,35 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
-  // "te llegó / Recibiste una transferencia de $X de REMITENTE" → income
-  const recibisteMatch = text.match(
-    /(?:[Tt]e\s+lleg[oó]|[Rr]ecibiste)\s+(?:una\s+transferencia\s+de\s+)?\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
+  // "Te llegó $X" — unambiguous income
+  const teLlegoMatch = text.match(
+    /[Tt]e\s+lleg[oó]\s+\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
   );
-  if (recibisteMatch) {
-    const amount = parseAmount(recibisteMatch[1]);
-    const sender = recibisteMatch[2] ? cleanName(recibisteMatch[2]) : '';
+  if (teLlegoMatch) {
+    const amount = parseAmount(teLlegoMatch[1]);
+    const sender = teLlegoMatch[2] ? cleanName(teLlegoMatch[2]) : '';
+    return {
+      amount,
+      type: 'income',
+      description: sender
+        ? `Transferencia de ${sender} · Bancolombia`
+        : 'Transferencia recibida · Bancolombia',
+      category: 'Transferencias',
+      date: new Date().toISOString(),
+      merchant: sender || undefined,
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+  // "Recibiste una transferencia de $X" — requires "una transferencia de" to avoid
+  // matching "¿Recibiste este movimiento?" security questions on expense emails
+  const recibisteTransMatch = text.match(
+    /[Rr]ecibiste\s+una\s+transferencia\s+de\s+\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
+  );
+  if (recibisteTransMatch) {
+    const amount = parseAmount(recibisteTransMatch[1]);
+    const sender = recibisteTransMatch[2] ? cleanName(recibisteTransMatch[2]) : '';
     return {
       amount,
       type: 'income',
