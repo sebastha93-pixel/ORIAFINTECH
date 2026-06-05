@@ -81,6 +81,15 @@ function extractEmailHolderDav(text: string): string | undefined {
   return undefined;
 }
 
+// Direct "Clase de Movimiento" classifier — more precise than full-text keyword scan
+function classifyDaviviendaClase(clase: string): 'income' | 'expense' | null {
+  const c = clase.toLowerCase().trim();
+  if (!c) return null;
+  if (/^(abono|consign|dep[oó]sit|reintegro|devoluci[oó]n|cr[eé]dit)/.test(c)) return 'income';
+  if (/^(compra|d[eé]bito|retiro|pago|avance|cuota|cargo|transferencia\s+d[eé]bito|transferencia\s+enviad)/.test(c)) return 'expense';
+  return null;
+}
+
 export function parse(emailBody: string, subject: string): ParsedTransaction | null {
   // Davivienda genuine transaction emails always contain this exact phrase
   // (followed by the account number). Reject everything else.
@@ -109,10 +118,9 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     const claseRaw = (claseMatch?.[1] ?? '').trim();
     const clase = claseRaw.toLowerCase();
     const merchant = lugarMatch ? lugarMatch[1].trim().replace(/\s+/g, ' ') : '';
-    // Label solo para mostrar en la descripción (no sobreescribe el sufijo de matching)
     const suffixLabel = accountSuffix ? ` ****${accountSuffix}` : '';
 
-    const type = classifyTransaction(text, claseRaw);
+    const type = classifyDaviviendaClase(claseRaw) ?? classifyTransaction(text, claseRaw);
     const isIncome = type === 'income';
 
     let description: string;

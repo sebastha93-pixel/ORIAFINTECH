@@ -241,6 +241,58 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
+  // "Consignación de $X de REMITENTE" → income
+  const consignacionMatch = text.match(
+    /[Cc]onsignaci[oó]n\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
+  );
+  if (consignacionMatch) {
+    const amount = parseAmount(consignacionMatch[1]);
+    const sender = consignacionMatch[2] ? cleanName(consignacionMatch[2]) : '';
+    return {
+      amount,
+      type: 'income',
+      description: sender ? `Consignación de ${sender} · Bancolombia` : 'Consignación · Bancolombia',
+      category: 'Transferencias',
+      date: new Date().toISOString(),
+      merchant: sender || undefined,
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
+  // "Depósito de $X" → income
+  const depositoMatch = text.match(/[Dd]ep[oó]sito\s+(?:de\s+)?\$?\s*([\d.,]+)/);
+  if (depositoMatch) {
+    const amount = parseAmount(depositoMatch[1]);
+    return {
+      amount,
+      type: 'income',
+      description: 'Depósito · Bancolombia',
+      category: 'Transferencias',
+      date: new Date().toISOString(),
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
+  // "Avance en cajero de $X" → expense
+  const avanceMatch = text.match(/[Aa]vance\s+(?:en\s+)?cajero\s+(?:por\s+|de\s+)?\$?\s*([\d.,]+)/);
+  if (avanceMatch) {
+    const amount = parseAmount(avanceMatch[1]);
+    return {
+      amount,
+      type: 'expense',
+      description: 'Avance en cajero · Bancolombia',
+      category: 'Efectivo',
+      date: new Date().toISOString(),
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
   // "Retiro en cajero por $X"
   const retiroMatch = text.match(/[Rr]etiro\s+en\s+cajero\s+por\s+\$?\s*([\d.,]+)/);
   if (retiroMatch) {

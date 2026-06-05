@@ -5,46 +5,86 @@
  */
 
 const EXPENSE_KEYWORDS = [
-  // Bancolombia
+  // Bancolombia — acción del usuario en pasado (2ª persona)
   'pagaste',
   'transferiste',
   'realizaste un pago',
-  'codigo qr',
-  // Davivienda
-  'abono transferencia',
-  'transferencia enviada',
-  'compra',
+  'retiraste',
+  // Davivienda — Clase de Movimiento (débito / salida)
+  'compra nacional',
+  'compra internacional',
+  'compra internet',
+  'compra con clave',
+  'compra sin clave',
   'pago a tercero',
-  // Generic
+  'pago de servicios',
+  'pago pse',
+  'pago en linea',
+  'pago online',
+  'pago por internet',
+  'débito automático',
+  'debito automatico',
+  'débito transferencia',
+  'debito transferencia',
+  'transferencia débito',
+  'transferencia debito',
+  'transferencia enviada',
+  'avance cajero',
+  'avance en cajero',
+  'avance nacional',
+  'avance internacional',
+  'cuota de manejo',
+  'cuota manejo',
+  'cobro cuota',
+  // Genérico
+  'compra',
   'retiro',
   'débito',
   'debito',
   'cargo automático',
   'cargo automatico',
+  'cargo por',
   'enviaste',
   'realizaste',
+  'código qr',
+  'codigo qr',
 ];
 
 const INCOME_KEYWORDS = [
-  // Bancolombia
-  'recibiste',
+  // Bancolombia — el usuario recibió dinero
   'te llegó',
   'te llego',
   'transferencia recibida',
-  // Davivienda
+  'recibiste una transferencia',
+  // Davivienda — Clase de Movimiento (crédito / entrada)
   'abono pago de nomina',
   'abono pago de nómina',
   'abono nomina',
   'abono nómina',
   'abono recibido',
+  'abono por transferencia',
+  'abono transferencia',   // Davivienda: transferencia entrante = abono
+  'abono pse',
+  'abono por pse',
   'abono por',
-  // Generic
+  'consignación',
+  'consignacion',
+  'consignacion nacional',
+  'consignación nacional',
+  'depósito',
+  'deposito',
+  'reintegro',
+  'devolución',
+  'devolucion',
+  'crédito por',
+  'credito por',
+  'crédito recibido',
+  'credito recibido',
+  // Genérico
   'nómina',
   'nomina',
   'salario',
   'ingreso',
-  'crédito recibido',
-  'credito recibido',
 ];
 
 export function classifyTransaction(

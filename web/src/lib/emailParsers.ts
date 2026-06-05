@@ -156,6 +156,27 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
     return { amount, type: 'income', description: 'Pago de nómina · Bancolombia', category: 'Salario', accountSuffix, accountHolder };
   }
 
+  // Consignación / Depósito → income
+  const consignacionMatch = text.match(/[Cc]onsignaci[oó]n\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/);
+  if (consignacionMatch) {
+    const amount = parseAmount(consignacionMatch[1]);
+    const sender = consignacionMatch[2] ? cleanName(consignacionMatch[2]) : '';
+    return { amount, type: 'income', description: sender ? `Consignación de ${sender} · Bancolombia` : 'Consignación · Bancolombia', category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
+  }
+
+  const depositoMatch = text.match(/[Dd]ep[oó]sito\s+(?:de\s+)?\$?\s*([\d.,]+)/);
+  if (depositoMatch) {
+    const amount = parseAmount(depositoMatch[1]);
+    return { amount, type: 'income', description: 'Depósito · Bancolombia', category: 'Transferencias', accountSuffix, accountHolder };
+  }
+
+  // Avance en cajero → expense
+  const avanceMatch = text.match(/[Aa]vance\s+(?:en\s+)?cajero\s+(?:por\s+)?\$?\s*([\d.,]+)/);
+  if (avanceMatch) {
+    const amount = parseAmount(avanceMatch[1]);
+    return { amount, type: 'expense', description: 'Avance en cajero · Bancolombia', category: 'Efectivo', accountSuffix, accountHolder };
+  }
+
   const transRecibidaMatch = text.match(
     /[Tt]ransferencia\s+recibida\s+por\s+\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
   );
@@ -214,6 +235,17 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   return null;
 }
 
+// Direct Davivienda "Clase de Movimiento" classifier — more precise than full-text scan
+function classifyDaviviendaClase(clase: string): 'income' | 'expense' | null {
+  const c = clase.toLowerCase().trim();
+  if (!c) return null;
+  // Income: anything starting with "abono", "consign", "depósi", "reintegro", "devoluci", "crédit"
+  if (/^(abono|consign|dep[oó]sit|reintegro|devoluci[oó]n|cr[eé]dit)/.test(c)) return 'income';
+  // Expense: compra, débito/debito, retiro, pago, avance, cuota, cargo, transferencia débito
+  if (/^(compra|d[eé]bito|retiro|pago|avance|cuota|cargo|transferencia\s+d[eé]bito|transferencia\s+enviad)/.test(c)) return 'expense';
+  return null;
+}
+
 // ── Davivienda ────────────────────────────────────────────────────────────────
 
 function parseDavivienda(body: string, subject: string): ParsedEmail | null {
@@ -234,7 +266,8 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
     const lugarRaw = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
     const merchant = lugarRaw ? cleanName(lugarRaw[1]) : '';
     const claseRaw = (claseMatch?.[1] ?? '').trim();
-    const type = classifyTransaction(text, claseRaw);
+    // Classify directly from Clase de Movimiento before falling back to full-text classifier
+    const type = classifyDaviviendaClase(claseRaw) ?? classifyTransaction(text, claseRaw);
     const isIncome = type === 'income';
     const suffixLabel = accountSuffix ? ` ****${accountSuffix}` : '';
     let description: string;
