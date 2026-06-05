@@ -73,13 +73,14 @@ function extractEmailHolder(text: string): string | undefined {
 }
 
 function extractBancolombiaAccountSuffix(text: string): string | undefined {
-  const fromMatch = text.match(/(?:desde|usando|de)\s+tu\s+(?:cuenta|producto|tarjeta|tc)[^\n\d*]*\*?(\d+)/i);
+  // Require ≥4 digits to avoid capturing dates (03) or reference numbers
+  const fromMatch = text.match(/(?:desde|usando|de)\s+tu\s+(?:cuenta|producto|tarjeta|tc)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
   if (fromMatch) return fromMatch[1].slice(-4);
-  const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)[^\n\d*]*\*?(\d+)/i);
+  const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
   if (toMatch) return toMatch[1].slice(-4);
-  const terminMatch = text.match(/[Tt]erminaci[oó]n[^\n\d*]*\*?(\d{4})\b/);
+  const terminMatch = text.match(/[Tt]erminaci[oó]n[^\n\d*]*\*{0,6}(\d{4})\b/);
   if (terminMatch) return terminMatch[1];
-  const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta)[^\n]*\*{2,}(\d{4})/i);
+  const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta)[^\n]*\*{2,}(\d{4})\b/i);
   if (starredMatch) return starredMatch[1];
   return undefined;
 }
