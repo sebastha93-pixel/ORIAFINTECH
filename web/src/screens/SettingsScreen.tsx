@@ -393,6 +393,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       // Contadores de diagnóstico
       let cNoParse = 0, cNoSuffix = 0, cNoMatch = 0, cNoBalance = 0, cBeforeCutoff = 0;
+      // Sufijos encontrados en emails que no hicieron match (para diagnóstico)
+      const unmatchedSuffixes: string[] = [];
 
       for (const email of emails) {
         const result = parseEmail(email.bank, email.body, email.subject);
@@ -416,7 +418,14 @@ export function SettingsScreen({ userId }: { userId: string }) {
           }
           return true;
         });
-        if (!match) { cNoMatch++; continue; }
+        if (!match) {
+          cNoMatch++;
+          if (result.accountSuffix) {
+            const key = `${email.bank}:${result.accountSuffix}`;
+            if (!unmatchedSuffixes.includes(key)) unmatchedSuffixes.push(key);
+          }
+          continue;
+        }
 
         // Cuenta sin saldo inicial configurado — no está lista aún
         if (!match.initial_balance_set_at) { cNoBalance++; continue; }
@@ -432,7 +441,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
         const reasons: string[] = [];
         if (cNoParse > 0)      reasons.push(`${cNoParse} sin parsear`);
         if (cNoSuffix > 0)     reasons.push(`${cNoSuffix} sin nº cuenta`);
-        if (cNoMatch > 0)      reasons.push(`${cNoMatch} cuenta no registrada`);
+        if (cNoMatch > 0) {
+          const suffixHint = unmatchedSuffixes.length > 0
+            ? ` (encontrados: ${unmatchedSuffixes.slice(0, 5).join(', ')})`
+            : '';
+          reasons.push(`${cNoMatch} cuenta no registrada${suffixHint}`);
+        }
         if (cNoBalance > 0)    reasons.push(`${cNoBalance} sin saldo inicial — guarda el saldo inicial de tus cuentas`);
         if (cBeforeCutoff > 0) reasons.push(`${cBeforeCutoff} anteriores al corte`);
         setLastSync(`${time} · ${emails.length} correos · ${reasons.join(' · ') || 'sin movimientos nuevos'}`);
