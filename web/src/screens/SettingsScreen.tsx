@@ -169,6 +169,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [gmailError, setGmailError]         = useState('');
   const [syncing, setSyncing]               = useState(false);
   const [lastSync, setLastSync]             = useState<string|null>(null);
+  const [diagRunning, setDiagRunning]       = useState(false);
+  const [diagResult, setDiagResult]         = useState<string|null>(null);
 
   // Bank accounts state
   const [accounts, setAccounts]           = useState<BankAccount[]>([]);
@@ -471,6 +473,34 @@ export function SettingsScreen({ userId }: { userId: string }) {
     }
   }
 
+  async function runDiagnostic() {
+    setDiagRunning(true);
+    setDiagResult(null);
+    try {
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${RAILWAY_API}/email-sync/debug-sample`, { headers });
+      const data = await res.json() as {
+        bank: string; subject: string; accountSuffix: string;
+        accountHolder: string; parsed: string; body: string; bodyLen: number;
+      }[];
+      const lines = data.map((d, i) =>
+        `── Email ${i+1} ──────────────────\n` +
+        `Banco:    ${d.bank}\n` +
+        `Asunto:   ${d.subject}\n` +
+        `Sufijo:   ${d.accountSuffix || '❌ no encontrado'}\n` +
+        `Titular:  ${d.accountHolder || '❌ no encontrado'}\n` +
+        `Parseado: ${d.parsed}\n` +
+        `Longitud: ${d.bodyLen} chars\n` +
+        `Cuerpo:\n${d.body}\n`
+      ).join('\n');
+      setDiagResult(lines || 'Sin correos bancarios encontrados.');
+    } catch (e) {
+      setDiagResult('Error al obtener diagnóstico: ' + String(e));
+    } finally {
+      setDiagRunning(false);
+    }
+  }
+
   async function connectGmail() {
     setGmailLoading(true);
     setGmailError('');
@@ -609,6 +639,30 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
                   ORIA sincroniza automáticamente 2 veces al día (6am y 8pm).
                 </div>
+
+                {/* Diagnostic tool */}
+                <button onClick={runDiagnostic} disabled={diagRunning}
+                  style={{ width:'100%', marginTop:8, padding:'10px 0', borderRadius:12,
+                    border:`1px solid ${C.border}`, cursor: diagRunning ? 'default' : 'pointer',
+                    background: 'transparent', color: C.textMuted, fontSize:12, fontWeight:600,
+                    opacity: diagRunning ? 0.6 : 1 }}>
+                  {diagRunning ? '⏳ Analizando correos…' : '🔍 Diagnóstico de correos'}
+                </button>
+
+                {diagResult && (
+                  <div style={{ marginTop:8, background: C.bg, border:`1px solid ${C.border}`,
+                    borderRadius:10, padding:'12px 14px', maxHeight:320, overflowY:'auto' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                      <span style={{ color:C.textMuted, fontSize:10, fontWeight:700, letterSpacing:1 }}>DIAGNÓSTICO</span>
+                      <button onClick={() => setDiagResult(null)}
+                        style={{ background:'none', border:'none', color:C.textMuted, fontSize:16, cursor:'pointer', padding:0 }}>✕</button>
+                    </div>
+                    <pre style={{ color:C.textSec, fontSize:10, lineHeight:1.6, whiteSpace:'pre-wrap',
+                      wordBreak:'break-word', margin:0, fontFamily:'monospace' }}>
+                      {diagResult}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
 
