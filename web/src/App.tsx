@@ -19,7 +19,7 @@ export default function App() {
   const [screen, setScreen]       = useState<Screen>('dashboard');
   const [showAdd, setShowAdd]     = useState(false);
   const [txReloadKey, setTxReloadKey] = useState(0);
-  const [showLogin, setShowLogin] = useState(false);
+  const [showLogin, setShowLogin] = useState<'login' | 'register' | false>(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -47,8 +47,8 @@ export default function App() {
   }
 
   if (!userId) {
-    if (showLogin) return <LoginScreen onLogin={setUserId} />;
-    return <LandingScreen onStart={() => setShowLogin(true)} onLogin={() => setShowLogin(true)} />;
+    if (showLogin) return <LoginScreen onLogin={setUserId} initialMode={showLogin} />;
+    return <LandingScreen onStart={() => setShowLogin('register')} onLogin={() => setShowLogin('login')} />;
   }
 
   function handleTab(id: string) {

@@ -5,8 +5,8 @@ import { supabase } from '../lib/supabase';
 
 type Mode = 'login' | 'register' | 'reset';
 
-export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) {
-  const [mode, setMode]       = useState<Mode>('login');
+export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (userId: string) => void; initialMode?: Mode }) {
+  const [mode, setMode]       = useState<Mode>(initialMode);
   const [email, setEmail]     = useState('');
   const [password, setPass]   = useState('');
   const [show, setShow]       = useState(false);
