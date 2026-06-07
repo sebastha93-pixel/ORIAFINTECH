@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { C, fmt, gradAccent, gradHero } from '../theme';
+import { C, gradAccent, gradHero } from '../theme';
 import { supabase } from '../lib/supabase';
+import { OriaIcon } from '../components/OriaIcon';
 
 interface Msg { role:'user'|'ai'; text:string; ts:Date; }
 
@@ -76,7 +77,7 @@ export function AiChatScreen() {
       {/* Header */}
       <div style={{ background:gradHero, padding:'48px 20px 20px', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-          <div style={{ width:48, height:48, borderRadius:16, background:gradAccent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24 }}>🤖</div>
+          <OriaIcon size={48} active />
           <div>
             <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>ORIA</div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -92,7 +93,9 @@ export function AiChatScreen() {
         {msgs.map((m,i)=>(
           <div key={i} style={{ display:'flex', justifyContent:m.role==='user'?'flex-end':'flex-start', marginBottom:12 }}>
             {m.role==='ai' && (
-              <div style={{ width:32, height:32, borderRadius:10, background:gradAccent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, marginRight:8, flexShrink:0, alignSelf:'flex-end' }}>🤖</div>
+              <div style={{ marginRight:8, flexShrink:0, alignSelf:'flex-end' }}>
+                <OriaIcon size={32} active />
+              </div>
             )}
             <div style={{
               maxWidth:'80%',
@@ -111,7 +114,7 @@ export function AiChatScreen() {
         ))}
         {typing && (
           <div style={{ display:'flex', alignItems:'flex-end', marginBottom:12 }}>
-            <div style={{ width:32, height:32, borderRadius:10, background:gradAccent, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, marginRight:8, flexShrink:0 }}>🤖</div>
+            <div style={{ marginRight:8, flexShrink:0 }}><OriaIcon size={32} active /></div>
             <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:'18px 18px 18px 4px', padding:'14px 18px', display:'flex', gap:5 }}>
               {[0,1,2].map(i=>(
                 <div key={i} style={{ width:6, height:6, borderRadius:'50%', background:C.textMuted, animation:`bounce 1.2s ${i*0.2}s infinite` }} />

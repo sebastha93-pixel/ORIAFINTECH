@@ -1,10 +1,11 @@
 import React from 'react';
 import { C } from '../theme';
+import { OriaIcon } from './OriaIcon';
 
 const TABS = [
   { id:'dashboard',    label:'Inicio',      icon:'🏠' },
   { id:'transactions', label:'Movimientos', icon:'💳' },
-  { id:'ai',           label:'ORIA',        icon:'🤖' },
+  { id:'ai',           label:'ORIA',        icon:null },   // custom SVG icon
   { id:'goals',        label:'Metas',       icon:'🎯' },
   { id:'settings',     label:'Ajustes',     icon:'⚙️' },
 ];
@@ -25,14 +26,23 @@ export function TabBar({ active, onTab }: Props) {
     }}>
       {TABS.map(t=>{
         const isActive = active === t.id;
+        const isOria   = t.id === 'ai';
         return (
           <button key={t.id} onClick={()=>onTab(t.id)} style={{
             display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
             gap:3, flex:1, background:'none', border:'none', cursor:'pointer',
             padding:0, position:'relative',
           }}>
-            <span style={{ fontSize:22, lineHeight:1, filter:isActive?'none':'grayscale(1) opacity(0.5)' }}>{t.icon}</span>
-            <span style={{ fontSize:10, fontWeight:isActive?700:400, color:isActive?C.accent:C.textMuted }}>{t.label}</span>
+            {isOria ? (
+              <OriaIcon size={28} active={isActive} />
+            ) : (
+              <span style={{ fontSize:22, lineHeight:1, filter:isActive?'none':'grayscale(1) opacity(0.5)' }}>
+                {t.icon}
+              </span>
+            )}
+            <span style={{ fontSize:10, fontWeight:isActive?700:400, color:isActive?C.accent:C.textMuted }}>
+              {t.label}
+            </span>
             {isActive && <div style={{ position:'absolute', bottom:-2, width:20, height:3, borderRadius:2, background:C.accent }} />}
           </button>
         );
