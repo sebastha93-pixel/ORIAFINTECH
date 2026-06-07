@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
+import { LandingScreen }        from './screens/LandingScreen';
 import { DashboardScreen }      from './screens/DashboardScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
 import { GoalsScreen }          from './screens/GoalsScreen';
@@ -17,6 +18,7 @@ export default function App() {
   const [screen, setScreen]       = useState<Screen>('dashboard');
   const [showAdd, setShowAdd]     = useState(false);
   const [txReloadKey, setTxReloadKey] = useState(0);
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -47,7 +49,10 @@ export default function App() {
     );
   }
 
-  if (!userId) return <LoginScreen onLogin={setUserId} />;
+  if (!userId) {
+    if (showLogin) return <LoginScreen onLogin={setUserId} />;
+    return <LandingScreen onStart={() => setShowLogin(true)} onLogin={() => setShowLogin(true)} />;
+  }
 
   function handleTab(id: string) {
     setScreen(id as Screen);
