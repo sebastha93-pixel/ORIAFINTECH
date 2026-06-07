@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
 import { TransactionDetailSheet, txIcon, txCategory, type TxDetail } from '../components/TransactionDetailSheet';
+import { downloadMonthlyReport } from '../lib/reportExcel';
 
 interface Txn {
   id: string;
@@ -134,6 +135,17 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
             <div style={{ color:C.primaryGlow, fontSize:15, fontWeight:700 }}>{fmt(totalIncome - totalExpense)}</div>
           </div>
         </div>
+
+        {monthTxns.length > 0 && (
+          <button
+            onClick={() => downloadMonthlyReport(monthTxns, selYear, selMonth)}
+            style={{ marginTop:14, width:'100%', padding:'10px 0', borderRadius:12,
+              border:'1px solid rgba(59,130,246,0.35)', background:'rgba(59,130,246,0.1)',
+              color:C.primaryGlow, fontSize:13, fontWeight:600, cursor:'pointer',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+            📥 Descargar informe Excel
+          </button>
+        )}
       </div>
 
       <div style={{ padding:'16px 16px 0' }}>

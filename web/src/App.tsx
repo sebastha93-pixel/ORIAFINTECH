@@ -64,6 +64,21 @@ export default function App() {
 
       <TabBar active={screen} onTab={handleTab} />
 
+      {(screen === 'dashboard' || screen === 'transactions') && (
+        <button
+          onClick={() => setShowAdd(true)}
+          style={{
+            position:'fixed', bottom:90, right:20,
+            width:52, height:52, borderRadius:16, border:'none',
+            background:'linear-gradient(135deg,#31D67B,#22A85A)',
+            color:'#fff', fontSize:26, cursor:'pointer', zIndex:200,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            boxShadow:'0 4px 20px rgba(49,214,123,0.45)',
+          }}>
+          ＋
+        </button>
+      )}
+
       {showAdd && (
         <AddTransactionScreen
           userId={userId}
