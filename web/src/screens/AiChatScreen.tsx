@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { C, fmt, gradAccent, gradHero } from '../theme';
+import { supabase } from '../lib/supabase';
 
 interface Msg { role:'user'|'ai'; text:string; ts:Date; }
 
@@ -10,43 +11,64 @@ const SUGGESTIONS = [
   'Analiza mis gastos',
 ];
 
-const AI_REPLIES: Record<string, string> = {
-  default: 'Basándome en tus datos financieros, veo que tus finanzas están bien encaminadas. Tu tasa de ahorro es del **57%** del ingreso, lo cual es excelente. ¿Hay algún área específica en la que quieras profundizar?',
-  gasto: 'Tu mayor gasto este mes es **Vivienda** con $1.200.000 (38% del total). Le sigue Alimentación con $640.000 (20%). Estás dentro de rangos saludables según la regla 50/30/20. 🏠',
-  ahorrar: 'Con tu ingreso actual de $6.600.000 y gastos de $2.839.900, tienes un potencial de ahorro de **$3.760.100 al mes**. Si mantienes este ritmo, en 6 meses tendrías tu fondo de emergencia completo. 💪',
-  meta: 'Fondo de emergencia: **65%** — vas muy bien!\nVacaciones Cartagena: **34%** — puedes lograrlo antes de agosto si aportas $400k/mes.\nMacBook Pro: **30%** — sigue así. 🎯',
-  analiz: 'Análisis de tus gastos en mayo:\n• Sin gastos innecesarios detectados ✅\n• Arriendo dentro del 38% recomendado ✅\n• Podrías reducir entretenimiento un 15% para acelerar tus metas 💡',
-};
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001/api/v1';
 
-function getReply(msg: string): string {
-  const m = msg.toLowerCase();
-  if (m.includes('gast')) return AI_REPLIES.gasto;
-  if (m.includes('ahorr')) return AI_REPLIES.ahorrar;
-  if (m.includes('meta')) return AI_REPLIES.meta;
-  if (m.includes('analiz')) return AI_REPLIES.analiz;
-  return AI_REPLIES.default;
+async function callAiChat(message: string, conversationId: string | null): Promise<{ reply: string; conversation_id: string; suggestions?: string[] }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  const res = await fetch(`${API_URL}/ai/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      message,
+      ...(conversationId ? { conversation_id: conversationId } : {}),
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(err || `Error ${res.status}`);
+  }
+  return res.json();
 }
 
 export function AiChatScreen() {
   const [msgs, setMsgs]   = useState<Msg[]>([
-    { role:'ai', text:'¡Hola! 👋 Soy **ORIA**, tu asesora financiera inteligente.\n\nPuedo analizar tus gastos, evaluar tus metas y darte recomendaciones personalizadas. ¿En qué te ayudo hoy?', ts:new Date() },
+    { role:'ai', text:'¡Hola! 👋 Soy **ORIA**, tu asesora financiera inteligente.\n\nPuedo analizar tus gastos, evaluar tus metas y darte recomendaciones personalizadas basadas en tus datos reales. ¿En qué te ayudo hoy?', ts:new Date() },
   ]);
-  const [input, setInput] = useState('');
-  const [typing, setTyping] = useState(false);
+  const [input, setInput]         = useState('');
+  const [typing, setTyping]       = useState(false);
+  const [convId, setConvId]       = useState<string | null>(null);
+  const [error, setError]         = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>(SUGGESTIONS);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({ behavior:'smooth' }); }, [msgs, typing]);
 
-  function send(text: string) {
-    if (!text.trim()) return;
+  async function send(text: string) {
+    if (!text.trim() || typing) return;
     const userMsg: Msg = { role:'user', text, ts:new Date() };
     setMsgs(m=>[...m, userMsg]);
     setInput('');
     setTyping(true);
-    setTimeout(()=>{
+    setError(null);
+
+    try {
+      const result = await callAiChat(text, convId);
+      setConvId(result.conversation_id ?? convId);
+      if (result.suggestions?.length) setSuggestions(result.suggestions);
+      setMsgs(m=>[...m, { role:'ai', text: result.reply, ts:new Date() }]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Error desconocido';
+      setMsgs(m=>[...m, { role:'ai', text:`Lo siento, hubo un problema al conectar con el servidor. (${msg})`, ts:new Date() }]);
+      setError(msg);
+    } finally {
       setTyping(false);
-      setMsgs(m=>[...m, { role:'ai', text:getReply(text), ts:new Date() }]);
-    }, 1200 + Math.random()*600);
+    }
   }
 
   return (
@@ -58,8 +80,8 @@ export function AiChatScreen() {
           <div>
             <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>ORIA</div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background:C.accent }} />
-              <span style={{ color:C.accent, fontSize:12 }}>Activo</span>
+              <div style={{ width:7, height:7, borderRadius:'50%', background: error ? C.danger : C.accent }} />
+              <span style={{ color: error ? C.danger : C.accent, fontSize:12 }}>{error ? 'Error de conexión' : 'Activo'}</span>
             </div>
           </div>
         </div>
@@ -103,7 +125,7 @@ export function AiChatScreen() {
       {/* Suggestions */}
       {msgs.length <= 2 && (
         <div style={{ padding:'12px 16px 0', display:'flex', gap:8, overflowX:'auto', flexShrink:0 }}>
-          {SUGGESTIONS.map(s=>(
+          {suggestions.map(s=>(
             <button key={s} onClick={()=>send(s)} style={{ whiteSpace:'nowrap', padding:'8px 14px', borderRadius:999, border:`1px solid ${C.border}`, background:C.surface, color:C.textSec, fontSize:12, cursor:'pointer', flexShrink:0 }}>{s}</button>
           ))}
         </div>
@@ -118,8 +140,12 @@ export function AiChatScreen() {
             value={input}
             onChange={e=>setInput(e.target.value)}
             onKeyDown={e=>e.key==='Enter'&&send(input)}
+            disabled={typing}
           />
-          <button onClick={()=>send(input)} style={{ width:40, height:40, borderRadius:12, border:'none', background:input.trim() ? gradAccent : C.surfaceEl, color:'#fff', cursor:input.trim()?'pointer':'default', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.2s' }}>
+          <button
+            onClick={()=>send(input)}
+            disabled={!input.trim() || typing}
+            style={{ width:40, height:40, borderRadius:12, border:'none', background:(input.trim() && !typing) ? gradAccent : C.surfaceEl, color:'#fff', cursor:(input.trim() && !typing)?'pointer':'default', fontSize:18, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'background 0.2s', opacity: typing ? 0.5 : 1 }}>
             ↑
           </button>
         </div>

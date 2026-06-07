@@ -1,20 +1,20 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { SUPABASE_CLIENT } from '../common/supabase/supabase.module';
 import { AiChatDto } from './dto/ai-chat.dto';
 
 @Injectable()
 export class AiService {
-  private openai: OpenAI;
+  private anthropic: Anthropic;
 
   constructor(
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
     private readonly configService: ConfigService,
   ) {
-    this.openai = new OpenAI({
-      apiKey: configService.get<string>('OPENAI_API_KEY') ?? 'sk-placeholder',
+    this.anthropic = new Anthropic({
+      apiKey: configService.get<string>('ANTHROPIC_API_KEY') ?? '',
     });
   }
 
@@ -35,20 +35,25 @@ export class AiService {
       if (conv) existingMessages = conv.messages;
     }
 
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
-      { role: 'system', content: systemPrompt },
-      ...existingMessages.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
+      ...existingMessages.map(m => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      })),
       { role: 'user', content: dto.message },
     ];
 
-    const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await this.anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: systemPrompt,
       messages,
-      max_tokens: 1000,
-      temperature: 0.7,
     });
 
-    const reply = response.choices[0]?.message?.content || 'Lo siento, no pude procesar tu consulta.';
+    const reply =
+      response.content[0]?.type === 'text'
+        ? response.content[0].text
+        : 'Lo siento, no pude procesar tu consulta.';
 
     const updatedMessages = [
       ...existingMessages,
@@ -74,13 +79,23 @@ export class AiService {
       conversationId = newConv?.id;
     }
 
-    const suggestions = this.generateSuggestions(dto.message, context);
-
     return {
       reply,
       conversation_id: conversationId,
-      suggestions,
+      suggestions: this.generateSuggestions(context),
     };
+  }
+
+  async getInsights(userId: string) {
+    const { data } = await this.supabase
+      .from('ai_insights')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_dismissed', false)
+      .order('generated_at', { ascending: false })
+      .limit(10);
+
+    return data || [];
   }
 
   async generateInsights(userId: string) {
@@ -93,8 +108,7 @@ export class AiService {
       data: Record<string, unknown>;
     }> = [];
 
-    // Savings rate insight
-    if (context.savings_rate < 0.1) {
+    if (context.savings_rate < 0.1 && context.monthly_income > 0) {
       insights.push({
         insight_type: 'low_savings_rate',
         title: 'Tu tasa de ahorro es baja',
@@ -112,48 +126,6 @@ export class AiService {
       });
     }
 
-    // Use AI to generate personalized insights
-    if (context.monthly_income > 0) {
-      const prompt = `Eres un CFO personal analizando la situación financiera de un usuario latinoamericano.
-
-Datos financieros:
-- Patrimonio neto: ${context.net_worth.toLocaleString()} ${context.currency}
-- Ingresos mensuales: ${context.monthly_income.toLocaleString()} ${context.currency}
-- Gastos mensuales: ${context.monthly_expenses.toLocaleString()} ${context.currency}
-- Tasa de ahorro: ${(context.savings_rate * 100).toFixed(1)}%
-- Metas activas: ${context.active_goals.length}
-
-Genera exactamente 2 insights financieros cortos y accionables en formato JSON array:
-[{"type": "string", "title": "string (max 50 chars)", "description": "string (max 150 chars)", "severity": "info|warning|success|alert"}]
-
-Solo responde con el JSON, sin markdown ni texto adicional.`;
-
-      try {
-        const aiResponse = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 500,
-          temperature: 0.5,
-        });
-
-        const aiText = aiResponse.choices[0]?.message?.content || '[]';
-        const aiInsights = JSON.parse(aiText);
-
-        for (const insight of aiInsights) {
-          insights.push({
-            insight_type: insight.type,
-            title: insight.title,
-            description: insight.description,
-            severity: insight.severity,
-            data: {},
-          });
-        }
-      } catch {
-        // AI insights generation failed silently
-      }
-    }
-
-    // Persist insights
     for (const insight of insights) {
       await this.supabase.from('ai_insights').insert({
         user_id: userId,
@@ -163,18 +135,6 @@ Solo responde con el JSON, sin markdown ni texto adicional.`;
     }
 
     return insights;
-  }
-
-  async getInsights(userId: string) {
-    const { data } = await this.supabase
-      .from('ai_insights')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_dismissed', false)
-      .order('generated_at', { ascending: false })
-      .limit(10);
-
-    return data || [];
   }
 
   async dismissInsight(userId: string, insightId: string) {
@@ -214,81 +174,133 @@ Solo responde con el JSON, sin markdown ni texto adicional.`;
     const dateFrom = `${year}-${String(month).padStart(2, '0')}-01`;
     const dateTo = new Date(year, month, 0).toISOString().split('T')[0];
 
-    const [accountsRes, transactionsRes, goalsRes, netWorthRes, profileRes] = await Promise.all([
-      this.supabase.from('accounts').select('*').eq('user_id', userId).eq('is_active', true),
-      this.supabase.from('transactions').select('amount, transaction_type, category_id, category:categories(name)').eq('user_id', userId).gte('date', dateFrom).lte('date', dateTo),
-      this.supabase.from('goals').select('*').eq('user_id', userId).eq('status', 'active'),
-      this.supabase.from('net_worth_snapshots').select('net_worth').eq('user_id', userId).order('snapshot_date', { ascending: false }).limit(1).single(),
-      this.supabase.from('profiles').select('currency_code, country_code').eq('id', userId).single(),
+    const [accountsRes, transactionsRes, goalsRes] = await Promise.all([
+      this.supabase
+        .from('accounts')
+        .select('name, account_type, initial_balance, credit_limit')
+        .eq('user_id', userId)
+        .eq('is_active', true),
+      this.supabase
+        .from('transactions')
+        .select('amount, transaction_type, description, category')
+        .eq('user_id', userId)
+        .gte('date', dateFrom)
+        .lte('date', dateTo),
+      this.supabase
+        .from('goals')
+        .select('name, target_amount, current_amount, target_date')
+        .eq('user_id', userId)
+        .eq('status', 'active'),
     ]);
 
     const transactions = transactionsRes.data || [];
-    const income = transactions.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-    const expenses = transactions.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+    const income = transactions
+      .filter(t => t.transaction_type === 'income')
+      .reduce((s, t) => s + Number(t.amount), 0);
+    const expenses = transactions
+      .filter(t => t.transaction_type === 'expense')
+      .reduce((s, t) => s + Number(t.amount), 0);
+
+    const accounts = accountsRes.data || [];
+    const creditCards = accounts.filter(a => a.account_type === 'credit_card');
+    const totalCreditDebt = creditCards.reduce((s, a) => s + Number(a.initial_balance || 0), 0);
+    const totalCreditLimit = creditCards.reduce((s, a) => s + Number(a.credit_limit || 0), 0);
+
+    // Category breakdown from current month
+    const categoryTotals: Record<string, number> = {};
+    for (const t of transactions) {
+      if (t.transaction_type === 'expense') {
+        const cat = t.category || 'Otros';
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + Number(t.amount);
+      }
+    }
+    const topCategories = Object.entries(categoryTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, amount]) => ({ name, amount }));
 
     return {
-      net_worth: Number(netWorthRes.data?.net_worth) || 0,
       monthly_income: income,
       monthly_expenses: expenses,
       savings_rate: income > 0 ? (income - expenses) / income : 0,
-      accounts: accountsRes.data || [],
+      accounts,
+      credit_debt: totalCreditDebt,
+      credit_limit: totalCreditLimit,
       active_goals: goalsRes.data || [],
-      currency: profileRes.data?.currency_code || 'COP',
-      country: profileRes.data?.country_code || 'CO',
-      top_expense_categories: [],
+      top_categories: topCategories,
     };
   }
 
-  private buildSystemPrompt(context: Awaited<ReturnType<typeof this.buildFinancialContext>>): string {
-    return `Eres Nexo, un CFO personal impulsado por IA para latinoamericanos. Tu misión es ayudar al usuario a entender, organizar y aumentar su patrimonio.
+  private buildSystemPrompt(
+    context: Awaited<ReturnType<typeof this.buildFinancialContext>>,
+  ): string {
+    const fmt = (n: number) =>
+      n.toLocaleString('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 });
 
-SITUACIÓN FINANCIERA ACTUAL DEL USUARIO:
-- Patrimonio neto: ${context.net_worth.toLocaleString()} ${context.currency}
-- Ingresos este mes: ${context.monthly_income.toLocaleString()} ${context.currency}
-- Gastos este mes: ${context.monthly_expenses.toLocaleString()} ${context.currency}
-- Ahorro neto: ${(context.monthly_income - context.monthly_expenses).toLocaleString()} ${context.currency}
+    const goalsText =
+      context.active_goals.length > 0
+        ? context.active_goals
+            .map(
+              g =>
+                `  • ${g.name}: ${fmt(Number(g.current_amount))} de ${fmt(Number(g.target_amount))} (${Math.round((Number(g.current_amount) / Number(g.target_amount)) * 100)}%)`,
+            )
+            .join('\n')
+        : '  Sin metas activas';
+
+    const categoriesText =
+      context.top_categories.length > 0
+        ? context.top_categories.map(c => `  • ${c.name}: ${fmt(c.amount)}`).join('\n')
+        : '  Sin datos de categorías';
+
+    return `Eres ORIA, una asesora financiera personal inteligente para latinoamericanos. Tu misión es ayudar al usuario a entender, organizar y mejorar su patrimonio.
+
+SITUACIÓN FINANCIERA ACTUAL DEL USUARIO (datos reales de este mes):
+- Ingresos: ${fmt(context.monthly_income)}
+- Gastos: ${fmt(context.monthly_expenses)}
+- Ahorro neto: ${fmt(context.monthly_income - context.monthly_expenses)}
 - Tasa de ahorro: ${(context.savings_rate * 100).toFixed(1)}%
-- Metas activas: ${context.active_goals.length}
-- Cuentas: ${context.accounts.length}
+${context.credit_limit > 0 ? `- Deuda tarjetas de crédito: ${fmt(context.credit_debt)} / cupo ${fmt(context.credit_limit)} (${Math.round((context.credit_debt / context.credit_limit) * 100)}% utilizado)` : ''}
+
+TOP CATEGORÍAS DE GASTO ESTE MES:
+${categoriesText}
+
+METAS ACTIVAS:
+${goalsText}
 
 INSTRUCCIONES:
-- Responde siempre en español
-- Sé conciso, claro y accionable (máximo 3 párrafos)
-- Usa números reales del contexto cuando sea relevante
-- Actúa como un CFO personal, no como un chatbot genérico
-- Da recomendaciones específicas y prácticas
-- Cuando el usuario pregunta sobre su situación, interpreta los datos y da una perspectiva honesta
-- Usa emojis ocasionalmente para hacer la respuesta más amigable
-- Sugiere próximos pasos concretos`;
+- Responde siempre en español, de forma concisa y amigable
+- Usa los datos reales del usuario en tus respuestas
+- Sé una asesora proactiva: da recomendaciones concretas y accionables
+- Máximo 3 párrafos por respuesta; usa emojis con moderación
+- Si el usuario pregunta algo que no está en los datos, indícalo honestamente`;
   }
 
-  private generateSuggestions(message: string, context: { monthly_income: number; savings_rate: number; active_goals: Array<unknown> }): string[] {
-    const suggestions = [
-      '¿Cuánto estoy ahorrando este mes?',
-      '¿Cómo mejorar mi tasa de ahorro?',
-      '¿Cuándo alcanzaré mi meta de emergencia?',
-      '¿En qué estoy gastando más?',
-      '¿Cómo está mi patrimonio este año?',
-    ];
-
+  private generateSuggestions(context: {
+    savings_rate: number;
+    active_goals: Array<unknown>;
+    top_categories: Array<{ name: string; amount: number }>;
+  }): string[] {
     if (context.savings_rate < 0.1) {
       return [
         '¿Cómo puedo reducir mis gastos?',
         '¿Cuáles son mis gastos más altos?',
         '¿Cómo crear un presupuesto?',
-        '¿Qué debería priorizar financieramente?',
+        '¿Qué debería priorizar?',
       ];
     }
-
     if (context.active_goals.length === 0) {
       return [
-        '¿Qué metas financieras debería tener?',
+        '¿Qué metas debería tener?',
         '¿Cómo crear un fondo de emergencia?',
         '¿Cuánto necesito para retirarme?',
         '¿Cómo empezar a invertir?',
       ];
     }
-
-    return suggestions.filter(s => !s.toLowerCase().includes(message.toLowerCase().substring(0, 5))).slice(0, 4);
+    return [
+      '¿En qué gasto más este mes?',
+      '¿Cuánto puedo ahorrar?',
+      '¿Estoy cerca de mis metas?',
+      '¿Cómo mejorar mi tasa de ahorro?',
+    ];
   }
 }
