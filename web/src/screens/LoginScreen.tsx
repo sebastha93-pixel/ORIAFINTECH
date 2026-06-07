@@ -36,7 +36,8 @@ export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (user
       if (err) { setError(translateError(err.message)); }
       else if (data.user?.identities?.length === 0) {
         setError('Este correo ya está registrado. Inicia sesión.');
-      } else {
+      } else if (data.user) {
+        await supabase.from('profiles').insert({ id: data.user.id, email }).select().maybeSingle();
         setInfo('✅ Cuenta creada. Revisa tu correo para confirmarla, luego inicia sesión.');
         setMode('login');
       }
