@@ -205,8 +205,16 @@ export function GoalsScreen({ userId }: { userId: string }) {
               </button>
               <button disabled={deleting} onClick={async () => {
                 setDeleting(true);
-                await supabase.from('goals').update({ status: 'deleted' }).eq('id', deleteId);
+                const { error } = await supabase
+                  .from('goals')
+                  .delete()
+                  .eq('id', deleteId)
+                  .eq('user_id', userId);
                 setDeleting(false);
+                if (error) {
+                  alert('No se pudo eliminar la meta. Intenta de nuevo.');
+                  return;
+                }
                 setDeleteId(null);
                 setSelected(null);
                 loadGoals();
