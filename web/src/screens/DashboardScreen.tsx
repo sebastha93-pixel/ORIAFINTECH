@@ -28,12 +28,15 @@ interface Account {
   credit_limit: number | null;
   institution: string;
   account_suffix: string | null;
+  name: string;
 }
 
 function txIcon(t: Txn): string {
   const d = (t.description ?? '').toLowerCase();
   if (t.transaction_type === 'income') return '💰';
   if (/éxito|carulla|jumbo|d1|ara|supermercad|alkosto/i.test(d)) return '🛒';
+  if (/restaurante|comida|rappi|ifood|mcdonald|kfc/i.test(d)) return '🍽️';
+  if (/gasolina|terpel|primax|biomax/i.test(d)) return '⛽';
   if (/uber|taxi|didi|cabify|sitp/i.test(d)) return '🚗';
   if (/netflix|spotify|disney|hbo|cine/i.test(d)) return '🎬';
   if (/farmacia|droguería|salud|clínica/i.test(d)) return '💊';
@@ -46,11 +49,32 @@ function txCategory(t: Txn): string {
   const d = (t.description ?? '').toLowerCase();
   if (t.transaction_type === 'income') return 'Ingreso';
   if (/éxito|carulla|jumbo|d1|ara|supermercad|alkosto/i.test(d)) return 'Alimentación';
+  if (/restaurante|comida|rappi|ifood/i.test(d)) return 'Restaurante';
+  if (/gasolina|terpel|primax|biomax/i.test(d)) return 'Gasolina';
   if (/uber|taxi|didi|cabify|sitp/i.test(d)) return 'Transporte';
   if (/netflix|spotify|disney|hbo|cine/i.test(d)) return 'Entretenimiento';
   if (/farmacia|droguería|salud|clínica/i.test(d)) return 'Salud';
   if (/arriendo|renta/i.test(d)) return 'Vivienda';
   return 'Otros';
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 18) return 'Buenas tardes';
+  return 'Buenas noches';
+}
+
+function firstName(email: string, meta?: Record<string, string>): string {
+  const full = meta?.full_name || meta?.name || '';
+  if (full) return full.split(' ')[0];
+  return (email.split('@')[0] ?? '').split('.')[0].replace(/\d/g, '');
+}
+
+function fmtShort(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1).replace('.0', '')}M`;
+  if (n >= 1_000)     return `$${Math.round(n / 1_000)}k`;
+  return fmt(n);
 }
 
 function currentMonthRange() {
@@ -68,6 +92,7 @@ export function DashboardScreen() {
   const [currentTxns, setCurrentTxns]     = useState<Txn[]>([]);
   const [prevSummaries, setPrevSummaries] = useState<MonthlySummary[]>([]);
   const [accounts, setAccounts]           = useState<Account[]>([]);
+  const [userName, setUserName]           = useState('');
   const [loading, setLoading]             = useState(true);
   const [selectedTx, setSelectedTx]       = useState<TxDetail | null>(null);
 
@@ -75,10 +100,11 @@ export function DashboardScreen() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { setLoading(false); return; }
 
+      setUserName(firstName(user.email ?? '', user.user_metadata as Record<string, string>));
+
       const { first, last, year, month } = currentMonthRange();
 
       const [txnsRes, summariesRes, accountsRes] = await Promise.all([
-        // Current month transactions
         supabase
           .from('transactions')
           .select('id, transaction_type, amount, description, date, notes, gmail_message_id')
@@ -87,7 +113,6 @@ export function DashboardScreen() {
           .lte('date', last)
           .order('date', { ascending: false }),
 
-        // All closed months before current month
         supabase
           .from('monthly_summaries')
           .select('year, month, total_income, total_expenses, net_savings')
@@ -96,10 +121,9 @@ export function DashboardScreen() {
           .order('year', { ascending: false })
           .order('month', { ascending: false }),
 
-        // All active accounts with balances and credit info
         supabase
           .from('accounts')
-          .select('account_type, initial_balance, credit_limit, institution, account_suffix')
+          .select('account_type, initial_balance, credit_limit, institution, account_suffix, name')
           .eq('user_id', user.id)
           .eq('is_active', true),
       ]);
@@ -120,56 +144,105 @@ export function DashboardScreen() {
   const curIncome  = currentTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const curExpense = currentTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
   const curNet     = curIncome - curExpense;
-  const totalAssets  = debitBase + prevNet + curNet;
-  const netWorth     = totalAssets - creditDebt;
+  const totalAssets = debitBase + prevNet + curNet;
+  const netWorth    = totalAssets - creditDebt;
 
-  const now      = new Date();
-  const monthStr = now.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+  const hasCC       = creditAccounts.length > 0;
+  const totalDebt   = creditDebt;
+  const maxUtil     = creditAccounts.length > 0
+    ? Math.max(...creditAccounts.map(a => {
+        const d = Number(a.initial_balance ?? 0);
+        const l = Number(a.credit_limit ?? 0);
+        return l > 0 ? Math.round((d / l) * 100) : 0;
+      }))
+    : 0;
 
   return (
     <div style={{ paddingBottom: 100 }}>
-      <div style={{ background: gradHero, padding:'48px 20px 24px', borderRadius:'0 0 28px 28px' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+
+      {/* ── HEADER ─────────────────────────────────────────────────────── */}
+      <div style={{ background: gradHero, padding:'48px 20px 20px' }}>
+
+        {/* Greeting row */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
           <div>
-            <div style={{ color:C.textMuted, fontSize:12, letterSpacing:1 }}>ORIA</div>
-            <div style={{ color:C.text, fontSize:17, fontWeight:700 }}>Bienvenido 👋</div>
+            <div style={{ color:C.textMuted, fontSize:12, marginBottom:2 }}>
+              {greeting()}{userName ? `, ${userName.charAt(0).toUpperCase() + userName.slice(1).toLowerCase()}` : ''}
+            </div>
+            <div style={{ color:C.text, fontSize:22, fontWeight:800, letterSpacing:-0.5 }}>Mi Finanzas</div>
           </div>
           <div style={{ background:'rgba(255,255,255,0.07)', borderRadius:10, padding:'5px 12px' }}>
-            <div style={{ color:C.textMuted, fontSize:11, textTransform:'capitalize' }}>{monthStr}</div>
+            <div style={{ color:C.textMuted, fontSize:11, textTransform:'capitalize' }}>
+              {new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
+            </div>
           </div>
         </div>
 
-        {/* Net worth card */}
-        <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:20, padding:20, border:`1px solid ${C.border}` }}>
-          <div style={{ color:C.textMuted, fontSize:11, marginBottom:4, letterSpacing:0.5 }}>
-            {creditDebt > 0 ? 'PATRIMONIO NETO' : 'BALANCE'}
+        {/* Patrimonio neto banner */}
+        <div style={{
+          background:'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
+          border:'1px solid rgba(59,130,246,0.3)', borderRadius:18, padding:'16px 18px', marginBottom:14,
+        }}>
+          <div style={{ color:'rgba(148,163,184,0.9)', fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:6 }}>
+            {hasCC ? 'PATRIMONIO NETO' : 'BALANCE TOTAL'}
           </div>
-          <div style={{ color: netWorth >= 0 ? C.text : C.danger, fontSize:36, fontWeight:800, letterSpacing:-1 }}>
+          <div style={{ color: netWorth >= 0 ? '#e2e8f0' : C.danger, fontSize:34, fontWeight:800, letterSpacing:-1.5, marginBottom: hasCC ? 12 : 0 }}>
             {fmt(netWorth)}
           </div>
-          {creditDebt > 0 && (
-            <div style={{ display:'flex', gap:16, marginTop:10 }}>
+          {hasCC && (
+            <div style={{ display:'flex', alignItems:'center', gap:20 }}>
               <div>
-                <div style={{ color:C.textMuted, fontSize:10 }}>Activos</div>
-                <div style={{ color:C.accent, fontSize:14, fontWeight:700 }}>{fmt(totalAssets)}</div>
+                <div style={{ color:'rgba(148,163,184,0.7)', fontSize:10, marginBottom:2 }}>Activos</div>
+                <div style={{ color:C.accent, fontSize:15, fontWeight:700 }}>{fmt(totalAssets)}</div>
               </div>
-              <div style={{ color:C.border, alignSelf:'center' }}>−</div>
+              <div style={{ color:'rgba(148,163,184,0.3)', fontSize:18, fontWeight:300 }}>−</div>
               <div>
-                <div style={{ color:C.textMuted, fontSize:10 }}>Deuda TC</div>
-                <div style={{ color:C.danger, fontSize:14, fontWeight:700 }}>{fmt(creditDebt)}</div>
+                <div style={{ color:'rgba(148,163,184,0.7)', fontSize:10, marginBottom:2 }}>Deuda TC</div>
+                <div style={{ color:C.danger, fontSize:15, fontWeight:700 }}>{fmt(totalDebt)}</div>
               </div>
             </div>
           )}
         </div>
+
+        {/* Account chips */}
+        {accounts.length > 0 && (
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {debitAccounts.map((a, i) => (
+              <div key={i} style={{
+                display:'inline-flex', alignItems:'center', gap:5,
+                background:'rgba(59,130,246,0.12)', border:'1px solid rgba(59,130,246,0.25)',
+                borderRadius:20, padding:'5px 11px',
+              }}>
+                <span style={{ fontSize:12 }}>🏦</span>
+                <span style={{ color:'#3b82f6', fontSize:11, fontWeight:600 }}>
+                  {a.institution.split(' ')[0]} {fmtShort(Number(a.initial_balance ?? 0))}
+                </span>
+              </div>
+            ))}
+            {creditAccounts.map((a, i) => (
+              <div key={i} style={{
+                display:'inline-flex', alignItems:'center', gap:5,
+                background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)',
+                borderRadius:20, padding:'5px 11px',
+              }}>
+                <span style={{ fontSize:12 }}>💳</span>
+                <span style={{ color:C.danger, fontSize:11, fontWeight:600 }}>
+                  TC -{fmtShort(Number(a.initial_balance ?? 0))}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div style={{ padding:'20px 16px', display:'flex', flexDirection:'column', gap:20 }}>
+      {/* ── BODY ──────────────────────────────────────────────────────── */}
+      <div style={{ padding:'16px 16px', display:'flex', flexDirection:'column', gap:20 }}>
 
-        {/* Current month summary */}
+        {/* Month summary */}
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           {[
-            { label:'Ingresos del mes',  value:curIncome,  color:C.accent  },
-            { label:'Gastos del mes',    value:curExpense, color:C.danger  },
+            { label:'Ingresos del mes', value:curIncome,  color:C.accent },
+            { label:'Gastos del mes',   value:curExpense, color:C.danger },
           ].map(s => (
             <div key={s.label} style={{ ...card, textAlign:'center', padding:14 }}>
               <div style={{ color:s.color, fontSize:20, fontWeight:800 }}>{fmt(s.value)}</div>
@@ -178,9 +251,22 @@ export function DashboardScreen() {
           ))}
         </div>
 
-        {/* Credit card utilization */}
+        {/* Credit utilization — styled like mockup */}
         {creditAccounts.length > 0 && (
-          <Section title="Tarjetas de crédito">
+          <div>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+              <div style={{ color:'#F8FAFC', fontSize:16, fontWeight:700 }}>Uso de tarjetas</div>
+              {maxUtil > 0 && (
+                <span style={{
+                  background: maxUtil >= 80 ? 'rgba(239,68,68,0.2)' : maxUtil >= 50 ? 'rgba(245,158,11,0.2)' : 'rgba(49,214,123,0.15)',
+                  border: `1px solid ${maxUtil >= 80 ? 'rgba(239,68,68,0.4)' : maxUtil >= 50 ? 'rgba(245,158,11,0.4)' : 'rgba(49,214,123,0.3)'}`,
+                  borderRadius:20, padding:'3px 10px', fontSize:10, fontWeight:700,
+                  color: maxUtil >= 80 ? C.danger : maxUtil >= 50 ? '#f59e0b' : C.accent,
+                }}>
+                  {maxUtil}% utilizado
+                </span>
+              )}
+            </div>
             <div style={{ ...card }}>
               {creditAccounts.map((a, i) => {
                 const debt  = Number(a.initial_balance ?? 0);
@@ -188,52 +274,45 @@ export function DashboardScreen() {
                 const pct   = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
                 const col   = pct == null ? C.textMuted : pct >= 80 ? C.danger : pct >= 50 ? '#f59e0b' : C.accent;
                 return (
-                  <div key={i} style={{ marginBottom: i < creditAccounts.length - 1 ? 14 : 0,
-                    paddingBottom: i < creditAccounts.length - 1 ? 14 : 0,
-                    borderBottom: i < creditAccounts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                      <div>
-                        <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>
-                          💳 {a.institution} ****{a.account_suffix}
-                        </div>
-                        {pct != null && (
-                          <div style={{ color:C.textMuted, fontSize:11, marginTop:1 }}>
-                            {fmt(debt)} usado · Cupo {fmt(limit)}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ textAlign:'right' }}>
-                        <div style={{ color:C.danger, fontSize:14, fontWeight:700 }}>-{fmt(debt)}</div>
-                        {pct != null && (
-                          <div style={{ color:col, fontSize:11, fontWeight:700 }}>{pct}%</div>
-                        )}
-                      </div>
+                  <div key={i} style={{
+                    paddingTop: i > 0 ? 14 : 0,
+                    marginTop:  i > 0 ? 14 : 0,
+                    borderTop:  i > 0 ? `1px solid ${C.border}` : 'none',
+                  }}>
+                    <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, marginBottom:5 }}>
+                      {a.institution} ****{a.account_suffix}
                     </div>
-                    {pct != null && (
-                      <div style={{ height:5, background:C.border, borderRadius:99, overflow:'hidden' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:5 }}>
+                      <span style={{ color:col, fontWeight:700 }}>{fmt(debt)} usado</span>
+                      <span style={{ color:C.textMuted }}>Cupo: {limit > 0 ? fmt(limit) : '—'}</span>
+                    </div>
+                    {pct != null ? (
+                      <div style={{ height:6, background:C.border, borderRadius:99, overflow:'hidden' }}>
                         <div style={{ width:`${pct}%`, height:'100%', background:col, borderRadius:99 }} />
                       </div>
+                    ) : (
+                      <div style={{ color:C.textMuted, fontSize:10 }}>Registra el cupo en Configuración para ver la utilización</div>
                     )}
                   </div>
                 );
               })}
             </div>
-          </Section>
+          </div>
         )}
 
-        {/* Previous months closings */}
+        {/* Previous month closings */}
         {prevSummaries.length > 0 && (
           <Section title="Cierres anteriores">
             <div style={{ ...card }}>
               {prevSummaries.slice(0, 4).map((s, i) => {
                 const net = Number(s.total_income) - Number(s.total_expenses);
                 const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+                const isLast = i >= Math.min(prevSummaries.length, 4) - 1;
                 return (
                   <div key={`${s.year}-${s.month}`} style={{
                     display:'flex', alignItems:'center', justifyContent:'space-between',
-                    paddingBottom: i < Math.min(prevSummaries.length,4)-1 ? 10 : 0,
-                    marginBottom:  i < Math.min(prevSummaries.length,4)-1 ? 10 : 0,
-                    borderBottom:  i < Math.min(prevSummaries.length,4)-1 ? `1px solid ${C.border}` : 'none',
+                    paddingBottom: isLast ? 0 : 10, marginBottom: isLast ? 0 : 10,
+                    borderBottom: isLast ? 'none' : `1px solid ${C.border}`,
                   }}>
                     <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                       <div style={{ width:36, height:36, borderRadius:10,
@@ -242,12 +321,8 @@ export function DashboardScreen() {
                         {net >= 0 ? '📈' : '📉'}
                       </div>
                       <div>
-                        <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>
-                          {MONTHS[s.month - 1]} {s.year}
-                        </div>
-                        <div style={{ color:C.textMuted, fontSize:10 }}>
-                          ↓{fmt(Number(s.total_income))} · ↑{fmt(Number(s.total_expenses))}
-                        </div>
+                        <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{MONTHS[s.month - 1]} {s.year}</div>
+                        <div style={{ color:C.textMuted, fontSize:10 }}>↑{fmt(Number(s.total_income))} · ↓{fmt(Number(s.total_expenses))}</div>
                       </div>
                     </div>
                     <div style={{ color: net >= 0 ? C.accent : C.danger, fontSize:13, fontWeight:700 }}>
@@ -260,7 +335,7 @@ export function DashboardScreen() {
           </Section>
         )}
 
-        {/* Spending by category (current month) */}
+        {/* Spending by category */}
         <Section title="Flujo por categoría">
           {curExpense === 0
             ? <Empty icon="📊" text="Los gastos del mes aparecerán aquí automáticamente" />
@@ -324,7 +399,9 @@ export function DashboardScreen() {
                   {currentTxns.slice(0,5).map((t, i) => (
                     <div key={t.id}
                       onClick={() => setSelectedTx(t)}
-                      style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:i<4?12:0, marginBottom:i<4?12:0, borderBottom:i<4?`1px solid ${C.border}`:'none', cursor:'pointer' }}>
+                      style={{ display:'flex', alignItems:'center', gap:12,
+                        paddingBottom:i<4?12:0, marginBottom:i<4?12:0,
+                        borderBottom:i<4?`1px solid ${C.border}`:'none', cursor:'pointer' }}>
                       <div style={{ width:40, height:40, borderRadius:12,
                         background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`,
                         display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
@@ -344,6 +421,7 @@ export function DashboardScreen() {
           }
         </Section>
       </div>
+
       <TransactionDetailSheet tx={selectedTx} onClose={() => setSelectedTx(null)} />
     </div>
   );
