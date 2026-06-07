@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { C, fmt } from '../theme';
 import { supabase } from '../lib/supabase';
 
@@ -95,6 +95,13 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
   const [editNotes, setEditNotes]         = useState<string | null>(null);
   const [lastTxId, setLastTxId]           = useState<string | null>(null);
 
+  // Lock body scroll while sheet is open (prevents background scroll on iOS)
+  useEffect(() => {
+    if (!tx) return;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, [tx]);
+
   if (!tx) return null;
   const t = tx;
 
@@ -144,7 +151,7 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
       style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.85)', zIndex:300, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, border:`1px solid ${C.border}`, paddingBottom:32, maxHeight:'92vh', overflowY:'auto' }}>
+      <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, border:`1px solid ${C.border}`, paddingBottom:32, maxHeight:'92vh', overflowY:'auto', WebkitOverflowScrolling:'touch' as never, overscrollBehavior:'contain' }}>
         {/* Handle */}
         <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 8px' }}>
           <div style={{ width:40, height:4, borderRadius:2, background:C.border }} />

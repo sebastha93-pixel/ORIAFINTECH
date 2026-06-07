@@ -3,146 +3,186 @@ import { C } from '../theme';
 import { supabase } from '../lib/supabase';
 
 const CATEGORIES = [
-  { name:'Alimentación', icon:'🛒', color:'#3B82F6' },
-  { name:'Transporte',   icon:'🚗', color:'#F59E0B' },
-  { name:'Vivienda',     icon:'🏠', color:'#F97316' },
-  { name:'Salud',        icon:'💊', color:'#EC4899' },
-  { name:'Entretenimiento', icon:'🎬', color:'#8B5CF6' },
-  { name:'Deporte',      icon:'🏋️', color:'#06B6D4' },
-  { name:'Salario',      icon:'💼', color:'#31D67B' },
-  { name:'Freelance',    icon:'💻', color:'#31D67B' },
-  { name:'Otros',        icon:'📦', color:'#64748B' },
+  { name:'Alimentación',    icon:'🛒' },
+  { name:'Transporte',      icon:'🚗' },
+  { name:'Entretenimiento', icon:'🎬' },
+  { name:'Salud',           icon:'💊' },
+  { name:'Vivienda',        icon:'🏠' },
+  { name:'Deporte',         icon:'👟' },
+  { name:'Educación',       icon:'📚' },
+  { name:'Servicios',       icon:'💡' },
+  { name:'Ropa',            icon:'👔' },
+  { name:'Salario',         icon:'💰' },
+  { name:'Efectivo',        icon:'🏧' },
+  { name:'Transferencias',  icon:'🔄' },
+  { name:'Gasolina',        icon:'⛽' },
+  { name:'Restaurante',     icon:'🍽️' },
+  { name:'Otros',           icon:'📦' },
 ];
 
-export function AddTransactionScreen({ userId, onClose }: { userId: string; onClose: () => void }) {
-  const [type, setType]     = useState<'expense' | 'income'>('expense');
-  const [amount, setAmount] = useState('');
-  const [desc, setDesc]     = useState('');
-  const [cat, setCat]       = useState<string | null>(null);
-  const [saved, setSaved]   = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [accountId, setAccountId] = useState<string | null>(null);
-  const [error, setError]   = useState<string | null>(null);
+interface Account { id: string; name: string; institution: string; }
+
+export function AddTransactionScreen({ userId, onClose, onSaved }: {
+  userId: string;
+  onClose: () => void;
+  onSaved?: () => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [type, setType]         = useState<'expense' | 'income'>('expense');
+  const [amount, setAmount]     = useState('');
+  const [desc, setDesc]         = useState('');
+  const [cat, setCat]           = useState<string>('Otros');
+  const [date, setDate]         = useState(today);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountId, setAccountId] = useState<string>('');
+  const [saving, setSaving]     = useState(false);
+  const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
-    supabase
-      .from('accounts')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('is_active', true)
-      .order('created_at', { ascending: true })
-      .limit(1)
+    // Lock body scroll while modal is open
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  useEffect(() => {
+    supabase.from('accounts').select('id, name, institution')
+      .eq('user_id', userId).eq('is_active', true)
       .then(({ data }) => {
-        if (data && data.length > 0) setAccountId((data[0] as { id: string }).id);
+        const accs = (data as Account[]) ?? [];
+        setAccounts(accs);
+        if (accs.length === 1) setAccountId(accs[0].id);
       });
   }, [userId]);
 
   async function handleSave() {
-    if (!amount || !desc) return;
-    if (!accountId) {
-      setError('Primero agrega una cuenta en Configuración → Mis cuentas');
-      return;
-    }
+    const num = parseFloat(amount.replace(/[^0-9.]/g, ''));
+    if (!num || num <= 0) { setError('Ingresa un monto válido'); return; }
+    if (!desc.trim()) { setError('Ingresa una descripción'); return; }
     setSaving(true);
     setError(null);
     const { error: err } = await supabase.from('transactions').insert({
       user_id: userId,
-      account_id: accountId,
       transaction_type: type,
-      amount: parseFloat(amount),
-      description: desc,
-      date: new Date().toISOString().slice(0, 10),
+      amount: num,
+      description: desc.trim(),
+      category: cat,
+      date,
+      notes: 'Ingresado manualmente',
       currency_code: 'COP',
-      metadata: cat ? { category: cat } : {},
+      ...(accountId ? { account_id: accountId } : {}),
     });
-    if (err) {
-      setError('Error al guardar. Intenta de nuevo.');
-      setSaving(false);
-      return;
-    }
-    setSaved(true);
-    setTimeout(onClose, 900);
+    setSaving(false);
+    if (err) { setError('Error al guardar. Intenta de nuevo.'); return; }
+    onSaved?.();
   }
 
-  if (saved) return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200 }}>
-      <div style={{ textAlign:'center' }}>
-        <div style={{ fontSize:64, marginBottom:16 }}>✅</div>
-        <div style={{ color:C.text, fontSize:18, fontWeight:700 }}>¡Guardado!</div>
-      </div>
-    </div>
-  );
+  const inp: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12,
+    color: C.text, fontSize: 15, padding: '12px 14px', outline: 'none',
+    fontFamily: 'inherit',
+  };
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.85)', display:'flex', alignItems:'flex-end', justifyContent:'center', zIndex:200 }} onClick={e=>{ if(e.target===e.currentTarget)onClose(); }}>
-      <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, maxHeight:'90vh', overflowY:'auto', padding:24, border:`1px solid ${C.border}` }}>
-        <div style={{ width:40, height:4, borderRadius:2, background:C.border, margin:'0 auto 20px' }} />
-
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
-          <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>Nuevo movimiento</div>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:C.textMuted, fontSize:22, cursor:'pointer', padding:4 }}>✕</button>
+    <div
+      style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.88)', zIndex:200,
+        display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div
+        style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480,
+          border:`1px solid ${C.border}`, paddingBottom:32, maxHeight:'92vh',
+          overflowY:'auto', WebkitOverflowScrolling:'touch' as never,
+          overscrollBehavior:'contain' }}
+      >
+        {/* Handle */}
+        <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 8px' }}>
+          <div style={{ width:40, height:4, borderRadius:2, background:C.border }} />
         </div>
 
-        <div style={{ display:'flex', background:C.bg, borderRadius:14, padding:4, marginBottom:20, gap:4 }}>
-          {(['expense','income'] as const).map(tp=>(
-            <button key={tp} onClick={()=>setType(tp)} style={{
-              flex:1, padding:'10px 0', borderRadius:10, border:'none', cursor:'pointer', fontSize:14, fontWeight:700,
-              background: type===tp ? (tp==='expense'?C.danger:C.accent) : 'transparent',
-              color: type===tp ? '#fff' : C.textMuted,
-              transition:'all 0.2s',
-            }}>{tp==='expense'?'💸 Gasto':'💰 Ingreso'}</button>
-          ))}
+        <div style={{ padding:'4px 20px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ color:C.text, fontSize:17, fontWeight:700 }}>Nuevo movimiento</div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:C.textMuted, fontSize:22, cursor:'pointer', lineHeight:1, padding:4 }}>×</button>
         </div>
 
-        <div style={{ textAlign:'center', marginBottom:24 }}>
-          <div style={{ color:C.textMuted, fontSize:12, marginBottom:8 }}>MONTO</div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:4 }}>
-            <span style={{ color:C.textMuted, fontSize:24 }}>$</span>
-            <input
-              type="number"
-              placeholder="0"
-              value={amount}
-              onChange={e=>setAmount(e.target.value)}
-              style={{ background:'none', border:'none', outline:'none', color:C.text, fontSize:42, fontWeight:800, width:'100%', textAlign:'center' }}
-            />
+        {/* Type toggle */}
+        <div style={{ padding:'0 20px', marginBottom:16 }}>
+          <div style={{ display:'flex', background:C.bg, borderRadius:14, border:`1px solid ${C.border}`, padding:4, gap:4 }}>
+            {(['expense','income'] as const).map(t => (
+              <button key={t} onClick={() => setType(t)} style={{
+                flex:1, padding:'10px 0', borderRadius:10, border:'none', cursor:'pointer', fontSize:14, fontWeight:700,
+                background: type === t ? (t === 'income' ? C.accent : C.danger) : 'transparent',
+                color: type === t ? '#fff' : C.textMuted,
+              }}>
+                {t === 'income' ? '↑ Ingreso' : '↓ Gasto'}
+              </button>
+            ))}
           </div>
-          <div style={{ height:2, background:`linear-gradient(90deg,transparent,${type==='expense'?C.danger:C.accent},transparent)`, marginTop:8 }} />
         </div>
 
-        <div style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:14, padding:'0 14px', height:50, display:'flex', alignItems:'center', marginBottom:16 }}>
-          <input
-            placeholder="Descripción..."
-            value={desc}
-            onChange={e=>setDesc(e.target.value)}
-            style={{ flex:1, background:'none', border:'none', outline:'none', color:C.text, fontSize:14 }}
-          />
+        <div style={{ padding:'0 20px', display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Amount */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>MONTO</div>
+            <input style={inp} type="number" inputMode="decimal" placeholder="0"
+              value={amount} onChange={e => setAmount(e.target.value)} />
+          </div>
+
+          {/* Description */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>DESCRIPCIÓN</div>
+            <input style={inp} type="text" placeholder="Ej: Mercado, Gasolina, Restaurante…"
+              value={desc} onChange={e => setDesc(e.target.value)} />
+          </div>
+
+          {/* Category grid */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:8 }}>CATEGORÍA</div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+              {CATEGORIES.map(c => {
+                const sel = cat === c.name;
+                return (
+                  <button key={c.name} onClick={() => setCat(c.name)} style={{
+                    padding:'10px 4px', borderRadius:12,
+                    border:`1px solid ${sel ? C.primaryGlow : C.border}`,
+                    background: sel ? 'rgba(59,130,246,0.15)' : C.bg,
+                    cursor:'pointer', textAlign:'center',
+                  }}>
+                    <div style={{ fontSize:18, marginBottom:2 }}>{c.icon}</div>
+                    <div style={{ color: sel ? C.primaryGlow : C.textMuted, fontSize:9, fontWeight:600, lineHeight:1.2 }}>{c.name}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Date */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>FECHA</div>
+            <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          {/* Account selector — only when multiple */}
+          {accounts.length > 1 && (
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>CUENTA</div>
+              <select style={{ ...inp, appearance:'none' }} value={accountId} onChange={e => setAccountId(e.target.value)}>
+                <option value="">Sin cuenta específica</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name} – {a.institution}</option>)}
+              </select>
+            </div>
+          )}
+
+          {error && <div style={{ color:C.danger, fontSize:13, textAlign:'center' }}>{error}</div>}
+
+          <button onClick={handleSave} disabled={saving} style={{
+            width:'100%', padding:'15px 0', borderRadius:14, border:'none',
+            background: type === 'income' ? C.accent : C.danger,
+            color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer',
+          }}>
+            {saving ? 'Guardando…' : 'Guardar movimiento'}
+          </button>
         </div>
-
-        <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>CATEGORÍA</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8, marginBottom:16 }}>
-          {CATEGORIES.map(c=>(
-            <button key={c.name} onClick={()=>setCat(c.name)} style={{
-              padding:'10px 6px', borderRadius:12, border:`1px solid ${cat===c.name?c.color:C.border}`,
-              background: cat===c.name?`${c.color}22`:C.bg,
-              cursor:'pointer', textAlign:'center',
-              transition:'all 0.15s',
-            }}>
-              <div style={{ fontSize:20, marginBottom:3 }}>{c.icon}</div>
-              <div style={{ color:cat===c.name?c.color:C.textMuted, fontSize:10, fontWeight:600 }}>{c.name}</div>
-            </button>
-          ))}
-        </div>
-
-        {error && <div style={{ color:C.danger, fontSize:12, marginBottom:12, textAlign:'center' }}>{error}</div>}
-
-        <button onClick={handleSave} disabled={saving} style={{
-          width:'100%', padding:'15px 0', borderRadius:16, border:'none',
-          background: (!amount||!desc||saving) ? C.border : (type==='expense'?'linear-gradient(135deg,#EF4444,#B91C1C)':'linear-gradient(135deg,#31D67B,#22A85A)'),
-          color:'#fff', fontSize:16, fontWeight:800, cursor: (!amount||!desc||saving)?'not-allowed':'pointer',
-          transition:'all 0.2s',
-        }}>
-          {saving ? 'Guardando...' : 'Guardar movimiento'}
-        </button>
       </div>
     </div>
   );

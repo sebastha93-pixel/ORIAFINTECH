@@ -12,10 +12,11 @@ import { supabase }             from './lib/supabase';
 type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai' | 'settings';
 
 export default function App() {
-  const [userId, setUserId]   = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [screen, setScreen]   = useState<Screen>('dashboard');
-  const [showAdd, setShowAdd] = useState(false);
+  const [userId, setUserId]       = useState<string | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [screen, setScreen]       = useState<Screen>('dashboard');
+  const [showAdd, setShowAdd]     = useState(false);
+  const [txReloadKey, setTxReloadKey] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -56,14 +57,20 @@ export default function App() {
   return (
     <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14' }}>
       {screen === 'dashboard'    && <DashboardScreen />}
-      {screen === 'transactions' && <TransactionsScreen />}
+      {screen === 'transactions' && <TransactionsScreen reloadKey={txReloadKey} />}
       {screen === 'goals'        && <GoalsScreen userId={userId} />}
       {screen === 'ai'           && <AiChatScreen />}
       {screen === 'settings'     && <SettingsScreen userId={userId} />}
 
       <TabBar active={screen} onTab={handleTab} />
 
-      {showAdd && <AddTransactionScreen userId={userId} onClose={() => setShowAdd(false)} />}
+      {showAdd && (
+        <AddTransactionScreen
+          userId={userId}
+          onClose={() => setShowAdd(false)}
+          onSaved={() => { setTxReloadKey(k => k + 1); setShowAdd(false); }}
+        />
+      )}
     </div>
   );
 }
