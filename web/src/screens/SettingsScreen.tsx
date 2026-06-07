@@ -16,15 +16,17 @@ interface Transaction {
 }
 
 interface BankAccount {
-  id:                       string;
-  name:                     string;
-  institution:              string;
-  account_type:             string;
-  account_suffix:           string | null;
-  account_holder:           string | null;
-  currency_code:            string;
-  initial_balance:    number | null;
-  initial_balance_set_at: string | null;  // ISO timestamp
+  id:                     string;
+  name:                   string;
+  institution:            string;
+  account_type:           string;
+  account_suffix:         string | null;
+  account_holder:         string | null;
+  currency_code:          string;
+  initial_balance:        number | null;
+  initial_balance_set_at: string | null;
+  credit_limit:           number | null;
+  payment_due_day:        number | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -180,6 +182,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newSuffix, setNewSuffix]           = useState('');
   const [newNickname, setNewNickname]       = useState('');
   const [newHolder, setNewHolder]           = useState('');
+  const [newCreditLimit, setNewCreditLimit] = useState('');
+  const [newDueDay, setNewDueDay]           = useState('');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
@@ -196,7 +200,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function loadAccounts() {
     const { data } = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at')
+      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,payment_due_day')
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
@@ -258,6 +262,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
     setAddAccountError('');
     const inst = INSTITUTIONS.find(i => i.id === newInstitution);
     const name = newNickname.trim() || `${inst?.name} ${ACCOUNT_TYPE_LABELS[newAccountType]} *${newSuffix.slice(-4)}`;
+    const isCC = newAccountType === 'credit_card';
     const { error } = await supabase.from('accounts').insert({
       user_id: userId,
       name,
@@ -267,6 +272,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       account_holder: newHolder.trim().toUpperCase() || null,
       currency_code: 'COP',
       is_active: true,
+      ...(isCC && newCreditLimit ? { credit_limit: parseInt(newCreditLimit.replace(/\D/g, ''), 10) } : {}),
+      ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
     });
     if (!error) {
       await loadAccounts();
@@ -274,6 +281,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setNewSuffix('');
       setNewNickname('');
       setNewHolder('');
+      setNewCreditLimit('');
+      setNewDueDay('');
     } else {
       setAddAccountError(error.message);
     }
@@ -736,10 +745,14 @@ export function SettingsScreen({ userId }: { userId: string }) {
               )}
 
               {accounts.map(acc => {
-                const inst = INSTITUTIONS.find(i => i.name.toLowerCase() === acc.institution?.toLowerCase());
+                const isCC    = acc.account_type === 'credit_card';
                 const locked  = isBalanceLocked(acc);
                 const editable = !locked;
                 const isSaving = savingBalance[acc.id] ?? false;
+                const debt    = acc.initial_balance ?? 0;
+                const limit   = acc.credit_limit ?? 0;
+                const utilPct = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
+                const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? '#f59e0b' : C.accent;
                 return (
                   <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
                     {/* Account row */}
@@ -748,13 +761,33 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         <BankLogo institution={acc.institution} size={40} borderRadius={12} />
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {acc.name}
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {acc.name}
+                          </div>
+                          {isCC && (
+                            <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 6px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>
+                              💳 TC
+                            </span>
+                          )}
                         </div>
                         <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
                           {acc.institution} · *{acc.account_suffix}
                           {acc.account_holder && <span> · {acc.account_holder}</span>}
+                          {isCC && limit > 0 && <span> · Cupo {fmt(limit)}</span>}
                         </div>
+                        {/* Credit utilization bar */}
+                        {isCC && utilPct != null && (
+                          <div style={{ marginTop:6 }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                              <span style={{ color:utilColor, fontSize:10, fontWeight:700 }}>{utilPct}% utilizado</span>
+                              <span style={{ color:C.textMuted, fontSize:10 }}>{fmt(debt)} de {fmt(limit)}</span>
+                            </div>
+                            <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
+                              <div style={{ width:`${utilPct}%`, height:'100%', background:utilColor, borderRadius:99 }} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                       <button onClick={() => removeAccount(acc.id)}
                         style={{ background:'rgba(239,68,68,0.1)', border:'none', borderRadius:8, padding:'6px 10px',
@@ -763,33 +796,35 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       </button>
                     </div>
 
-                    {/* Initial balance row */}
+                    {/* Balance / debt row */}
                     <div style={{ marginTop:10, marginLeft:52 }}>
                       <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5 }}>
-                        SALDO INICIAL
+                        {isCC ? 'DEUDA ACTUAL' : 'SALDO INICIAL'}
                       </div>
                       {editable ? (
                         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                          {/* Sync window selector */}
-                          <div>
-                            <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5 }}>IMPORTAR DESDE</div>
-                            <div style={{ display:'flex', gap:6 }}>
-                              {([7, 30, 90] as const).map(d => {
-                                const selected = (syncWindowDays[acc.id] ?? 30) === d;
-                                return (
-                                  <button key={d}
-                                    onClick={() => setSyncWindowDays(prev => ({ ...prev, [acc.id]: d }))}
-                                    style={{ flex:1, padding:'6px 0', borderRadius:8,
-                                      border:`1px solid ${selected ? C.primaryGlow : C.border}`,
-                                      background: selected ? 'rgba(59,130,246,0.15)' : 'transparent',
-                                      color: selected ? C.primaryGlow : C.textMuted,
-                                      fontSize:11, fontWeight: selected ? 700 : 400, cursor:'pointer' }}>
-                                    {d === 7 ? '7 días' : d === 30 ? '30 días' : '90 días'}
-                                  </button>
-                                );
-                              })}
+                          {/* Sync window selector — only for debit accounts */}
+                          {!isCC && (
+                            <div>
+                              <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5 }}>IMPORTAR DESDE</div>
+                              <div style={{ display:'flex', gap:6 }}>
+                                {([7, 30, 90] as const).map(d => {
+                                  const selected = (syncWindowDays[acc.id] ?? 30) === d;
+                                  return (
+                                    <button key={d}
+                                      onClick={() => setSyncWindowDays(prev => ({ ...prev, [acc.id]: d }))}
+                                      style={{ flex:1, padding:'6px 0', borderRadius:8,
+                                        border:`1px solid ${selected ? C.primaryGlow : C.border}`,
+                                        background: selected ? 'rgba(59,130,246,0.15)' : 'transparent',
+                                        color: selected ? C.primaryGlow : C.textMuted,
+                                        fontSize:11, fontWeight: selected ? 700 : 400, cursor:'pointer' }}>
+                                      {d === 7 ? '7 días' : d === 30 ? '30 días' : '90 días'}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
+                          )}
                           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                           <div style={{ position:'relative', flex:1 }}>
                             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
@@ -823,8 +858,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         </div>
                       ) : (
                         <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                          <span style={{ color:C.accent, fontSize:14, fontWeight:700 }}>
-                            {fmt(acc.initial_balance ?? 0)}
+                          <span style={{ color: isCC ? C.danger : C.accent, fontSize:14, fontWeight:700 }}>
+                            {isCC ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
                           </span>
                           <span style={{ fontSize:13 }}>🔒</span>
                           <span style={{ color:C.textMuted, fontSize:10 }}>
@@ -947,6 +982,42 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       </div>
                     );
                   })()}
+
+                  {/* Credit card extra fields */}
+                  {newAccountType === 'credit_card' && (
+                    <>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo total de la tarjeta</div>
+                        <div style={{ position:'relative' }}>
+                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            placeholder="ej. 5.000.000"
+                            value={newCreditLimit ? Number(newCreditLimit.replace(/\D/g,'')||0).toLocaleString('es-CO') : ''}
+                            onChange={e => setNewCreditLimit(e.target.value.replace(/\D/g,''))}
+                            style={{ width:'100%', paddingLeft:26, paddingRight:14, paddingTop:10, paddingBottom:10,
+                              borderRadius:10, border:`1px solid ${C.border}`,
+                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                              boxSizing:'border-box', outline:'none' }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Día de pago (día del mes)</div>
+                        <input
+                          type="number"
+                          min="1" max="31"
+                          placeholder="ej. 25"
+                          value={newDueDay}
+                          onChange={e => setNewDueDay(e.target.value)}
+                          style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
+                            background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                            boxSizing:'border-box', outline:'none' }}
+                        />
+                      </div>
+                    </>
+                  )}
 
                   {addAccountError && (
                     <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`,

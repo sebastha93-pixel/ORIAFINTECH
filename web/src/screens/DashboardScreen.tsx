@@ -22,6 +22,14 @@ interface MonthlySummary {
   net_savings: number;
 }
 
+interface Account {
+  account_type: string;
+  initial_balance: number | null;
+  credit_limit: number | null;
+  institution: string;
+  account_suffix: string | null;
+}
+
 function txIcon(t: Txn): string {
   const d = (t.description ?? '').toLowerCase();
   if (t.transaction_type === 'income') return '💰';
@@ -57,11 +65,11 @@ function currentMonthRange() {
 }
 
 export function DashboardScreen() {
-  const [currentTxns, setCurrentTxns]   = useState<Txn[]>([]);
+  const [currentTxns, setCurrentTxns]     = useState<Txn[]>([]);
   const [prevSummaries, setPrevSummaries] = useState<MonthlySummary[]>([]);
-  const [initialBalance, setInitialBalance] = useState(0);
-  const [loading, setLoading]           = useState(true);
-  const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
+  const [accounts, setAccounts]           = useState<Account[]>([]);
+  const [loading, setLoading]             = useState(true);
+  const [selectedTx, setSelectedTx]       = useState<TxDetail | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -88,28 +96,32 @@ export function DashboardScreen() {
           .order('year', { ascending: false })
           .order('month', { ascending: false }),
 
-        // Sum of initial balances across all active accounts
+        // All active accounts with balances and credit info
         supabase
           .from('accounts')
-          .select('initial_balance')
+          .select('account_type, initial_balance, credit_limit, institution, account_suffix')
           .eq('user_id', user.id)
           .eq('is_active', true),
       ]);
 
       setCurrentTxns((txnsRes.data as Txn[]) ?? []);
       setPrevSummaries((summariesRes.data as MonthlySummary[]) ?? []);
-      const initSum = ((accountsRes.data ?? []) as { initial_balance: number | null }[])
-        .reduce((s, a) => s + Number(a.initial_balance ?? 0), 0);
-      setInitialBalance(initSum);
+      setAccounts((accountsRes.data as Account[]) ?? []);
       setLoading(false);
     });
   }, []);
+
+  const debitAccounts  = accounts.filter(a => a.account_type !== 'credit_card');
+  const creditAccounts = accounts.filter(a => a.account_type === 'credit_card');
+  const debitBase  = debitAccounts.reduce((s, a) => s + Number(a.initial_balance ?? 0), 0);
+  const creditDebt = creditAccounts.reduce((s, a) => s + Number(a.initial_balance ?? 0), 0);
 
   const prevNet    = prevSummaries.reduce((s, m) => s + (Number(m.total_income) - Number(m.total_expenses)), 0);
   const curIncome  = currentTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const curExpense = currentTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
   const curNet     = curIncome - curExpense;
-  const totalBalance = initialBalance + prevNet + curNet;
+  const totalAssets  = debitBase + prevNet + curNet;
+  const netWorth     = totalAssets - creditDebt;
 
   const now      = new Date();
   const monthStr = now.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
@@ -127,12 +139,27 @@ export function DashboardScreen() {
           </div>
         </div>
 
-        {/* Total balance card */}
+        {/* Net worth card */}
         <div style={{ background:'rgba(255,255,255,0.05)', borderRadius:20, padding:20, border:`1px solid ${C.border}` }}>
-          <div style={{ color:C.textMuted, fontSize:11, marginBottom:4, letterSpacing:0.5 }}>BALANCE</div>
-          <div style={{ color: totalBalance >= 0 ? C.text : C.danger, fontSize:36, fontWeight:800 }}>
-            {fmt(totalBalance)}
+          <div style={{ color:C.textMuted, fontSize:11, marginBottom:4, letterSpacing:0.5 }}>
+            {creditDebt > 0 ? 'PATRIMONIO NETO' : 'BALANCE'}
           </div>
+          <div style={{ color: netWorth >= 0 ? C.text : C.danger, fontSize:36, fontWeight:800, letterSpacing:-1 }}>
+            {fmt(netWorth)}
+          </div>
+          {creditDebt > 0 && (
+            <div style={{ display:'flex', gap:16, marginTop:10 }}>
+              <div>
+                <div style={{ color:C.textMuted, fontSize:10 }}>Activos</div>
+                <div style={{ color:C.accent, fontSize:14, fontWeight:700 }}>{fmt(totalAssets)}</div>
+              </div>
+              <div style={{ color:C.border, alignSelf:'center' }}>−</div>
+              <div>
+                <div style={{ color:C.textMuted, fontSize:10 }}>Deuda TC</div>
+                <div style={{ color:C.danger, fontSize:14, fontWeight:700 }}>{fmt(creditDebt)}</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -150,6 +177,49 @@ export function DashboardScreen() {
             </div>
           ))}
         </div>
+
+        {/* Credit card utilization */}
+        {creditAccounts.length > 0 && (
+          <Section title="Tarjetas de crédito">
+            <div style={{ ...card }}>
+              {creditAccounts.map((a, i) => {
+                const debt  = Number(a.initial_balance ?? 0);
+                const limit = Number(a.credit_limit ?? 0);
+                const pct   = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
+                const col   = pct == null ? C.textMuted : pct >= 80 ? C.danger : pct >= 50 ? '#f59e0b' : C.accent;
+                return (
+                  <div key={i} style={{ marginBottom: i < creditAccounts.length - 1 ? 14 : 0,
+                    paddingBottom: i < creditAccounts.length - 1 ? 14 : 0,
+                    borderBottom: i < creditAccounts.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                      <div>
+                        <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>
+                          💳 {a.institution} ****{a.account_suffix}
+                        </div>
+                        {pct != null && (
+                          <div style={{ color:C.textMuted, fontSize:11, marginTop:1 }}>
+                            {fmt(debt)} usado · Cupo {fmt(limit)}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ color:C.danger, fontSize:14, fontWeight:700 }}>-{fmt(debt)}</div>
+                        {pct != null && (
+                          <div style={{ color:col, fontSize:11, fontWeight:700 }}>{pct}%</div>
+                        )}
+                      </div>
+                    </div>
+                    {pct != null && (
+                      <div style={{ height:5, background:C.border, borderRadius:99, overflow:'hidden' }}>
+                        <div style={{ width:`${pct}%`, height:'100%', background:col, borderRadius:99 }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </Section>
+        )}
 
         {/* Previous months closings */}
         {prevSummaries.length > 0 && (
