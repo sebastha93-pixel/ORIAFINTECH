@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { C, gradAccent } from '../theme';
+import { OriaLogo } from '../components/OriaLogo';
 import { supabase } from '../lib/supabase';
 
 type Mode = 'login' | 'register' | 'reset';
@@ -73,13 +74,9 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
       <div style={{ width:'100%', maxWidth:400 }}>
         {/* Logo ORIA */}
         <div style={{ textAlign:'center', marginBottom:40 }}>
-          <div style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', marginBottom:16 }}>
-            <svg width="80" height="80" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="32" fill="none" stroke="#31D67B" strokeWidth="5" strokeLinecap="round" strokeDasharray="168 34" transform="rotate(-110 40 40)" />
-            </svg>
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:20 }}>
+            <OriaLogo size={68} />
           </div>
-          <div style={{ color:C.text, fontSize:28, fontWeight:900, letterSpacing:8, marginTop:-8 }}>ORIA</div>
-          <div style={{ color:C.accent, fontSize:9, letterSpacing:5, marginTop:3, marginBottom:12 }}>INTELLIGENCE</div>
           <div style={{ color:C.textSec, fontSize:13, lineHeight:1.7 }}>
             Entiende tu dinero.<br/>Construye tu futuro.
           </div>
