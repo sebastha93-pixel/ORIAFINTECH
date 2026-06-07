@@ -122,15 +122,34 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
+  // "Pago QR por $X en COMERCIO" → explicit QR expense (cleaner description)
+  const pagoQrDirectMatch = text.match(/[Pp]ago\s+QR\s+(?:por\s+)?\$?\s*([\d.,]+)(?:\s+en\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s+d[ií]a|[.,\n\r]|$))?/i);
+  if (pagoQrDirectMatch) {
+    const amount = parseAmount(pagoQrDirectMatch[1]);
+    const merchant = pagoQrDirectMatch[2] ? cleanName(pagoQrDirectMatch[2]) : '';
+    return {
+      amount,
+      type: 'expense',
+      description: merchant ? `Pago QR en ${merchant} · Bancolombia` : 'Pago QR · Bancolombia',
+      category: merchant ? inferCategory(merchant, merchant) : 'Otros',
+      date: new Date().toISOString(),
+      merchant: merchant || undefined,
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
   // "pagaste $X por codigo QR / por débito automático / etc." → expense
   const pagoQRMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+por\s+([\w\s]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+a\s+la\s+llave|$)/i);
   if (pagoQRMatch) {
     const amount = parseAmount(pagoQRMatch[1]);
     const method = cleanName(pagoQRMatch[2]).slice(0, 30);
+    const isQR = /qr/i.test(method);
     return {
       amount,
       type: 'expense',
-      description: `Pago ${method} · Bancolombia`,
+      description: isQR ? 'Pago QR · Bancolombia' : `Pago ${method} · Bancolombia`,
       category: 'Otros',
       date: new Date().toISOString(),
       accountSuffix,
@@ -236,6 +255,28 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       description: sender
         ? `Transferencia de ${sender} · Bancolombia`
         : 'Transferencia recibida · Bancolombia',
+      category: 'Transferencias',
+      date: new Date().toISOString(),
+      merchant: sender || undefined,
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
+  // "Recibiste un pago de $X de NOMBRE" → income (QR cobrado, PSE recibido, etc.)
+  const recibistePagoMatch = text.match(
+    /[Rr]ecibiste\s+un\s+pago\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
+  );
+  if (recibistePagoMatch) {
+    const amount = parseAmount(recibistePagoMatch[1]);
+    const sender = recibistePagoMatch[2] ? cleanName(recibistePagoMatch[2]) : '';
+    return {
+      amount,
+      type: 'income',
+      description: sender
+        ? `Pago recibido de ${sender} · Bancolombia`
+        : 'Pago recibido · Bancolombia',
       category: 'Transferencias',
       date: new Date().toISOString(),
       merchant: sender || undefined,
