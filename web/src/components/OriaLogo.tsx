@@ -6,18 +6,8 @@ interface Props {
   mono?: boolean; // single color (white) instead of gradient
 }
 
-/**
- * ORIA Isotipo — minimalist incomplete circle.
- * The open arc represents a path that continues: orientation, evolution, growth.
- * Gap is centered at the top (symmetric), 60° opening.
- * Gradient: Verde Aurora #31D67B → Azul Digital #60A5FA
- */
 export function OriaLogo({ size = 40, showWordmark = true, mono = false }: Props) {
   const uid = `og-${size}-${mono ? 'm' : 'c'}`;
-
-  // Circle r=16 centered at (20,20)
-  // Start: 1 o'clock (28, 6.14)  End: 11 o'clock (12, 6.14)
-  // 300° clockwise arc — 60° gap symmetric at top
   const strokeW = size < 32 ? 3.2 : size < 56 ? 3.5 : 4;
 
   return (

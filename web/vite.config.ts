@@ -35,8 +35,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        skipWaiting: true,        // activate new SW immediately on deploy
-        clientsClaim: true,       // take control of all tabs right away
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icon-*.png', 'apple-touch-icon.png', 'favicon.png'],
         globIgnores: ['9E52A2AC*.png'],
         runtimeCaching: [

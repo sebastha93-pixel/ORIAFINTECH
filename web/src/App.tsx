@@ -32,7 +32,6 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Scroll to top after every screen change (iOS Safari compatible)
   useEffect(() => {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;

@@ -72,7 +72,6 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
       <div style={{ position:'absolute', width:240, height:240, borderRadius:'50%', background:'#31D67B', opacity:.07, bottom:80, right:-60, filter:'blur(50px)' }} />
 
       <div style={{ width:'100%', maxWidth:400 }}>
-        {/* Logo ORIA */}
         <div style={{ textAlign:'center', marginBottom:40 }}>
           <div style={{ display:'flex', justifyContent:'center', marginBottom:20 }}>
             <OriaLogo size={68} />
