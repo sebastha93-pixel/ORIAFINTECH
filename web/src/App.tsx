@@ -50,7 +50,6 @@ export default function App() {
   if (!userId) return <LoginScreen onLogin={setUserId} />;
 
   function handleTab(id: string) {
-    if (id === 'add') { setShowAdd(true); return; }
     setScreen(id as Screen);
   }
 

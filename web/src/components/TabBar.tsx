@@ -2,11 +2,11 @@ import React from 'react';
 import { C } from '../theme';
 
 const TABS = [
-  { id:'dashboard',     label:'Inicio',        icon:'🏠' },
-  { id:'transactions',  label:'Movimientos',   icon:'💳' },
-  { id:'add',           label:'',              icon:'＋' },
-  { id:'goals',         label:'Metas',         icon:'🎯' },
-  { id:'settings',      label:'Configurar',    icon:'⚙️' },
+  { id:'dashboard',    label:'Inicio',      icon:'🏠' },
+  { id:'transactions', label:'Movimientos', icon:'💳' },
+  { id:'ai',           label:'ORIA',        icon:'🤖' },
+  { id:'goals',        label:'Metas',       icon:'🎯' },
+  { id:'settings',     label:'Ajustes',     icon:'⚙️' },
 ];
 
 interface Props {
@@ -24,7 +24,6 @@ export function TabBar({ active, onTab }: Props) {
       height:72, paddingBottom:8, zIndex:100,
     }}>
       {TABS.map(t=>{
-        const isAdd    = t.id === 'add';
         const isActive = active === t.id;
         return (
           <button key={t.id} onClick={()=>onTab(t.id)} style={{
@@ -32,21 +31,9 @@ export function TabBar({ active, onTab }: Props) {
             gap:3, flex:1, background:'none', border:'none', cursor:'pointer',
             padding:0, position:'relative',
           }}>
-            {isAdd ? (
-              <div style={{
-                width:52, height:52, borderRadius:16, marginTop:-24,
-                background:'linear-gradient(135deg,#31D67B,#22A85A)',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:26, color:'#fff',
-                boxShadow:'0 4px 20px rgba(49,214,123,0.4)',
-              }}>{t.icon}</div>
-            ) : (
-              <>
-                <span style={{ fontSize:22, lineHeight:1, filter:isActive?'none':'grayscale(1) opacity(0.5)' }}>{t.icon}</span>
-                <span style={{ fontSize:10, fontWeight:isActive?700:400, color:isActive?C.accent:C.textMuted }}>{t.label}</span>
-                {isActive && <div style={{ position:'absolute', bottom:-2, width:20, height:3, borderRadius:2, background:C.accent }} />}
-              </>
-            )}
+            <span style={{ fontSize:22, lineHeight:1, filter:isActive?'none':'grayscale(1) opacity(0.5)' }}>{t.icon}</span>
+            <span style={{ fontSize:10, fontWeight:isActive?700:400, color:isActive?C.accent:C.textMuted }}>{t.label}</span>
+            {isActive && <div style={{ position:'absolute', bottom:-2, width:20, height:3, borderRadius:2, background:C.accent }} />}
           </button>
         );
       })}
