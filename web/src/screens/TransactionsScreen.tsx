@@ -14,6 +14,168 @@ interface Txn {
   category?: string | null;
 }
 
+interface Account {
+  id: string;
+  name: string;
+  institution: string;
+}
+
+const CATEGORIES_LIST = [
+  'Alimentación','Transporte','Entretenimiento','Salud','Vivienda',
+  'Deporte','Educación','Servicios','Ropa','Salario',
+  'Efectivo','Transferencias','Gasolina','Restaurante','Otros',
+];
+
+function AddTransactionModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [type, setType]           = useState<'expense' | 'income'>('expense');
+  const [amount, setAmount]       = useState('');
+  const [description, setDesc]    = useState('');
+  const [category, setCategory]   = useState('Otros');
+  const [date, setDate]           = useState(today);
+  const [accounts, setAccounts]   = useState<Account[]>([]);
+  const [accountId, setAccountId] = useState('');
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState('');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data } = await supabase.from('accounts').select('id, name, institution').eq('user_id', user.id).eq('is_active', true);
+      const accs = (data as Account[]) ?? [];
+      setAccounts(accs);
+      if (accs.length === 1) setAccountId(accs[0].id);
+    });
+  }, []);
+
+  async function handleSave() {
+    const num = parseFloat(amount.replace(/[^0-9.]/g, ''));
+    if (!num || num <= 0) { setError('Ingresa un monto válido'); return; }
+    if (!description.trim()) { setError('Ingresa una descripción'); return; }
+    setSaving(true);
+    setError('');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSaving(false); return; }
+    const row: Record<string, unknown> = {
+      user_id: user.id,
+      transaction_type: type,
+      amount: num,
+      description: description.trim(),
+      category,
+      date,
+      notes: 'Ingresado manualmente',
+      ...(accountId ? { account_id: accountId } : {}),
+    };
+    const { error: err } = await supabase.from('transactions').insert(row);
+    setSaving(false);
+    if (err) { setError('Error al guardar. Intenta de nuevo.'); return; }
+    onSaved();
+    onClose();
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', boxSizing: 'border-box',
+    background: C.bg, border: `1px solid ${C.border}`, borderRadius: 12,
+    color: C.text, fontSize: 15, padding: '12px 14px', outline: 'none',
+  };
+
+  return (
+    <div
+      style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.88)', zIndex:400, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, border:`1px solid ${C.border}`, paddingBottom:32, maxHeight:'95vh', overflowY:'auto' }}>
+        <div style={{ display:'flex', justifyContent:'center', padding:'12px 0 8px' }}>
+          <div style={{ width:40, height:4, borderRadius:2, background:C.border }} />
+        </div>
+
+        <div style={{ padding:'4px 20px 16px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div style={{ color:C.text, fontSize:17, fontWeight:700 }}>Nuevo movimiento</div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:C.textMuted, fontSize:22, cursor:'pointer', lineHeight:1 }}>×</button>
+        </div>
+
+        {/* Type toggle */}
+        <div style={{ padding:'0 20px', marginBottom:16 }}>
+          <div style={{ display:'flex', background:C.bg, borderRadius:14, border:`1px solid ${C.border}`, padding:4, gap:4 }}>
+            {(['expense','income'] as const).map(t => (
+              <button key={t} onClick={() => setType(t)} style={{
+                flex:1, padding:'10px 0', borderRadius:10, border:'none', cursor:'pointer', fontSize:14, fontWeight:700,
+                background: type === t ? (t === 'income' ? C.accent : C.danger) : 'transparent',
+                color: type === t ? '#fff' : C.textMuted,
+              }}>
+                {t === 'income' ? '↑ Ingreso' : '↓ Gasto'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ padding:'0 20px', display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Amount */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>MONTO</div>
+            <input
+              style={inp}
+              type="number"
+              inputMode="decimal"
+              placeholder="0"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>DESCRIPCIÓN</div>
+            <input
+              style={inp}
+              type="text"
+              placeholder="Ej: Mercado, Gasolina, Restaurante..."
+              value={description}
+              onChange={e => setDesc(e.target.value)}
+            />
+          </div>
+
+          {/* Category */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>CATEGORÍA</div>
+            <select style={{ ...inp, appearance:'none' }} value={category} onChange={e => setCategory(e.target.value)}>
+              {CATEGORIES_LIST.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          {/* Date */}
+          <div>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>FECHA</div>
+            <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          {/* Account (only if multiple) */}
+          {accounts.length > 1 && (
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>CUENTA</div>
+              <select style={{ ...inp, appearance:'none' }} value={accountId} onChange={e => setAccountId(e.target.value)}>
+                <option value="">Sin cuenta específica</option>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name} – {a.institution}</option>)}
+              </select>
+            </div>
+          )}
+
+          {error && <div style={{ color:C.danger, fontSize:13, textAlign:'center' }}>{error}</div>}
+
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ width:'100%', padding:'15px 0', borderRadius:14, border:'none',
+              background: type === 'income' ? C.accent : C.danger,
+              color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer', marginTop:4 }}>
+            {saving ? 'Guardando…' : 'Guardar movimiento'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const TABS = ['Todos', 'Ingresos', 'Gastos'];
 
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -31,6 +193,7 @@ export function TransactionsScreen() {
   const [selYear, setSelYear]           = useState(now.getFullYear());
   const [selMonth, setSelMonth]         = useState(now.getMonth());
   const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const loadTransactions = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -93,6 +256,18 @@ export function TransactionsScreen() {
 
   return (
     <div style={{ paddingBottom: 100 }}>
+      {/* Floating add button */}
+      <button
+        onClick={() => setShowAddModal(true)}
+        style={{ position:'fixed', bottom:90, right:20, zIndex:200,
+          width:52, height:52, borderRadius:16, border:'none',
+          background:'linear-gradient(135deg,#3b82f6,#1d4ed8)',
+          color:'#fff', fontSize:26, fontWeight:300, cursor:'pointer',
+          boxShadow:'0 4px 20px rgba(59,130,246,0.5)',
+          display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+        +
+      </button>
+
       <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 20px' }}>
         <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:2 }}>Movimientos</div>
 
@@ -213,6 +388,13 @@ export function TransactionsScreen() {
         onDeleted={handleDeleted}
         onCategoryChanged={handleCategoryChanged}
       />
+
+      {showAddModal && (
+        <AddTransactionModal
+          onClose={() => setShowAddModal(false)}
+          onSaved={loadTransactions}
+        />
+      )}
     </div>
   );
 }
