@@ -226,8 +226,9 @@ export function TransactionsScreen() {
     setSelectedTx(prev => prev && prev.id === id ? { ...prev, category } : prev);
   }
 
-  function handleDeleted(id: string) {
-    setTransactions(prev => prev.filter(t => t.id !== id));
+  function handleNotesChanged(id: string, notes: string) {
+    setTransactions(prev => prev.map(t => t.id === id ? { ...t, notes } : t));
+    setSelectedTx(prev => prev && prev.id === id ? { ...prev, notes } : prev);
   }
 
   const isCurrent = selYear === now.getFullYear() && selMonth === now.getMonth();
@@ -385,8 +386,8 @@ export function TransactionsScreen() {
       <TransactionDetailSheet
         tx={selectedTx}
         onClose={() => setSelectedTx(null)}
-        onDeleted={handleDeleted}
         onCategoryChanged={handleCategoryChanged}
+        onNotesChanged={handleNotesChanged}
       />
 
       {showAddModal && (

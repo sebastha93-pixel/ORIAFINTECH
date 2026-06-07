@@ -16,8 +16,8 @@ export interface TxDetail {
 interface Props {
   tx: TxDetail | null;
   onClose: () => void;
-  onDeleted?: (id: string) => void;
   onCategoryChanged?: (id: string, category: string) => void;
+  onNotesChanged?: (id: string, notes: string) => void;
 }
 
 const CATEGORIES: { label: string; icon: string }[] = [
@@ -82,40 +82,60 @@ export function txCategory(desc: string, type: 'income' | 'expense', stored?: st
   return stored ?? 'Otros';
 }
 
-export function TransactionDetailSheet({ tx, onClose, onDeleted, onCategoryChanged }: Props) {
+function userNote(raw: string | null | undefined): string {
+  if (!raw || raw === 'Auto-importado' || raw === 'Ingresado manualmente') return '';
+  return raw;
+}
+
+export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotesChanged }: Props) {
   const [showCatPicker, setShowCatPicker] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [catSaving, setCatSaving]         = useState(false);
+  const [notesSaving, setNotesSaving]     = useState(false);
+  const [notesSaved, setNotesSaved]       = useState(false);
+  const [editNotes, setEditNotes]         = useState<string | null>(null);
+  const [lastTxId, setLastTxId]           = useState<string | null>(null);
 
   if (!tx) return null;
-  const t = tx; // stable non-null ref for async callbacks
+  const t = tx;
 
-  const isIncome  = t.transaction_type === 'income';
-  const color     = isIncome ? C.accent : C.danger;
-  const category  = txCategory(t.description ?? '', t.transaction_type, t.category);
-  const icon      = txIcon(t.description ?? '', t.transaction_type, t.category);
+  // Reset local notes state when a different transaction is opened
+  if (lastTxId !== t.id) {
+    setEditNotes(userNote(t.notes));
+    setLastTxId(t.id);
+    setNotesSaved(false);
+    setShowCatPicker(false);
+  }
+
+  const notes      = editNotes ?? userNote(t.notes);
+  const isIncome   = t.transaction_type === 'income';
+  const color      = isIncome ? C.accent : C.danger;
+  const category   = txCategory(t.description ?? '', t.transaction_type, t.category);
+  const icon       = txIcon(t.description ?? '', t.transaction_type, t.category);
+  const origin     = t.gmail_message_id ? 'Importado desde Gmail' : 'Ingresado manualmente';
 
   const dateFormatted = new Date(t.date + 'T12:00:00').toLocaleDateString('es-CO', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
 
   async function handleCategorySelect(cat: string) {
-    setSaving(true);
+    setCatSaving(true);
     const { error } = await supabase.from('transactions').update({ category: cat }).eq('id', t.id);
-    setSaving(false);
+    setCatSaving(false);
     if (!error) {
       onCategoryChanged?.(t.id, cat);
       setShowCatPicker(false);
     }
   }
 
-  async function handleDelete() {
-    setSaving(true);
-    const { error } = await supabase.from('transactions').delete().eq('id', t.id);
-    setSaving(false);
+  async function handleSaveNotes() {
+    setNotesSaving(true);
+    const val = notes.trim() || null;
+    const { error } = await supabase.from('transactions').update({ notes: val }).eq('id', t.id);
+    setNotesSaving(false);
     if (!error) {
-      onDeleted?.(t.id);
-      onClose();
+      onNotesChanged?.(t.id, notes.trim());
+      setNotesSaved(true);
+      setTimeout(() => setNotesSaved(false), 2500);
     }
   }
 
@@ -170,7 +190,7 @@ export function TransactionDetailSheet({ tx, onClose, onDeleted, onCategoryChang
                   const isSel = category === c.label;
                   return (
                     <button key={c.label}
-                      disabled={saving}
+                      disabled={catSaving}
                       onClick={() => handleCategorySelect(c.label)}
                       style={{ padding:'10px 4px', borderRadius:12,
                         border:`1px solid ${isSel ? C.primaryGlow : C.border}`,
@@ -185,41 +205,41 @@ export function TransactionDetailSheet({ tx, onClose, onDeleted, onCategoryChang
             </div>
           )}
 
-          <Row label="Fecha" value={dateFormatted} capitalize />
-          <Row label="Origen" value={t.gmail_message_id ? 'Importado desde Gmail' : 'Ingresado manualmente'} />
-          {t.notes && t.notes !== 'Auto-importado' && (
-            <Row label="Notas" value={t.notes} />
-          )}
+          <Row label="Fecha"  value={dateFormatted} capitalize />
+          <Row label="Origen" value={origin} />
+
+          {/* Editable notes */}
+          <div style={{ padding:'12px 0' }}>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:8 }}>NOTAS</div>
+            <textarea
+              rows={3}
+              placeholder="Agrega contexto a este movimiento…"
+              value={notes}
+              onChange={e => { setEditNotes(e.target.value); setNotesSaved(false); }}
+              style={{ width:'100%', boxSizing:'border-box', background:C.bg,
+                border:`1px solid ${C.border}`, borderRadius:12,
+                color:C.text, fontSize:13, padding:'10px 12px', outline:'none',
+                resize:'none', fontFamily:'inherit', lineHeight:1.5 }}
+            />
+            <button
+              onClick={handleSaveNotes}
+              disabled={notesSaving}
+              style={{ marginTop:8, width:'100%', padding:'10px 0', borderRadius:12,
+                border:`1px solid ${notesSaved ? C.accent : C.border}`,
+                background: notesSaved ? `${C.accent}22` : 'transparent',
+                color: notesSaved ? C.accent : C.textSec,
+                fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              {notesSaving ? 'Guardando…' : notesSaved ? '✓ Nota guardada' : 'Guardar nota'}
+            </button>
+          </div>
         </div>
 
-        {/* Actions */}
-        <div style={{ padding:'20px 20px 0', display:'flex', flexDirection:'column', gap:10 }}>
-          {!showDeleteConfirm ? (
-            <>
-              <button onClick={onClose}
-                style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:15, fontWeight:600, cursor:'pointer' }}>
-                Cerrar
-              </button>
-              <button onClick={() => setShowDeleteConfirm(true)}
-                style={{ width:'100%', padding:'12px 0', borderRadius:14, border:`1px solid ${C.danger}33`, background:`${C.danger}11`, color:C.danger, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                Eliminar movimiento
-              </button>
-            </>
-          ) : (
-            <>
-              <div style={{ textAlign:'center', color:C.textMuted, fontSize:13, marginBottom:4 }}>¿Eliminar este movimiento?</div>
-              <div style={{ display:'flex', gap:10 }}>
-                <button onClick={() => setShowDeleteConfirm(false)}
-                  style={{ flex:1, padding:'13px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:14, fontWeight:600, cursor:'pointer' }}>
-                  Cancelar
-                </button>
-                <button onClick={handleDelete} disabled={saving}
-                  style={{ flex:1, padding:'13px 0', borderRadius:14, border:'none', background:C.danger, color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer' }}>
-                  {saving ? '…' : 'Eliminar'}
-                </button>
-              </div>
-            </>
-          )}
+        {/* Close */}
+        <div style={{ padding:'8px 20px 0' }}>
+          <button onClick={onClose}
+            style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:15, fontWeight:600, cursor:'pointer' }}>
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
