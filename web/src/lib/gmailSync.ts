@@ -43,7 +43,15 @@ export async function runGmailSync(
 
   const headers = await getAuthHeaders();
   const res = await fetch(`${API}/email-sync/fetch-emails`, { headers });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    if (res.status === 401 || body.includes('token refresh failed') || body.includes('reconnect')) {
+      localStorage.removeItem('nexo_gmail_connected');
+      localStorage.removeItem('nexo_gmail_email');
+      throw new Error('GMAIL_TOKEN_EXPIRED');
+    }
+    throw new Error(`HTTP ${res.status}`);
+  }
 
   const emails = await res.json() as {
     messageId: string; bank: string; subject: string; body: string; date: string;

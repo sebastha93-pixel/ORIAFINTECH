@@ -444,6 +444,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       if (!emailsRes.ok) {
         const body = await emailsRes.text().catch(() => '');
+        if (emailsRes.status === 401 || body.includes('token refresh failed') || body.includes('reconnect')) {
+          setGmailConnected(false);
+          localStorage.removeItem('nexo_gmail_connected');
+          localStorage.removeItem('nexo_gmail_email');
+          throw new Error('Tu sesión de Gmail expiró. Reconecta tu cuenta con el botón de abajo.');
+        }
         throw new Error(`HTTP ${emailsRes.status}: ${body.slice(0, 120)}`);
       }
 
