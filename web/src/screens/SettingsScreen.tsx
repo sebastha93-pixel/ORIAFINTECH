@@ -441,6 +441,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
       // Step 1: Fetch raw emails from backend (authenticated)
       const headers = await getAuthHeaders();
       const emailsRes = await fetch(`${RAILWAY_API}/email-sync/fetch-emails`, { headers });
+
+      if (!emailsRes.ok) {
+        const body = await emailsRes.text().catch(() => '');
+        throw new Error(`HTTP ${emailsRes.status}: ${body.slice(0, 120)}`);
+      }
+
       const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
 
       // Step 2: Parse emails — only import from registered accounts
@@ -549,7 +555,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       const errStr = upsertErrors.length > 0 ? ` ⚠️ ${upsertErrors[0]}` : '';
       setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${errStr}`);
     } catch (e) {
-      setLastSync('Error al sincronizar');
+      const msg = e instanceof Error ? e.message : String(e);
+      setLastSync(`⚠️ ${msg.slice(0, 120)}`);
       console.error('Sync error:', e);
     } finally {
       setSyncing(false);

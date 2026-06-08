@@ -14,14 +14,17 @@ async function bootstrap() {
     'http://localhost:3000',
     'http://localhost:5173',
     'https://nexo-finanzas-tech-api.vercel.app',
+    'https://oriafintech.com',
+    'https://www.oriafintech.com',
   ];
   app.enableCors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin) || /\.vercel\.app$/.test(origin)) {
-        cb(null, true);
-      } else {
-        cb(null, false);
-      }
+      const allowed =
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        /\.vercel\.app$/.test(origin) ||
+        /oriafintech\.com$/.test(origin);
+      cb(null, allowed);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
