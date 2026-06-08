@@ -61,6 +61,35 @@ class ErrorBoundary extends React.Component<
   }
 }
 
+// ── Auto-update: reload when a new service worker takes control ───────────────
+// Flow: new deploy → Workbox detects new SW → skipWaiting() → clientsClaim()
+// → controllerchange fires here → brief toast → page reloads with new assets.
+if ('serviceWorker' in navigator) {
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+
+    // Show a brief "updating" banner so the reload doesn't feel like a crash
+    const banner = document.createElement('div');
+    banner.style.cssText = [
+      'position:fixed','top:0','left:0','right:0','z-index:99999',
+      'background:linear-gradient(90deg,#0D2137,#112035)',
+      'border-bottom:1px solid rgba(49,214,123,0.4)',
+      'padding:12px 20px','display:flex','align-items:center','gap:10px',
+      'font-family:system-ui,sans-serif',
+    ].join(';');
+    banner.innerHTML = `
+      <span style="font-size:18px">✨</span>
+      <span style="color:#31D67B;font-size:13px;font-weight:700">Actualizando ORIA…</span>
+      <span style="color:#94A3B8;font-size:12px">Nueva versión disponible</span>
+    `;
+    document.body.prepend(banner);
+
+    setTimeout(() => window.location.reload(), 1500);
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
     <App />
