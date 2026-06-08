@@ -124,12 +124,32 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 };
 
 const BANKS = [
-  { id:'bancolombia', name:'Bancolombia', icon:'🏦', color:'#FFCD00',
+  { id:'bancolombia',  name:'Bancolombia',         color:'#FFCD00',
     steps:['Ingresa a la app o web de Bancolombia','Ve a Cuentas → tu cuenta → Extracto','Selecciona el período','Descarga en formato Excel o CSV'] },
-  { id:'davivienda', name:'Davivienda',   icon:'🏦', color:'#E8192C',
+  { id:'davivienda',   name:'Davivienda',           color:'#E8192C',
     steps:['Ingresa a la app o web de Davivienda','Ve a Mis productos → tu cuenta → Extracto','Selecciona el período','Descarga en formato Excel o CSV'] },
-  { id:'nequi',      name:'Nequi',        icon:'📱', color:'#7B3FF2',
+  { id:'nequi',        name:'Nequi',                color:'#7B3FF2',
     steps:['Abre Nequi','Ve a Movimientos','Toca los tres puntos (⋮)','Exportar movimientos → CSV'] },
+  { id:'bogota',       name:'Banco de Bogotá',      color:'#003DA5',
+    steps:['Ingresa a Banca Virtual de Banco de Bogotá','Ve a Cuentas → Movimientos','Selecciona el período','Descarga en formato CSV o Excel'] },
+  { id:'bbva',         name:'BBVA',                 color:'#004B91',
+    steps:['Ingresa a BBVA Net Personal','Ve a Mis cuentas → Movimientos','Selecciona el período','Descarga en formato CSV'] },
+  { id:'itau',         name:'Itaú',                 color:'#EC7000',
+    steps:['Ingresa a la app o web de Itaú','Ve a Extractos','Selecciona el período','Descarga en formato CSV o Excel'] },
+  { id:'nubank',       name:'Nubank',               color:'#820AD1',
+    steps:['Abre la app Nubank','Ve a Tarjeta de crédito → Extracto','Selecciona el mes','Exportar en PDF o CSV'] },
+  { id:'lulo',         name:'Lulo Bank',            color:'#00C896',
+    steps:['Abre la app Lulo Bank','Ve a Movimientos','Toca Exportar','Descarga en CSV'] },
+  { id:'colpatria',    name:'Scotiabank Colpatria', color:'#EC111A',
+    steps:['Ingresa al portal de Scotiabank Colpatria','Ve a Mis productos → Extractos','Selecciona el período','Descarga en CSV o Excel'] },
+  { id:'popular',      name:'Banco Popular',        color:'#005BAA',
+    steps:['Ingresa a la Banca Virtual de Banco Popular','Ve a Cuentas → Movimientos','Selecciona el período','Descarga en CSV'] },
+  { id:'occidente',    name:'Banco de Occidente',   color:'#0072BC',
+    steps:['Ingresa a la Banca Virtual de Banco de Occidente','Ve a Cuentas → Extracto','Selecciona el período','Descarga en CSV o Excel'] },
+  { id:'rappipay',     name:'RappiPay',             color:'#FF441F',
+    steps:['Abre la app Rappi','Ve a RappiPay → Movimientos','Toca Exportar movimientos','Descarga en CSV'] },
+  { id:'otro',         name:'Otro banco',           color:'#6b7280',
+    steps:['Ingresa al portal web o app de tu banco','Busca Movimientos o Extracto de cuenta','Selecciona el período deseado','Descarga en formato CSV, Excel o TXT'] },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -210,6 +230,7 @@ function NotificationCard() {
 export function SettingsScreen({ userId }: { userId: string }) {
   const [tab, setTab]               = useState<'gmail'|'cuentas'|'csv'>('gmail');
   const [selectedBank, setSelectedBank] = useState<string|null>(null);
+  const [bankDropOpen, setBankDropOpen] = useState(false);
   const [imported, setImported]     = useState<Transaction[]>([]);
   const [csvStatus, setCsvStatus]   = useState<'idle'|'done'|'error'>('idle');
   const [csvError, setCsvError]     = useState('');
@@ -1144,20 +1165,59 @@ export function SettingsScreen({ userId }: { userId: string }) {
         {/* ── CSV TAB ── */}
         {tab === 'csv' && (
           <>
+            {/* Bank picker — dropdown grid */}
             <div>
               <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>SELECCIONA TU BANCO</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {BANKS.map(b => (
-                  <button key={b.id} onClick={() => { setSelectedBank(b.id); setCsvStatus('idle'); setImported([]); }}
-                    style={{ ...card, display:'flex', alignItems:'center', gap:12, padding:'14px 16px', cursor:'pointer',
-                      border: selectedBank===b.id ? `1px solid ${b.color}66` : `1px solid ${C.border}`,
-                      background: selectedBank===b.id ? `${b.color}0D` : C.surface, textAlign:'left' }}>
-                    <div style={{ width:40, height:40, borderRadius:12, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{b.icon}</div>
-                    <div style={{ color:C.text, fontSize:15, fontWeight:600 }}>{b.name}</div>
-                    {selectedBank===b.id && <div style={{ marginLeft:'auto', color:b.color, fontSize:18 }}>✓</div>}
-                  </button>
-                ))}
-              </div>
+
+              {/* Trigger */}
+              <button
+                onClick={() => setBankDropOpen(o => !o)}
+                style={{ width:'100%', ...card, display:'flex', alignItems:'center', gap:12,
+                  padding:'12px 14px', cursor:'pointer', textAlign:'left' }}>
+                {bank ? (
+                  <>
+                    <BankLogo institution={bank.name} size={38} borderRadius={10} />
+                    <span style={{ color:C.text, fontSize:15, fontWeight:600, flex:1 }}>{bank.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ width:38, height:38, borderRadius:10, background:C.surfaceEl,
+                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏦</div>
+                    <span style={{ color:C.textMuted, fontSize:14, flex:1 }}>Selecciona tu banco…</span>
+                  </>
+                )}
+                <span style={{ color:C.textMuted, fontSize:12,
+                  display:'inline-block',
+                  transform: bankDropOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s' }}>▼</span>
+              </button>
+
+              {/* Grid dropdown */}
+              {bankDropOpen && (
+                <div style={{ ...card, marginTop:6, padding:12 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+                    {BANKS.map(b => {
+                      const sel = selectedBank === b.id;
+                      return (
+                        <button key={b.id}
+                          onClick={() => { setSelectedBank(b.id); setBankDropOpen(false); setCsvStatus('idle'); setImported([]); }}
+                          style={{ padding:'10px 4px', borderRadius:12, cursor:'pointer', display:'flex',
+                            flexDirection:'column', alignItems:'center', gap:5,
+                            border:`1px solid ${sel ? b.color+'88' : C.border}`,
+                            background: sel ? `${b.color}18` : C.bg }}>
+                          <BankLogo institution={b.name} size={36} borderRadius={10} />
+                          <span style={{ color: sel ? C.text : C.textMuted, fontSize:8, fontWeight:600,
+                            lineHeight:1.2, textAlign:'center',
+                            overflow:'hidden', display:'-webkit-box',
+                            WebkitLineClamp:2, WebkitBoxOrient:'vertical' as never }}>
+                            {b.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {bank && (
