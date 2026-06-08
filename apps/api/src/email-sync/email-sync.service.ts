@@ -708,9 +708,9 @@ export class EmailSyncService {
     this.logger.log(`Backfill complete for user ${userId}`);
   }
 
-  // ─── Cron: sync all users every day at 6am and 8pm Colombia time (UTC-5) ──
+  // ─── Cron: sync all users every 2 hours ──────────────────────────────────
 
-  @Cron('0 11,19,1 * * *') // 06:00, 14:00 and 20:00 COT = 11:00, 19:00 and 01:00 UTC
+  @Cron('0 */2 * * *') // every 2 hours, 24/7
   async syncAllUsers(): Promise<void> {
     this.logger.log('Cron: starting Gmail sync for all connected users…');
 
