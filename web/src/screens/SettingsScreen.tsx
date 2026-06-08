@@ -154,6 +154,57 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     : {};
 }
 
+// ── NotificationCard ─────────────────────────────────────────────────────────
+
+function NotificationCard() {
+  const [perm, setPerm] = React.useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied',
+  );
+
+  async function requestPerm() {
+    if (typeof Notification === 'undefined') return;
+    const result = await Notification.requestPermission();
+    setPerm(result);
+    if (result === 'granted') {
+      new Notification('ORIA · Notificaciones activadas', {
+        body: 'Te avisaremos cuando se importen nuevos movimientos.',
+        icon: '/favicon.png',
+      });
+    }
+  }
+
+  const label = perm === 'granted' ? 'Activadas' : perm === 'denied' ? 'Bloqueadas por el navegador' : 'Desactivadas';
+  const color = perm === 'granted' ? C.accent : perm === 'denied' ? C.danger : C.textMuted;
+
+  return (
+    <div style={{ ...card }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:perm !== 'granted' ? 14 : 0 }}>
+        <div style={{ width:40, height:40, borderRadius:12, background:'rgba(59,130,246,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>🔔</div>
+        <div style={{ flex:1 }}>
+          <div style={{ color:C.text, fontSize:14, fontWeight:700 }}>Notificaciones</div>
+          <div style={{ color, fontSize:12, marginTop:2 }}>{label}</div>
+        </div>
+      </div>
+      {perm !== 'granted' && (
+        <button onClick={requestPerm} disabled={perm === 'denied'}
+          style={{ width:'100%', padding:'12px 0', borderRadius:12, border:'none',
+            background: perm === 'denied' ? C.surfaceEl : 'rgba(59,130,246,0.15)',
+            color: perm === 'denied' ? C.textMuted : C.primaryGlow,
+            fontSize:13, fontWeight:700, cursor: perm === 'denied' ? 'default' : 'pointer' }}>
+          {perm === 'denied'
+            ? 'Actívalas en Ajustes del navegador'
+            : '🔔 Activar notificaciones'}
+        </button>
+      )}
+      {perm === 'denied' && (
+        <div style={{ color:C.textMuted, fontSize:11, marginTop:10, lineHeight:1.5, textAlign:'center' }}>
+          Ve a Ajustes → Privacidad → Notificaciones y permite las de oriafintech.com
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SettingsScreen({ userId }: { userId: string }) {
@@ -726,6 +777,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 </div>
               ))}
             </div>
+
+            {/* Notifications */}
+            <NotificationCard />
           </>
         )}
 

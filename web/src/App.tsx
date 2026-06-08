@@ -9,7 +9,9 @@ import { AiChatScreen }         from './screens/AiChatScreen';
 import { SettingsScreen }       from './screens/SettingsScreen';
 import { AddTransactionScreen } from './screens/AddTransactionScreen';
 import { TabBar }               from './components/TabBar';
+import { SyncToast }            from './components/SyncToast';
 import { supabase }             from './lib/supabase';
+import { useAutoGmailSync }     from './hooks/useAutoGmailSync';
 
 type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai' | 'settings';
 
@@ -38,6 +40,12 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [screen]);
 
+  // Auto-sync Gmail on open and reload transactions when new ones arrive
+  const { newCount, clearCount } = useAutoGmailSync(
+    userId,
+    () => setTxReloadKey(k => k + 1),
+  );
+
   if (loading) {
     return (
     <div style={{ minHeight:'100vh', background:'#060D1A', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -64,6 +72,8 @@ export default function App() {
       {screen === 'settings'     && <SettingsScreen userId={userId} />}
 
       <TabBar active={screen} onTab={handleTab} />
+
+      {newCount > 0 && <SyncToast count={newCount} onDismiss={clearCount} />}
 
       {(screen === 'dashboard' || screen === 'transactions') && (
         <button
