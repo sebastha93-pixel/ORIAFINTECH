@@ -733,7 +733,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   🗑 Limpiar y re-sincronizar desde cero
                 </button>
                 <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
-                  ORIA sincroniza automáticamente 2 veces al día (6am y 8pm).
+                  ORIA sincroniza automáticamente cada 2 horas y al abrir la app.
                 </div>
 
                 {/* Diagnostic tool */}
