@@ -61,16 +61,17 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-// ── Auto-update: reload when a new service worker takes control ───────────────
-// Flow: new deploy → Workbox detects new SW → skipWaiting() → clientsClaim()
-// → controllerchange fires here → brief toast → page reloads with new assets.
+// ── Auto-update ───────────────────────────────────────────────────────────────
+// The browser only checks for a new SW every 24h by default.
+// registration.update() forces an immediate check on every app open,
+// bypassing the 24h rule → new deploy is picked up within seconds.
 if ('serviceWorker' in navigator) {
   let reloading = false;
+
+  // Step 2: when the new SW takes control → brief banner → reload
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloading) return;
     reloading = true;
-
-    // Show a brief "updating" banner so the reload doesn't feel like a crash
     const banner = document.createElement('div');
     banner.style.cssText = [
       'position:fixed','top:0','left:0','right:0','z-index:99999',
@@ -85,8 +86,21 @@ if ('serviceWorker' in navigator) {
       <span style="color:#94A3B8;font-size:12px">Nueva versión disponible</span>
     `;
     document.body.prepend(banner);
-
     setTimeout(() => window.location.reload(), 1500);
+  });
+
+  // Step 1: force SW update check on every app open + every time user returns to tab.
+  // This calls the browser's SW check immediately instead of waiting 24h.
+  function forceSwCheck() {
+    navigator.serviceWorker.ready
+      .then(reg => reg.update())
+      .catch(() => {});
+  }
+
+  forceSwCheck(); // run immediately on load
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') forceSwCheck();
   });
 }
 

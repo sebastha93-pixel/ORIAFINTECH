@@ -42,9 +42,22 @@ export default defineConfig({
       workbox: {
         skipWaiting: true,
         clientsClaim: true,
+        // Serve the app shell with NetworkFirst so the browser always gets
+        // the freshest HTML (critical for detecting new deploys on iOS).
+        navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ['**/*.{js,css,html,ico,svg,woff2}', 'icon-*.png', 'apple-touch-icon.png', 'favicon.png'],
         globIgnores: ['9E52A2AC*.png'],
         runtimeCaching: [
+          // App shell: NetworkFirst so updates are picked up even on iOS
+          {
+            urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'pages-cache',
+              networkTimeoutSeconds: 3,
+            },
+          },
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
             handler: 'NetworkFirst',
