@@ -27,13 +27,37 @@ function showOverlay(title: string, detail: string) {
   document.body.appendChild(div);
 }
 
+// Stale SW chunk: "Script error." with no detail = cross-origin import failure.
+// This happens when the SW activates with new assets but the old app shell tries
+// to import old chunk names that are no longer cached. Safest response: reload.
+function isChunkLoadError(msg: unknown, err: Error | null | undefined): boolean {
+  if (String(msg) === 'Script error.') return true;
+  if (err?.message?.includes('dynamically imported module')) return true;
+  if (err?.message?.includes('Failed to fetch')) return true;
+  if (err?.name === 'ChunkLoadError') return true;
+  return false;
+}
+
+let autoReloading = false;
+function safeReload() {
+  if (autoReloading) return;
+  // Prevent infinite reload loop: allow at most 2 auto-reloads per session
+  const reloads = parseInt(sessionStorage.getItem('_chunk_reloads') ?? '0', 10);
+  if (reloads >= 2) return; // give up and let the overlay show
+  sessionStorage.setItem('_chunk_reloads', String(reloads + 1));
+  autoReloading = true;
+  window.location.reload();
+}
+
 window.onerror = (_msg, _src, _line, _col, error) => {
+  if (isChunkLoadError(_msg, error)) { safeReload(); return true; }
   showOverlay('Error en la app', error ? `${error.name}: ${error.message}\n\n${error.stack ?? ''}` : String(_msg));
   return true;
 };
 
 window.addEventListener('unhandledrejection', (e) => {
   const err = e.reason;
+  if (isChunkLoadError(err?.message, err instanceof Error ? err : null)) { safeReload(); return; }
   const detail = err instanceof Error
     ? `${err.name}: ${err.message}\n\n${err.stack ?? ''}`
     : JSON.stringify(err, null, 2);
