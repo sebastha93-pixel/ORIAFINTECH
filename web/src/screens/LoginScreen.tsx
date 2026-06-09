@@ -23,41 +23,52 @@ export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (user
     setError('');
     setInfo('');
 
-    if (mode === 'login') {
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
-      if (err) { setError(translateError(err.message)); }
-      else if (data.user) { onLogin(data.user.id); }
+    try {
+      if (mode === 'login') {
+        const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) { setError(translateError(err.message)); }
+        else if (data.user) { onLogin(data.user.id); }
 
-    } else if (mode === 'register') {
-      const { data, error: err } = await supabase.auth.signUp({
-        email, password,
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (err) { setError(translateError(err.message)); }
-      else if (data.user?.identities?.length === 0) {
-        setError('Este correo ya está registrado. Inicia sesión.');
-      } else if (data.user) {
-        await supabase.from('profiles').insert({ id: data.user.id, email }).select().maybeSingle();
-        setInfo('✅ Cuenta creada. Revisa tu correo para confirmarla, luego inicia sesión.');
-        setMode('login');
+      } else if (mode === 'register') {
+        const { data, error: err } = await supabase.auth.signUp({
+          email, password,
+          options: { emailRedirectTo: window.location.origin },
+        });
+        if (err) {
+          setError(translateError(err.message));
+        } else if (data.user?.identities?.length === 0) {
+          setError('Este correo ya está registrado. Inicia sesión.');
+        } else if (data.user) {
+          setInfo('✅ Cuenta creada. Revisa tu correo para confirmarla, luego inicia sesión.');
+          setMode('login');
+        } else {
+          setError('No se pudo crear la cuenta. Intenta de nuevo.');
+        }
+
+      } else {
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}?reset=1`,
+        });
+        if (err) { setError(translateError(err.message)); }
+        else { setInfo('✅ Te enviamos un enlace para restablecer tu contraseña.'); }
       }
-
-    } else {
-      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}?reset=1`,
-      });
-      if (err) { setError(translateError(err.message)); }
-      else { setInfo('✅ Te enviamos un enlace para restablecer tu contraseña.'); }
+    } catch {
+      setError('Error de conexión. Verifica tu internet e intenta de nuevo.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   function translateError(msg: string): string {
-    if (/invalid.*credentials/i.test(msg)) return 'Correo o contraseña incorrectos.';
-    if (/email.*confirmed/i.test(msg))     return 'Confirma tu correo antes de iniciar sesión.';
-    if (/already.*registered/i.test(msg))  return 'Este correo ya está registrado.';
-    if (/password.*6/i.test(msg))          return 'La contraseña debe tener al menos 6 caracteres.';
+    if (/invalid.*credentials/i.test(msg))      return 'Correo o contraseña incorrectos.';
+    if (/email.*not.*confirmed/i.test(msg))      return 'Debes confirmar tu correo. Revisa tu bandeja de entrada.';
+    if (/email.*confirmed/i.test(msg))           return 'Debes confirmar tu correo. Revisa tu bandeja de entrada.';
+    if (/already.*registered/i.test(msg))        return 'Este correo ya está registrado. Inicia sesión.';
+    if (/user.*already.*registered/i.test(msg))  return 'Este correo ya está registrado. Inicia sesión.';
+    if (/password.*6/i.test(msg))                return 'La contraseña debe tener al menos 6 caracteres.';
+    if (/signup.*disabled/i.test(msg))           return 'El registro está temporalmente deshabilitado.';
+    if (/rate.*limit/i.test(msg))                return 'Demasiados intentos. Espera unos minutos.';
+    if (/network/i.test(msg))                    return 'Error de conexión. Verifica tu internet.';
     return msg;
   }
 
