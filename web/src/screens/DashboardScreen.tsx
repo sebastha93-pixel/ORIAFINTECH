@@ -97,42 +97,49 @@ export function DashboardScreen() {
   const [selectedTx, setSelectedTx]       = useState<TxDetail | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { setLoading(false); return; }
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) { setLoading(false); return; }
+        const user = session.user;
 
-      setUserName(firstName(user.email ?? '', user.user_metadata as Record<string, string>));
+        setUserName(firstName(user.email ?? '', user.user_metadata as Record<string, string>));
 
-      const { first, last, year, month } = currentMonthRange();
+        const { first, last, year, month } = currentMonthRange();
 
-      const [txnsRes, summariesRes, accountsRes] = await Promise.all([
-        supabase
-          .from('transactions')
-          .select('id, transaction_type, amount, description, date, notes, gmail_message_id')
-          .eq('user_id', user.id)
-          .gte('date', first)
-          .lte('date', last)
-          .order('date', { ascending: false }),
+        const [txnsRes, summariesRes, accountsRes] = await Promise.all([
+          supabase
+            .from('transactions')
+            .select('id, transaction_type, amount, description, date, notes, gmail_message_id')
+            .eq('user_id', user.id)
+            .gte('date', first)
+            .lte('date', last)
+            .order('date', { ascending: false }),
 
-        supabase
-          .from('monthly_summaries')
-          .select('year, month, total_income, total_expenses, net_savings')
-          .eq('user_id', user.id)
-          .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
-          .order('year', { ascending: false })
-          .order('month', { ascending: false }),
+          supabase
+            .from('monthly_summaries')
+            .select('year, month, total_income, total_expenses, net_savings')
+            .eq('user_id', user.id)
+            .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
+            .order('year', { ascending: false })
+            .order('month', { ascending: false }),
 
-        supabase
-          .from('accounts')
-          .select('account_type, initial_balance, credit_limit, institution, account_suffix, name')
-          .eq('user_id', user.id)
-          .eq('is_active', true),
-      ]);
+          supabase
+            .from('accounts')
+            .select('account_type, initial_balance, credit_limit, institution, account_suffix, name')
+            .eq('user_id', user.id)
+            .eq('is_active', true),
+        ]);
 
-      setCurrentTxns((txnsRes.data as Txn[]) ?? []);
-      setPrevSummaries((summariesRes.data as MonthlySummary[]) ?? []);
-      setAccounts((accountsRes.data as Account[]) ?? []);
-      setLoading(false);
-    });
+        setCurrentTxns((txnsRes.data as Txn[]) ?? []);
+        setPrevSummaries((summariesRes.data as MonthlySummary[]) ?? []);
+        setAccounts((accountsRes.data as Account[]) ?? []);
+      } catch (e) {
+        console.error('DashboardScreen load:', e);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const debitAccounts  = accounts.filter(a => a.account_type !== 'credit_card');

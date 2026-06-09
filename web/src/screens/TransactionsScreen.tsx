@@ -33,15 +33,21 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
 
   const loadTransactions = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-    const { data } = await supabase
-      .from('transactions')
-      .select('id, transaction_type, amount, description, date, notes, gmail_message_id, category')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false });
-    setTransactions((data as Txn[]) ?? []);
-    setLoading(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) { setLoading(false); return; }
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('id, transaction_type, amount, description, date, notes, gmail_message_id, category')
+        .eq('user_id', session.user.id)
+        .order('date', { ascending: false });
+      if (error) throw error;
+      setTransactions((data as Txn[]) ?? []);
+    } catch (e) {
+      console.error('loadTransactions:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   // Reload when mounted or when parent signals a new transaction was saved
