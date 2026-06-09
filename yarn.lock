@@ -1445,6 +1445,7 @@
   version "1.0.0"
   resolved "file:apps/api"
   dependencies:
+    "@anthropic-ai/sdk" "^0.102.0"
     "@nestjs/common" "^10.3.0"
     "@nestjs/config" "^3.1.1"
     "@nestjs/core" "^10.3.0"
@@ -5393,6 +5394,11 @@ hasown@^2.0.2, hasown@^2.0.3:
   integrity sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==
   dependencies:
     function-bind "^1.1.2"
+
+helmet@^8.2.0:
+  version "8.2.0"
+  resolved "https://registry.npmjs.org/helmet/-/helmet-8.2.0.tgz"
+  integrity sha512-DRgTIUgnWcJ62KyarxxziuqYxKGnR6Rgg19BlbucN/dpmJbl1XOit6qvoOX0ZT+HhWe5OUVhU/a1zpGyc1xA0Q==
 
 hermes-compiler@250829098.0.10:
   version "250829098.0.10"
