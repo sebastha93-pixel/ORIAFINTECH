@@ -61,47 +61,77 @@ class ErrorBoundary extends React.Component<
   }
 }
 
-// ── Auto-update ───────────────────────────────────────────────────────────────
-// The browser only checks for a new SW every 24h by default.
-// registration.update() forces an immediate check on every app open,
-// bypassing the 24h rule → new deploy is picked up within seconds.
-if ('serviceWorker' in navigator) {
-  let reloading = false;
+// ── Auto-update (definitive) ──────────────────────────────────────────────────
+// Two independent mechanisms so updates work on ALL devices including iOS:
+//
+// 1. version.json polling (primary): each build writes /version.json with a
+//    unique timestamp. This file is NEVER cached (NetworkOnly in SW). On every
+//    app open and tab-focus we fetch it and compare against localStorage. If the
+//    server version is newer → reload. This works even when the SW lifecycle
+//    is stuck or the browser refuses to update the SW.
+//
+// 2. SW controllerchange (secondary): when the service worker does update
+//    (skipWaiting + clientsClaim), we also trigger a reload here.
 
-  // Step 2: when the new SW takes control → brief banner → reload
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return;
-    reloading = true;
-    const banner = document.createElement('div');
-    banner.style.cssText = [
-      'position:fixed','top:0','left:0','right:0','z-index:99999',
-      'background:linear-gradient(90deg,#0D2137,#112035)',
-      'border-bottom:1px solid rgba(49,214,123,0.4)',
-      'padding:12px 20px','display:flex','align-items:center','gap:10px',
-      'font-family:system-ui,sans-serif',
-    ].join(';');
-    banner.innerHTML = `
-      <span style="font-size:18px">✨</span>
-      <span style="color:#31D67B;font-size:13px;font-weight:700">Actualizando ORIA…</span>
-      <span style="color:#94A3B8;font-size:12px">Nueva versión disponible</span>
-    `;
-    document.body.prepend(banner);
-    setTimeout(() => window.location.reload(), 1500);
-  });
+const ORIA_VERSION_KEY = 'oria_deployed_v';
+let reloading = false;
 
-  // Step 1: force SW update check on every app open + every time user returns to tab.
-  // This calls the browser's SW check immediately instead of waiting 24h.
-  function forceSwCheck() {
-    navigator.serviceWorker.ready
-      .then(reg => reg.update())
-      .catch(() => {});
+function showUpdateBannerAndReload() {
+  if (reloading) return;
+  reloading = true;
+  const banner = document.createElement('div');
+  banner.style.cssText = [
+    'position:fixed','top:0','left:0','right:0','z-index:99999',
+    'background:linear-gradient(90deg,#0D2137,#112035)',
+    'border-bottom:1px solid rgba(49,214,123,0.4)',
+    'padding:12px 20px','display:flex','align-items:center','gap:10px',
+    'font-family:system-ui,sans-serif',
+  ].join(';');
+  banner.innerHTML = `
+    <span style="font-size:18px">✨</span>
+    <span style="color:#31D67B;font-size:13px;font-weight:700">Actualizando ORIA…</span>
+    <span style="color:#94A3B8;font-size:12px">Nueva versión disponible</span>
+  `;
+  document.body.prepend(banner);
+  setTimeout(() => window.location.reload(), 1500);
+}
+
+// Mechanism 1 — version.json (works on ALL platforms, no SW required)
+async function checkVersionJson() {
+  try {
+    const res = await fetch('/version.json?_=' + Date.now(), {
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+    if (!res.ok) return;
+    const { v } = await res.json() as { v: number };
+    const stored = localStorage.getItem(ORIA_VERSION_KEY);
+    if (stored && stored !== String(v)) {
+      // A new build was deployed — update stored version and reload
+      localStorage.setItem(ORIA_VERSION_KEY, String(v));
+      showUpdateBannerAndReload();
+    } else {
+      localStorage.setItem(ORIA_VERSION_KEY, String(v));
+    }
+  } catch {
+    // Offline or network error — skip silently
   }
+}
 
-  forceSwCheck(); // run immediately on load
+checkVersionJson();                                        // on every app open
+setInterval(checkVersionJson, 60_000);                    // every 60 s while open
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') checkVersionJson(); // on tab focus
+});
 
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') forceSwCheck();
-  });
+// Mechanism 2 — SW controllerchange (belt-and-suspenders)
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', showUpdateBannerAndReload);
+
+  // Force SW to check for updates immediately (bypasses 24h browser rule)
+  navigator.serviceWorker.ready
+    .then(reg => reg.update())
+    .catch(() => {});
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
