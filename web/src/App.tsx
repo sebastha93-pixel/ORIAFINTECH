@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
 import { LandingScreen }        from './screens/LandingScreen';
 import { OriaLogo }             from './components/OriaLogo';
@@ -15,6 +15,8 @@ import { useAutoGmailSync }     from './hooks/useAutoGmailSync';
 
 type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai' | 'settings';
 
+const INACTIVITY_MS = 30 * 60 * 1000; // auto-logout after 30 min of inactivity
+
 export default function App() {
   const [userId, setUserId]       = useState<string | null>(null);
   const [loading, setLoading]     = useState(true);
@@ -22,6 +24,18 @@ export default function App() {
   const [showAdd, setShowAdd]     = useState(false);
   const [txReloadKey, setTxReloadKey] = useState(0);
   const [showLogin, setShowLogin] = useState<'login' | 'register' | false>(false);
+  const inactivityTimer           = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUserId(null);
+  }, []);
+
+  // Reset inactivity timer on any user interaction
+  const resetTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(signOut, INACTIVITY_MS);
+  }, [signOut]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -33,6 +47,18 @@ export default function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Auto-logout on inactivity — only while authenticated
+  useEffect(() => {
+    if (!userId) return;
+    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
+    resetTimer();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+  }, [userId, resetTimer]);
 
   useEffect(() => {
     document.documentElement.scrollTop = 0;

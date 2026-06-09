@@ -1,12 +1,19 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['log', 'error', 'warn'],
   });
+
+  // Security headers
+  app.use(helmet({
+    contentSecurityPolicy: false, // handled by Vercel on the frontend
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   // CORS
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? [

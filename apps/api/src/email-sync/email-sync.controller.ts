@@ -41,7 +41,9 @@ const successHtml = (email: string, userId: string, count: number, frontendUrl: 
   <script>
     function notify() {
       if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({ type: 'nexo_gmail_connected', email: '${email}', userId: '${userId}', count: ${count} }, '*');
+        const allowed = ['https://oriafintech.com','https://www.oriafintech.com','http://localhost:5173'];
+        const target  = allowed.includes(window.opener.location.origin) ? window.opener.location.origin : allowed[0];
+        window.opener.postMessage({ type: 'nexo_gmail_connected', email: '${email}', userId: '${userId}', count: ${count} }, target);
         window.close();
       } else {
         window.location.href = '${frontendUrl}?gmail=connected&email=${encodeURIComponent(email)}&count=${count}';

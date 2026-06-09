@@ -21,7 +21,11 @@ import { AdminModule } from './admin/admin.module';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     ScheduleModule.forRoot(),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
+    ThrottlerModule.forRoot([
+      { name: 'short',  ttl: 1000,   limit: 10  }, // max 10 req/s burst
+      { name: 'medium', ttl: 60000,  limit: 100 }, // max 100 req/min
+      { name: 'long',   ttl: 900000, limit: 300 }, // max 300 req/15min
+    ]),
     SupabaseModule,
     AuthModule,
     UsersModule,
