@@ -1318,6 +1318,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
           style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.2)`, background:'transparent', color:C.textMuted, fontSize:14, fontWeight:600, cursor:'pointer' }}>
           🗑️ Borrar todo y empezar desde cero
         </button>
+        <UpdateButton />
         <button
           onClick={() => { localStorage.removeItem('nexo_gmail_connected'); localStorage.removeItem('nexo_gmail_email'); supabase.auth.signOut(); }}
           style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.3)`, background:'rgba(239,68,68,0.07)', color:C.danger, fontSize:15, fontWeight:700, cursor:'pointer' }}>
@@ -1325,5 +1326,48 @@ export function SettingsScreen({ userId }: { userId: string }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function UpdateButton() {
+  const [status, setStatus] = useState<'idle' | 'checking' | 'latest' | 'updating'>('idle');
+
+  async function checkNow() {
+    setStatus('checking');
+    try {
+      const res = await fetch('/version.json?_=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('network');
+      const { v } = await res.json() as { v: number };
+      const stored = localStorage.getItem('oria_deployed_v');
+      if (stored && stored !== String(v)) {
+        localStorage.setItem('oria_deployed_v', String(v));
+        setStatus('updating');
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        localStorage.setItem('oria_deployed_v', String(v));
+        setStatus('latest');
+        setTimeout(() => setStatus('idle'), 3000);
+      }
+    } catch {
+      setStatus('idle');
+    }
+  }
+
+  const label =
+    status === 'checking' ? '⏳ Verificando…'  :
+    status === 'latest'   ? '✅ Ya tienes la última versión' :
+    status === 'updating' ? '✨ Aplicando actualización…'   :
+    '🔄 Verificar actualizaciones';
+
+  return (
+    <button
+      onClick={checkNow}
+      disabled={status !== 'idle'}
+      style={{ width:'100%', padding:'14px 0', borderRadius:14,
+        border:'1px solid rgba(59,130,246,0.25)', background:'rgba(59,130,246,0.07)',
+        color: status === 'latest' ? C.accent : C.primaryGlow,
+        fontSize:14, fontWeight:600, cursor: status === 'idle' ? 'pointer' : 'default' }}>
+      {label}
+    </button>
   );
 }
