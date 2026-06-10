@@ -22,7 +22,8 @@ export function TabBar({ active, onTab }: Props) {
       width:'100%', maxWidth:480,
       background:C.surface, borderTop:`1px solid ${C.border}`,
       display:'flex', justifyContent:'space-around', alignItems:'center',
-      height:72, paddingBottom:8, zIndex:100,
+      height:'calc(72px + env(safe-area-inset-bottom))',
+      paddingBottom:'max(8px, env(safe-area-inset-bottom))', zIndex:100,
     }}>
       {TABS.map(t=>{
         const isActive = active === t.id;

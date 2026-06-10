@@ -57,7 +57,7 @@ export function GoalsScreen({ userId }: { userId: string }) {
   const overallPct  = totalTarget > 0 ? Math.round((totalSaved / totalTarget) * 100) : 0;
 
   return (
-    <div style={{ paddingBottom: 100 }}>
+    <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
       <div style={{ background: 'linear-gradient(160deg,#102040,#081426)', padding: '48px 20px 24px' }}>
         <div style={{ color: C.text, fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Metas financieras</div>
         <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>Tu progreso hacia la libertad</div>
@@ -294,14 +294,14 @@ function NewGoalModal({ userId, onClose, onSaved }: { userId: string; onClose: (
         <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>MONTO OBJETIVO</div>
         <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
           <span style={{ color: C.textMuted }}>$</span>
-          <input type="number" placeholder="0" value={target} onChange={e => setTarget(e.target.value)}
+          <input type="number" inputMode="decimal" placeholder="0" value={target} onChange={e => setTarget(e.target.value)}
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
         </div>
 
         <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>APORTE MENSUAL (opcional)</div>
         <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
           <span style={{ color: C.textMuted }}>$</span>
-          <input type="number" placeholder="0" value={monthly} onChange={e => setMonthly(e.target.value)}
+          <input type="number" inputMode="decimal" placeholder="0" value={monthly} onChange={e => setMonthly(e.target.value)}
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
         </div>
 
@@ -387,14 +387,14 @@ function EditGoalModal({ goal, userId, onClose, onSaved }: { goal: Goal; userId:
         <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>MONTO OBJETIVO</div>
         <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
           <span style={{ color: C.textMuted }}>$</span>
-          <input type="number" placeholder="0" value={target} onChange={e => setTarget(e.target.value)}
+          <input type="number" inputMode="decimal" placeholder="0" value={target} onChange={e => setTarget(e.target.value)}
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
         </div>
 
         <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 6 }}>APORTE MENSUAL (opcional)</div>
         <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 50, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
           <span style={{ color: C.textMuted }}>$</span>
-          <input type="number" placeholder="0" value={monthly} onChange={e => setMonthly(e.target.value)}
+          <input type="number" inputMode="decimal" placeholder="0" value={monthly} onChange={e => setMonthly(e.target.value)}
             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }} />
         </div>
 
@@ -474,7 +474,7 @@ function AddContribModal({ goal, userId, onClose, onSaved }: { goal: Goal; userI
         <div style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
             <span style={{ color: C.textMuted, fontSize: 24 }}>$</span>
-            <input type="number" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)}
+            <input type="number" inputMode="decimal" placeholder="0" value={amount} onChange={e => setAmount(e.target.value)}
               style={{ background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 42, fontWeight: 800, width: '100%', textAlign: 'center' }} />
           </div>
           <div style={{ height: 2, background: `linear-gradient(90deg,transparent,${color},transparent)`, marginTop: 8 }} />

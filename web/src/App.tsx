@@ -105,7 +105,7 @@ export default function App() {
         <button
           onClick={() => setShowAdd(true)}
           style={{
-            position:'fixed', bottom:90, right:20,
+            position:'fixed', bottom:'calc(90px + env(safe-area-inset-bottom))', right:20,
             width:52, height:52, borderRadius:16, border:'none',
             background:'linear-gradient(135deg,#31D67B,#22A85A)',
             color:'#fff', fontSize:26, cursor:'pointer', zIndex:200,

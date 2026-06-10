@@ -165,7 +165,7 @@ export function DashboardScreen() {
     : 0;
 
   return (
-    <div style={{ paddingBottom: 100 }}>
+    <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
       <div style={{ background: gradHero, padding:'48px 20px 20px' }}>
