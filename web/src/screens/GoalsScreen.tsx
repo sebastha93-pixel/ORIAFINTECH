@@ -97,6 +97,13 @@ export function GoalsScreen({ userId }: { userId: string }) {
             const remaining = Math.max(0, Number(g.target_amount) - Number(g.current_amount));
             const monthly   = Number(g.monthly_contribution ?? 0);
             const months    = monthly > 0 ? Math.ceil(remaining / monthly) : null;
+            // Fecha estimada de cumplimiento al ritmo de aporte actual
+            const etaDate   = months !== null && months > 0
+              ? new Date(new Date().setMonth(new Date().getMonth() + months))
+                  .toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })
+              : null;
+            // Hito alcanzado más reciente (25 / 50 / 75 / 100)
+            const milestone = pct >= 100 ? 100 : pct >= 75 ? 75 : pct >= 50 ? 50 : pct >= 25 ? 25 : null;
             const tm        = TYPE_META[g.goal_type] ?? TYPE_META.other;
             const color     = g.color || tm.color;
             const icon      = g.icon  || tm.icon;
@@ -124,14 +131,35 @@ export function GoalsScreen({ userId }: { userId: string }) {
 
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color, fontSize: 12, fontWeight: 700 }}>{fmt(Number(g.current_amount))} ahorrado</span>
-                  <span style={{ color: C.textMuted, fontSize: 11 }}>Faltan {fmt(remaining)}</span>
+                  <span style={{ color: C.textMuted, fontSize: 11 }}>
+                    {pct >= 100 ? '¡Completada!' : etaDate ? `Llegas en ${etaDate}` : `Faltan ${fmt(remaining)}`}
+                  </span>
                 </div>
+
+                {/* Celebración de hitos */}
+                {milestone !== null && (
+                  <div style={{
+                    marginTop: 12, padding: '10px 14px', borderRadius: 12,
+                    background: milestone === 100 ? `${color}22` : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${milestone === 100 ? color : C.border}`,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <span style={{ fontSize: 18 }}>{milestone === 100 ? '🎉' : milestone >= 75 ? '🔥' : milestone >= 50 ? '💪' : '🌱'}</span>
+                    <span style={{ color: milestone === 100 ? color : C.textSec, fontSize: 12.5, fontWeight: 600 }}>
+                      {milestone === 100 ? `¡Lo lograste! Alcanzaste «${g.name}»`
+                        : milestone >= 75 ? 'Recta final: superaste el 75% de tu meta'
+                        : milestone >= 50 ? 'Mitad del camino recorrida'
+                        : 'Primer hito: 25% completado'}
+                    </span>
+                  </div>
+                )}
 
                 {isSel && (
                   <div style={{ marginTop: 16, borderTop: `1px solid ${C.border}`, paddingTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                     <Stat label="Tipo" value={tm.label} color={color} />
                     {monthly > 0 && <Stat label="Aporte mensual" value={fmt(monthly)} color={color} />}
                     {months !== null && <Stat label="Meses restantes" value={`${months} meses`} color={color} />}
+                    {etaDate && <Stat label="Fecha estimada" value={etaDate} color={color} />}
                     {g.target_date && (
                       <Stat label="Fecha límite"
                         value={new Date(g.target_date + 'T12:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}

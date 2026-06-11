@@ -1,62 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { C, fmt, card, gradHero } from '../theme';
-import { GOALS } from '../mockData';
-import { supabase } from '../lib/supabase';
-import { TransactionDetailSheet, type TxDetail } from '../components/TransactionDetailSheet';
+import {
+  loadFinanceSnapshot, computeMetrics, computeOriaScore,
+  type FinanceSnapshot, type Metrics, type OriaScore,
+} from '../lib/finance';
+import { ScoreRing } from '../components/ScoreRing';
 
-interface Txn {
-  id: string;
-  transaction_type: 'income' | 'expense';
-  amount: number;
-  description: string | null;
-  date: string;
-  notes?: string | null;
-  gmail_message_id?: string | null;
-}
-
-interface MonthlySummary {
-  year: number;
-  month: number;
-  total_income: number;
-  total_expenses: number;
-  net_savings: number;
-}
-
-interface Account {
-  account_type: string;
-  initial_balance: number | null;
-  credit_limit: number | null;
-  institution: string;
-  account_suffix: string | null;
-  name: string;
-}
-
-function txIcon(t: Txn): string {
-  const d = (t.description ?? '').toLowerCase();
-  if (t.transaction_type === 'income') return '💰';
-  if (/éxito|carulla|jumbo|d1|ara|supermercad|alkosto/i.test(d)) return '🛒';
-  if (/restaurante|comida|rappi|ifood|mcdonald|kfc/i.test(d)) return '🍽️';
-  if (/gasolina|terpel|primax|biomax/i.test(d)) return '⛽';
-  if (/uber|taxi|didi|cabify|sitp/i.test(d)) return '🚗';
-  if (/netflix|spotify|disney|hbo|cine/i.test(d)) return '🎬';
-  if (/farmacia|droguería|salud|clínica/i.test(d)) return '💊';
-  if (/arriendo|renta/i.test(d)) return '🏠';
-  if (/retiro|cajero/i.test(d)) return '🏧';
-  return '💳';
-}
-
-function txCategory(t: Txn): string {
-  const d = (t.description ?? '').toLowerCase();
-  if (t.transaction_type === 'income') return 'Ingreso';
-  if (/éxito|carulla|jumbo|d1|ara|supermercad|alkosto/i.test(d)) return 'Alimentación';
-  if (/restaurante|comida|rappi|ifood/i.test(d)) return 'Restaurante';
-  if (/gasolina|terpel|primax|biomax/i.test(d)) return 'Gasolina';
-  if (/uber|taxi|didi|cabify|sitp/i.test(d)) return 'Transporte';
-  if (/netflix|spotify|disney|hbo|cine/i.test(d)) return 'Entretenimiento';
-  if (/farmacia|droguería|salud|clínica/i.test(d)) return 'Salud';
-  if (/arriendo|renta/i.test(d)) return 'Vivienda';
-  return 'Otros';
-}
+// 🏠 INICIO — ¿Cómo voy hoy?
+// Exactly 5 elements: Patrimonio · Score · Recomendación · Meta principal · Resumen del mes.
+// Understandable in under 5 seconds.
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -65,392 +17,184 @@ function greeting(): string {
   return 'Buenas noches';
 }
 
-function firstName(email: string, meta?: Record<string, string>): string {
-  const full = meta?.full_name || meta?.name || '';
-  if (full) return full.split(' ')[0];
-  return (email.split('@')[0] ?? '').split('.')[0].replace(/\d/g, '');
-}
-
-function fmtShort(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1).replace('.0', '')}M`;
-  if (n >= 1_000)     return `$${Math.round(n / 1_000)}k`;
-  return fmt(n);
-}
-
-function currentMonthRange() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth() + 1;
-  return {
-    first: `${y}-${String(m).padStart(2, '0')}-01`,
-    last:  new Date(y, m, 0).toISOString().slice(0, 10),
-    year: y, month: m,
-  };
-}
-
-export function DashboardScreen() {
-  const [currentTxns, setCurrentTxns]     = useState<Txn[]>([]);
-  const [prevSummaries, setPrevSummaries] = useState<MonthlySummary[]>([]);
-  const [accounts, setAccounts]           = useState<Account[]>([]);
-  const [userName, setUserName]           = useState('');
-  const [loading, setLoading]             = useState(true);
-  const [selectedTx, setSelectedTx]       = useState<TxDetail | null>(null);
+export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) => void }) {
+  const [snap, setSnap]         = useState<FinanceSnapshot | null>(null);
+  const [loading, setLoading]   = useState(true);
+  const [showScore, setShowScore] = useState(false);
 
   useEffect(() => {
     (async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) { setLoading(false); return; }
-        const user = session.user;
-
-        setUserName(firstName(user.email ?? '', user.user_metadata as Record<string, string>));
-
-        const { first, last, year, month } = currentMonthRange();
-
-        const [txnsRes, summariesRes, accountsRes] = await Promise.all([
-          supabase
-            .from('transactions')
-            .select('id, transaction_type, amount, description, date, notes, gmail_message_id')
-            .eq('user_id', user.id)
-            .gte('date', first)
-            .lte('date', last)
-            .order('date', { ascending: false }),
-
-          supabase
-            .from('monthly_summaries')
-            .select('year, month, total_income, total_expenses, net_savings')
-            .eq('user_id', user.id)
-            .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
-            .order('year', { ascending: false })
-            .order('month', { ascending: false }),
-
-          supabase
-            .from('accounts')
-            .select('account_type, initial_balance, credit_limit, institution, account_suffix, name')
-            .eq('user_id', user.id)
-            .eq('is_active', true),
-        ]);
-
-        setCurrentTxns((txnsRes.data as Txn[]) ?? []);
-        setPrevSummaries((summariesRes.data as MonthlySummary[]) ?? []);
-        setAccounts((accountsRes.data as Account[]) ?? []);
-      } catch (e) {
-        console.error('DashboardScreen load:', e);
-      } finally {
-        setLoading(false);
-      }
+      try { setSnap(await loadFinanceSnapshot()); }
+      catch (e) { console.error('DashboardScreen load:', e); }
+      finally { setLoading(false); }
     })();
   }, []);
 
-  const debitAccounts  = accounts.filter(a => a.account_type !== 'credit_card');
-  const creditAccounts = accounts.filter(a => a.account_type === 'credit_card');
-  const debitBase  = debitAccounts.reduce((s, a) => s + Number(a.initial_balance ?? 0), 0);
-  const creditDebt = creditAccounts.reduce((s, a) => s + Number(a.initial_balance ?? 0), 0);
+  if (loading) {
+    return (
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMuted, fontSize: 14 }}>
+        Preparando tu día financiero…
+      </div>
+    );
+  }
+  if (!snap) return null;
 
-  const prevNet    = prevSummaries.reduce((s, m) => s + (Number(m.total_income) - Number(m.total_expenses)), 0);
-  const curIncome  = currentTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
-  const curExpense = currentTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
-  const curNet     = curIncome - curExpense;
-  const totalAssets = debitBase + prevNet + curNet;
-  const netWorth    = totalAssets - creditDebt;
+  const m: Metrics       = computeMetrics(snap);
+  const score: OriaScore = computeOriaScore(snap, m);
 
-  const hasCC       = creditAccounts.length > 0;
-  const totalDebt   = creditDebt;
-  const maxUtil     = creditAccounts.length > 0
-    ? Math.max(...creditAccounts.map(a => {
-        const d = Number(a.initial_balance ?? 0);
-        const l = Number(a.credit_limit ?? 0);
-        return l > 0 ? Math.round((d / l) * 100) : 0;
-      }))
-    : 0;
+  // Main goal = closest to completion (most motivating)
+  const mainGoal = [...snap.goals].sort((a, b) => {
+    const pa = Number(a.target_amount) > 0 ? Number(a.current_amount) / Number(a.target_amount) : 0;
+    const pb = Number(b.target_amount) > 0 ? Number(b.current_amount) / Number(b.target_amount) : 0;
+    return pb - pa;
+  })[0];
+
+  const savingsRate = m.curIncome > 0 ? Math.round((m.curNet / m.curIncome) * 100) : null;
 
   return (
     <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
 
-      {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <div style={{ background: gradHero, padding:'48px 20px 20px' }}>
-
-        {/* Greeting row */}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:16 }}>
-          <div>
-            <div style={{ color:C.textMuted, fontSize:12, marginBottom:2 }}>
-              {greeting()}{userName ? `, ${userName.charAt(0).toUpperCase() + userName.slice(1).toLowerCase()}` : ''}
-            </div>
-            <div style={{ color:C.text, fontSize:22, fontWeight:800, letterSpacing:-0.5 }}>Mi Finanzas</div>
-          </div>
-          <div style={{ background:'rgba(255,255,255,0.07)', borderRadius:10, padding:'5px 12px' }}>
-            <div style={{ color:C.textMuted, fontSize:11, textTransform:'capitalize' }}>
-              {new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
-            </div>
-          </div>
+      {/* ── 1 · PATRIMONIO NETO (hero) ── */}
+      <div style={{ background: gradHero, padding: '48px 20px 22px' }}>
+        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 18 }}>
+          {greeting()}{snap.userName ? `, ${snap.userName.charAt(0).toUpperCase()}${snap.userName.slice(1).toLowerCase()}` : ''} 👋
         </div>
 
-        {/* Patrimonio neto banner */}
-        <div style={{
-          background:'linear-gradient(135deg, rgba(59,130,246,0.18), rgba(59,130,246,0.06))',
-          border:'1px solid rgba(59,130,246,0.3)', borderRadius:18, padding:'16px 18px', marginBottom:14,
-        }}>
-          <div style={{ color:'rgba(148,163,184,0.9)', fontSize:10, fontWeight:700, letterSpacing:1, marginBottom:6 }}>
-            {hasCC ? 'PATRIMONIO NETO' : 'BALANCE TOTAL'}
+        <div
+          onClick={() => onNavigate?.('patrimony')}
+          style={{ cursor: 'pointer' }}>
+          <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>
+            PATRIMONIO NETO
           </div>
-          <div style={{ color: netWorth >= 0 ? '#e2e8f0' : C.danger, fontSize:34, fontWeight:800, letterSpacing:-1.5, marginBottom: hasCC ? 12 : 0 }}>
-            {fmt(netWorth)}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ color: m.netWorth >= 0 ? C.text : C.danger, fontSize: 36, fontWeight: 800, letterSpacing: -1.5 }}>
+              {fmt(m.netWorth)}
+            </span>
+            <span style={{ color: C.textMuted, fontSize: 13 }}>Ver evolución ›</span>
           </div>
-          {hasCC && (
-            <div style={{ display:'flex', alignItems:'center', gap:20 }}>
-              <div>
-                <div style={{ color:'rgba(148,163,184,0.7)', fontSize:10, marginBottom:2 }}>Activos</div>
-                <div style={{ color:C.accent, fontSize:15, fontWeight:700 }}>{fmt(totalAssets)}</div>
-              </div>
-              <div style={{ color:'rgba(148,163,184,0.3)', fontSize:18, fontWeight:300 }}>−</div>
-              <div>
-                <div style={{ color:'rgba(148,163,184,0.7)', fontSize:10, marginBottom:2 }}>Deuda TC</div>
-                <div style={{ color:C.danger, fontSize:15, fontWeight:700 }}>{fmt(totalDebt)}</div>
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* Account chips */}
-        {accounts.length > 0 && (
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {debitAccounts.map((a, i) => (
-              <div key={i} style={{
-                display:'inline-flex', alignItems:'center', gap:5,
-                background:'rgba(59,130,246,0.12)', border:'1px solid rgba(59,130,246,0.25)',
-                borderRadius:20, padding:'5px 11px',
-              }}>
-                <span style={{ fontSize:12 }}>🏦</span>
-                <span style={{ color:'#3b82f6', fontSize:11, fontWeight:600 }}>
-                  {a.institution.split(' ')[0]} {fmtShort(Number(a.initial_balance ?? 0))}
-                </span>
-              </div>
-            ))}
-            {creditAccounts.map((a, i) => (
-              <div key={i} style={{
-                display:'inline-flex', alignItems:'center', gap:5,
-                background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)',
-                borderRadius:20, padding:'5px 11px',
-              }}>
-                <span style={{ fontSize:12 }}>💳</span>
-                <span style={{ color:C.danger, fontSize:11, fontWeight:600 }}>
-                  TC -{fmtShort(Number(a.initial_balance ?? 0))}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* ── BODY ──────────────────────────────────────────────────────── */}
-      <div style={{ padding:'16px 16px', display:'flex', flexDirection:'column', gap:20 }}>
+      <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-        {/* Month summary */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          {[
-            { label:'Ingresos del mes', value:curIncome,  color:C.accent },
-            { label:'Gastos del mes',   value:curExpense, color:C.danger },
-          ].map(s => (
-            <div key={s.label} style={{ ...card, textAlign:'center', padding:14 }}>
-              <div style={{ color:s.color, fontSize:20, fontWeight:800 }}>{fmt(s.value)}</div>
-              <div style={{ color:C.textMuted, fontSize:10, marginTop:4 }}>{s.label}</div>
+        {/* ── 2 · SALUD FINANCIERA (Score ORIA) ── */}
+        <div
+          onClick={() => setShowScore(v => !v)}
+          style={{ ...card, display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}>
+          <ScoreRing score={score.total} color={score.color} />
+          <div style={{ flex: 1 }}>
+            <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 3 }}>
+              SALUD FINANCIERA
             </div>
-          ))}
-        </div>
-
-        {/* Credit utilization — styled like mockup */}
-        {creditAccounts.length > 0 && (
-          <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-              <div style={{ color:'#F8FAFC', fontSize:16, fontWeight:700 }}>Uso de tarjetas</div>
-              {maxUtil > 0 && (
-                <span style={{
-                  background: maxUtil >= 80 ? 'rgba(239,68,68,0.2)' : maxUtil >= 50 ? 'rgba(245,158,11,0.2)' : 'rgba(49,214,123,0.15)',
-                  border: `1px solid ${maxUtil >= 80 ? 'rgba(239,68,68,0.4)' : maxUtil >= 50 ? 'rgba(245,158,11,0.4)' : 'rgba(49,214,123,0.3)'}`,
-                  borderRadius:20, padding:'3px 10px', fontSize:10, fontWeight:700,
-                  color: maxUtil >= 80 ? C.danger : maxUtil >= 50 ? '#f59e0b' : C.accent,
-                }}>
-                  {maxUtil}% utilizado
-                </span>
-              )}
-            </div>
-            <div style={{ ...card }}>
-              {creditAccounts.map((a, i) => {
-                const debt  = Number(a.initial_balance ?? 0);
-                const limit = Number(a.credit_limit ?? 0);
-                const pct   = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
-                const col   = pct == null ? C.textMuted : pct >= 80 ? C.danger : pct >= 50 ? '#f59e0b' : C.accent;
-                return (
-                  <div key={i} style={{
-                    paddingTop: i > 0 ? 14 : 0,
-                    marginTop:  i > 0 ? 14 : 0,
-                    borderTop:  i > 0 ? `1px solid ${C.border}` : 'none',
-                  }}>
-                    <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, marginBottom:5 }}>
-                      {a.institution} ****{a.account_suffix}
-                    </div>
-                    <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, marginBottom:5 }}>
-                      <span style={{ color:col, fontWeight:700 }}>{fmt(debt)} usado</span>
-                      <span style={{ color:C.textMuted }}>Cupo: {limit > 0 ? fmt(limit) : '—'}</span>
-                    </div>
-                    {pct != null ? (
-                      <div style={{ height:6, background:C.border, borderRadius:99, overflow:'hidden' }}>
-                        <div style={{ width:`${pct}%`, height:'100%', background:col, borderRadius:99 }} />
-                      </div>
-                    ) : (
-                      <div style={{ color:C.textMuted, fontSize:10 }}>Registra el cupo en Configuración para ver la utilización</div>
-                    )}
-                  </div>
-                );
-              })}
+            <div style={{ color: score.color, fontSize: 19, fontWeight: 800, marginBottom: 3 }}>{score.label}</div>
+            <div style={{ color: C.textMuted, fontSize: 12 }}>
+              {showScore ? 'Toca para ocultar el detalle' : 'Toca para ver cómo se calcula'}
             </div>
           </div>
-        )}
+          <span style={{ color: C.border, fontSize: 18 }}>{showScore ? '▴' : '▾'}</span>
+        </div>
 
-        {/* Previous month closings */}
-        {prevSummaries.length > 0 && (
-          <Section title="Cierres anteriores">
-            <div style={{ ...card }}>
-              {prevSummaries.slice(0, 4).map((s, i) => {
-                const net = Number(s.total_income) - Number(s.total_expenses);
-                const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-                const isLast = i >= Math.min(prevSummaries.length, 4) - 1;
-                return (
-                  <div key={`${s.year}-${s.month}`} style={{
-                    display:'flex', alignItems:'center', justifyContent:'space-between',
-                    paddingBottom: isLast ? 0 : 10, marginBottom: isLast ? 0 : 10,
-                    borderBottom: isLast ? 'none' : `1px solid ${C.border}`,
-                  }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                      <div style={{ width:36, height:36, borderRadius:10,
-                        background: net >= 0 ? 'rgba(49,214,123,0.15)' : 'rgba(239,68,68,0.15)',
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
-                        {net >= 0 ? '📈' : '📉'}
-                      </div>
-                      <div>
-                        <div style={{ color:C.text, fontSize:13, fontWeight:600 }}>{MONTHS[s.month - 1]} {s.year}</div>
-                        <div style={{ color:C.textMuted, fontSize:10 }}>↑{fmt(Number(s.total_income))} · ↓{fmt(Number(s.total_expenses))}</div>
-                      </div>
-                    </div>
-                    <div style={{ color: net >= 0 ? C.accent : C.danger, fontSize:13, fontWeight:700 }}>
-                      {net >= 0 ? '+' : ''}{fmt(net)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
-        )}
-
-        {/* Spending by category */}
-        <Section title="Flujo por categoría">
-          {curExpense === 0
-            ? <Empty icon="📊" text="Los gastos del mes aparecerán aquí automáticamente" />
-            : (() => {
-                const bycat: Record<string, number> = {};
-                currentTxns.filter(t => t.transaction_type === 'expense').forEach(t => {
-                  const cat = txCategory(t);
-                  bycat[cat] = (bycat[cat] ?? 0) + Number(t.amount);
-                });
-                const colors = C.chart;
-                return (
-                  <div style={{ ...card }}>
-                    {Object.entries(bycat).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([name, amt], i) => (
-                      <div key={name} style={{ display:'flex', alignItems:'center', gap:10, marginBottom:i<4?12:0 }}>
-                        <div style={{ width:10, height:10, borderRadius:'50%', background:colors[i % colors.length], flexShrink:0 }} />
-                        <div style={{ flex:1, fontSize:13, color:C.textSec }}>{name}</div>
-                        <div style={{ flex:2, height:6, background:C.border, borderRadius:3, overflow:'hidden' }}>
-                          <div style={{ width:`${Math.round((amt/curExpense)*100)}%`, height:'100%', background:colors[i % colors.length], borderRadius:3 }} />
-                        </div>
-                        <div style={{ color:C.text, fontSize:12, fontWeight:600, minWidth:80, textAlign:'right' }}>{fmt(amt)}</div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()
-          }
-        </Section>
-
-        {/* Goals */}
-        <Section title="Metas activas" action={GOALS.length ? 'Ver todas' : undefined}>
-          {GOALS.length === 0
-            ? <Empty icon="🎯" text="Crea tu primera meta financiera en la sección Metas" />
-            : GOALS.slice(0,2).map((g: any) => {
-                const pct = Math.round((g.saved/g.target)*100);
-                return (
-                  <div key={g.id} style={{ ...card, marginBottom:10 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12 }}>
-                      <div style={{ width:42, height:42, borderRadius:12, background:`${g.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{g.icon}</div>
-                      <div style={{ flex:1 }}>
-                        <div style={{ color:C.text, fontSize:14, fontWeight:600 }}>{g.name}</div>
-                        <div style={{ color:C.textMuted, fontSize:11 }}>Meta: {fmt(g.target)}</div>
-                      </div>
-                      <div style={{ color:g.color, fontSize:16, fontWeight:800 }}>{pct}%</div>
-                    </div>
-                    <div style={{ height:6, background:C.border, borderRadius:3, overflow:'hidden' }}>
-                      <div style={{ width:`${pct}%`, height:'100%', background:g.color, borderRadius:3 }} />
-                    </div>
-                  </div>
-                );
-              })
-          }
-        </Section>
-
-        {/* Recent transactions */}
-        <Section title="Movimientos recientes">
-          {loading
-            ? <Empty icon="⏳" text="Cargando…" />
-            : currentTxns.length === 0
-              ? <Empty icon="💸" text="Ve a Configurar y conecta Gmail para importar movimientos" />
-              : <div style={{ ...card }}>
-                  {currentTxns.slice(0,5).map((t, i) => (
-                    <div key={t.id}
-                      onClick={() => setSelectedTx(t)}
-                      style={{ display:'flex', alignItems:'center', gap:12,
-                        paddingBottom:i<4?12:0, marginBottom:i<4?12:0,
-                        borderBottom:i<4?`1px solid ${C.border}`:'none', cursor:'pointer' }}>
-                      <div style={{ width:40, height:40, borderRadius:12,
-                        background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`,
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
-                        {txIcon(t)}
-                      </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ color:C.text, fontSize:14, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description ?? 'Movimiento'}</div>
-                        <div style={{ color:C.textMuted, fontSize:11 }}>{txCategory(t)} · {t.date.slice(5)}</div>
-                      </div>
-                      <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700, flexShrink:0, display:'flex', alignItems:'center', gap:6 }}>
-                        {t.transaction_type==='income'?'+':'-'}{fmt(Number(t.amount))}
-                        <span style={{ color:C.border, fontSize:14 }}>›</span>
-                      </div>
-                    </div>
-                  ))}
+        {/* Score breakdown (explicable) */}
+        {showScore && (
+          <div style={{ ...card, marginTop: -6 }}>
+            {score.factors.map((f, i) => (
+              <div key={f.key} style={{ marginBottom: i < score.factors.length - 1 ? 14 : 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>{f.label}</span>
+                  <span style={{ color: C.textSec, fontSize: 12, fontWeight: 700 }}>{f.points}/{f.max}</span>
                 </div>
-          }
-        </Section>
-      </div>
+                <div style={{ height: 5, background: C.border, borderRadius: 99, overflow: 'hidden', marginBottom: 4 }}>
+                  <div style={{ width: `${(f.points / f.max) * 100}%`, height: '100%', background: score.color, borderRadius: 99 }} />
+                </div>
+                <div style={{ color: C.textMuted, fontSize: 11 }}>{f.detail}</div>
+              </div>
+            ))}
+          </div>
+        )}
 
-      <TransactionDetailSheet tx={selectedTx} onClose={() => setSelectedTx(null)} />
+        {/* ── 3 · RECOMENDACIÓN ORIA ── */}
+        <div
+          onClick={() => onNavigate?.('ai')}
+          style={{
+            background: 'linear-gradient(135deg, rgba(49,214,123,0.10), rgba(59,130,246,0.08))',
+            border: '1px solid rgba(49,214,123,0.25)', borderRadius: 18, padding: 16, cursor: 'pointer',
+          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ fontSize: 16 }}>🤖</span>
+            <span style={{ color: C.accent, fontSize: 12, fontWeight: 700, letterSpacing: 0.5 }}>ORIA RECOMIENDA</span>
+          </div>
+          <div style={{ color: C.text, fontSize: 14, lineHeight: 1.65, marginBottom: 8 }}>{score.recommendation}</div>
+          <div style={{ color: C.accent, fontSize: 12, fontWeight: 600 }}>Conversar con ORIA ›</div>
+        </div>
+
+        {/* ── 4 · META PRINCIPAL ── */}
+        {mainGoal ? (() => {
+          const pct = Number(mainGoal.target_amount) > 0
+            ? Math.min(100, Math.round((Number(mainGoal.current_amount) / Number(mainGoal.target_amount)) * 100))
+            : 0;
+          return (
+            <div onClick={() => onNavigate?.('goals')} style={{ ...card, cursor: 'pointer' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <div style={{ width: 44, height: 44, borderRadius: 13, background: `${mainGoal.color || C.accent}22`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+                  {mainGoal.icon || '🎯'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>META PRINCIPAL</div>
+                  <div style={{ color: C.text, fontSize: 15, fontWeight: 700 }}>{mainGoal.name}</div>
+                </div>
+                <div style={{ color: mainGoal.color || C.accent, fontSize: 20, fontWeight: 800 }}>{pct}%</div>
+              </div>
+              <div style={{ height: 7, background: C.border, borderRadius: 99, overflow: 'hidden', marginBottom: 8 }}>
+                <div style={{ width: `${pct}%`, height: '100%', background: mainGoal.color || C.accent, borderRadius: 99, transition: 'width 0.8s ease' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: C.textSec, fontSize: 12, fontWeight: 600 }}>{fmt(Number(mainGoal.current_amount))}</span>
+                <span style={{ color: C.textMuted, fontSize: 12 }}>de {fmt(Number(mainGoal.target_amount))}</span>
+              </div>
+            </div>
+          );
+        })() : (
+          <div onClick={() => onNavigate?.('goals')} style={{ ...card, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 13, background: 'rgba(49,214,123,0.12)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🎯</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>Crea tu primera meta</div>
+              <div style={{ color: C.textMuted, fontSize: 12 }}>Un objetivo concreto multiplica tu ahorro</div>
+            </div>
+            <span style={{ color: C.border, fontSize: 16 }}>›</span>
+          </div>
+        )}
+
+        {/* ── 5 · RESUMEN DEL MES ── */}
+        <div onClick={() => onNavigate?.('transactions')} style={{ ...card, cursor: 'pointer' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <span style={{ color: C.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: 0.5 }}>
+              {new Date().toLocaleDateString('es-CO', { month: 'long' }).toUpperCase()} EN RESUMEN
+            </span>
+            <span style={{ color: C.textMuted, fontSize: 12 }}>Ver movimientos ›</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+            <MonthStat label="Ingresos" value={fmt(m.curIncome)} color={C.accent} />
+            <MonthStat label="Gastos"   value={fmt(m.curExpense)} color={C.danger} />
+            <MonthStat
+              label={savingsRate !== null ? `Ahorro · ${savingsRate}%` : 'Ahorro'}
+              value={fmt(m.curNet)}
+              color={m.curNet >= 0 ? C.primaryGlow : C.danger}
+            />
+          </div>
+        </div>
+
+      </div>
     </div>
   );
 }
 
-function Section({ title, action, children }: { title:string; action?:string; children:React.ReactNode }) {
+function MonthStat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <div style={{ color:'#F8FAFC', fontSize:16, fontWeight:700 }}>{title}</div>
-        {action && <span style={{ color:C.accent, fontSize:13 }}>{action}</span>}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function Empty({ icon, text }: { icon:string; text:string }) {
-  return (
-    <div style={{ ...card, textAlign:'center', padding:'28px 20px' }}>
-      <div style={{ fontSize:32, marginBottom:10 }}>{icon}</div>
-      <div style={{ color:C.textMuted, fontSize:13, lineHeight:1.6 }}>{text}</div>
+    <div style={{ background: C.surfaceEl, borderRadius: 12, padding: '10px 8px', textAlign: 'center' }}>
+      <div style={{ color, fontSize: 13, fontWeight: 800, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
+      <div style={{ color: C.textMuted, fontSize: 9.5, marginTop: 3, whiteSpace: 'nowrap' }}>{label}</div>
     </div>
   );
 }

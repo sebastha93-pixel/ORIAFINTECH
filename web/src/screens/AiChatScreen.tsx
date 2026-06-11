@@ -12,6 +12,21 @@ const SUGGESTIONS = [
   'Analiza mis gastos',
 ];
 
+// Centro de decisiones: cada tarjeta dispara un análisis de escenario completo.
+// ORIA responde siempre con una recomendación accionable al final.
+const DECISIONS = [
+  { icon: '🏡', title: '¿Puedo comprar vivienda?',
+    prompt: 'Analiza mis finanzas y dime si estoy en condiciones de comprar vivienda. Considera mis ingresos, gastos, ahorro mensual y deudas. Termina con una recomendación accionable concreta.' },
+  { icon: '🚗', title: '¿Puedo comprar vehículo?',
+    prompt: 'Evalúa si puedo comprar un vehículo sin comprometer mi salud financiera. Considera mi flujo de caja y nivel de deuda. Termina con una recomendación accionable concreta.' },
+  { icon: '📈', title: '¿Debería invertir?',
+    prompt: '¿Estoy en un buen momento para empezar a invertir? Evalúa primero si tengo fondo de emergencia y deudas caras. Termina con una recomendación accionable concreta.' },
+  { icon: '💰', title: '¿Cómo ahorro más?',
+    prompt: 'Analiza mis gastos del último mes e identifica las 3 oportunidades más grandes para ahorrar. Termina con una recomendación accionable concreta.' },
+  { icon: '🎯', title: '¿Cuándo alcanzo mi meta?',
+    prompt: 'Según mi ritmo de ahorro actual, ¿cuándo alcanzaré mis metas financieras activas? Termina con una recomendación accionable para llegar antes.' },
+];
+
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001/api/v1';
 
 async function callAiChat(message: string, conversationId: string | null): Promise<{ reply: string; conversation_id: string; suggestions?: string[] }> {
@@ -73,16 +88,16 @@ export function AiChatScreen() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100vh', paddingBottom:80 }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', paddingBottom:'calc(80px + env(safe-area-inset-bottom))' }}>
       {/* Header */}
       <div style={{ background:gradHero, padding:'48px 20px 20px', flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:14 }}>
           <OriaLogo size={44} showWordmark={false} />
           <div>
-            <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>ORIA</div>
+            <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>ORIA · Tu asesora</div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               <div style={{ width:7, height:7, borderRadius:'50%', background: error ? C.danger : C.accent }} />
-              <span style={{ color: error ? C.danger : C.accent, fontSize:12 }}>{error ? 'Error de conexión' : 'Activo'}</span>
+              <span style={{ color: error ? C.danger : C.accent, fontSize:12 }}>{error ? 'Error de conexión' : 'Analizando tus datos reales'}</span>
             </div>
           </div>
         </div>
@@ -90,6 +105,27 @@ export function AiChatScreen() {
 
       {/* Messages */}
       <div style={{ flex:1, overflowY:'auto', padding:'16px 16px 0' }}>
+
+        {/* Centro de decisiones — visible hasta que empieza la conversación */}
+        {msgs.length <= 1 && !typing && (
+          <div style={{ marginBottom:18 }}>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:10 }}>
+              ¿QUÉ DECISIÓN QUIERES TOMAR HOY?
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              {DECISIONS.map(d => (
+                <button key={d.title} onClick={() => send(d.prompt)}
+                  style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:16,
+                    padding:'14px 12px', cursor:'pointer', textAlign:'left',
+                    display:'flex', flexDirection:'column', gap:6 }}>
+                  <span style={{ fontSize:22 }}>{d.icon}</span>
+                  <span style={{ color:C.text, fontSize:12.5, fontWeight:600, lineHeight:1.35 }}>{d.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {msgs.map((m,i)=>(
           <div key={i} style={{ display:'flex', justifyContent:m.role==='user'?'flex-end':'flex-start', marginBottom:12 }}>
             {m.role==='ai' && (

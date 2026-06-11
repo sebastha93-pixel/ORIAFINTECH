@@ -3,6 +3,7 @@ import { LoginScreen }          from './screens/LoginScreen';
 import { LandingScreen }        from './screens/LandingScreen';
 import { OriaLogo }             from './components/OriaLogo';
 import { DashboardScreen }      from './screens/DashboardScreen';
+import { PatrimonyScreen }      from './screens/PatrimonyScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
 import { GoalsScreen }          from './screens/GoalsScreen';
 import { AiChatScreen }         from './screens/AiChatScreen';
@@ -13,7 +14,7 @@ import { SyncToast }            from './components/SyncToast';
 import { supabase }             from './lib/supabase';
 import { useAutoGmailSync }     from './hooks/useAutoGmailSync';
 
-type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai' | 'settings';
+type Screen = 'dashboard' | 'patrimony' | 'transactions' | 'goals' | 'ai' | 'settings';
 
 const INACTIVITY_MS = 30 * 60 * 1000; // auto-logout after 30 min of inactivity
 
@@ -91,7 +92,8 @@ export default function App() {
 
   return (
     <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14' }}>
-      {screen === 'dashboard'    && <DashboardScreen />}
+      {screen === 'dashboard'    && <DashboardScreen onNavigate={handleTab} />}
+      {screen === 'patrimony'    && <PatrimonyScreen />}
       {screen === 'transactions' && <TransactionsScreen reloadKey={txReloadKey} />}
       {screen === 'goals'        && <GoalsScreen userId={userId} />}
       {screen === 'ai'           && <AiChatScreen />}
