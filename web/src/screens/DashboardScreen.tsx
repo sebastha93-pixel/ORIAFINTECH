@@ -202,7 +202,8 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
 function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
   const debit  = snap.accounts.filter(a => a.account_type !== 'credit_card');
   const credit = snap.accounts.filter(a => a.account_type === 'credit_card');
-  const neto   = m.totalAssets - m.creditDebt;
+  const totalCupo = credit.reduce((s, a) => s + Math.max(0, (a.credit_limit ?? 0) - (a.initial_balance ?? 0)), 0);
+  const neto   = m.totalAssets + totalCupo;
 
   return (
     <div style={{ ...card, padding: '16px 16px' }}>
@@ -236,25 +237,28 @@ function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
       {/* Tarjetas de crédito */}
       {credit.length > 0 && (
         <>
-          {credit.map(a => (
-            <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-              <BankLogo institution={a.institution} size={32} borderRadius={10} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: C.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
-                <div style={{ color: C.textMuted, fontSize: 10 }}>Tarjeta de crédito</div>
+          {credit.map(a => {
+            const cupo = (a.credit_limit ?? 0) - (a.initial_balance ?? 0);
+            return (
+              <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <BankLogo institution={a.institution} size={32} borderRadius={10} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ color: C.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                  <div style={{ color: C.textMuted, fontSize: 10 }}>Cupo disponible</div>
+                </div>
+                <div style={{ color: C.primaryGlow, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
+                  {fmt(Math.max(0, cupo))}
+                </div>
               </div>
-              <div style={{ color: C.danger, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
-                -{fmt(a.initial_balance ?? 0)}
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {/* Divider + neto */}
+          {/* Divider + total disponible */}
           <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0 10px' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ color: C.text, fontSize: 13, fontWeight: 700 }}>Neto disponible</span>
-            <span style={{ color: neto >= 0 ? C.accent : C.danger, fontSize: 17, fontWeight: 800 }}>
-              {neto >= 0 ? '' : '-'}{fmt(Math.abs(neto))}
+            <span style={{ color: C.text, fontSize: 13, fontWeight: 700 }}>Total disponible</span>
+            <span style={{ color: C.accent, fontSize: 17, fontWeight: 800 }}>
+              {fmt(neto)}
             </span>
           </div>
         </>
