@@ -26,7 +26,9 @@ interface BankAccount {
   initial_balance:        number | null;
   initial_balance_set_at: string | null;
   credit_limit:           number | null;
+  credit_limit_usd:       number | null;
   payment_due_day:        number | null;
+  initial_balance_usd:    number | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -257,6 +259,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newCreditLimit, setNewCreditLimit] = useState('');
   const [newDueDay, setNewDueDay]           = useState('');
   const [newInitialBalance, setNewInitialBalance] = useState('');
+  const [newInitialBalanceUsd, setNewInitialBalanceUsd] = useState('');
+  const [newCreditLimitUsd, setNewCreditLimitUsd] = useState('');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
@@ -273,7 +277,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function loadAccounts() {
     const { data } = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,payment_due_day')
+      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,credit_limit_usd,payment_due_day,initial_balance_usd')
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
@@ -355,6 +359,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       initial_balance: initialBalance,
       initial_balance_set_at: cutoff.toISOString(),
       ...(isCC && newCreditLimit ? { credit_limit: parseInt(newCreditLimit.replace(/\D/g, ''), 10) } : {}),
+      ...(isCC && newCreditLimitUsd ? { credit_limit_usd: parseFloat(newCreditLimitUsd) } : {}),
+      ...(isCC && newInitialBalanceUsd ? { initial_balance_usd: parseFloat(newInitialBalanceUsd) } : {}),
       ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
     });
     if (!error) {
@@ -364,8 +370,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setNewNickname('');
       setNewHolder('');
       setNewCreditLimit('');
+      setNewCreditLimitUsd('');
       setNewDueDay('');
       setNewInitialBalance('');
+      setNewInitialBalanceUsd('');
     } else {
       setAddAccountError(error.message);
     }
@@ -852,6 +860,11 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 const limit   = acc.credit_limit ?? 0;
                 const utilPct = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
                 const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? '#f59e0b' : C.accent;
+                const debtUsd   = acc.initial_balance_usd ?? 0;
+                const limitUsd  = acc.credit_limit_usd ?? 0;
+                const utilPctUsd = limitUsd > 0 ? Math.min(100, Math.round((debtUsd / limitUsd) * 100)) : null;
+                const utilColorUsd = utilPctUsd == null ? C.textMuted : utilPctUsd >= 80 ? C.danger : utilPctUsd >= 50 ? '#f59e0b' : C.accent;
+                const fmtUsd = (n: number) => 'US$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
                 return (
                   <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
                     {/* Account row */}
@@ -874,17 +887,36 @@ export function SettingsScreen({ userId }: { userId: string }) {
                           {acc.institution} · *{acc.account_suffix}
                           {acc.account_holder && <span> · {acc.account_holder}</span>}
                           {isCC && limit > 0 && <span> · Cupo {fmt(limit)}</span>}
+                        {isCC && limitUsd > 0 && <span> · Cupo {fmtUsd(limitUsd)}</span>}
                         </div>
-                        {/* Credit utilization bar */}
+                        {/* COP credit utilization bar */}
                         {isCC && utilPct != null && (
                           <div style={{ marginTop:6 }}>
                             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                              <span style={{ color:utilColor, fontSize:10, fontWeight:700 }}>{utilPct}% utilizado</span>
+                              <span style={{ color:utilColor, fontSize:10, fontWeight:700 }}>{utilPct}% COP utilizado</span>
                               <span style={{ color:C.textMuted, fontSize:10 }}>{fmt(debt)} de {fmt(limit)}</span>
                             </div>
                             <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
                               <div style={{ width:`${utilPct}%`, height:'100%', background:utilColor, borderRadius:99 }} />
                             </div>
+                          </div>
+                        )}
+                        {/* USD credit utilization bar */}
+                        {isCC && (debtUsd > 0 || limitUsd > 0) && (
+                          <div style={{ marginTop:4 }}>
+                            {utilPctUsd != null ? (
+                              <>
+                                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                                  <span style={{ color:utilColorUsd, fontSize:10, fontWeight:700 }}>{utilPctUsd}% USD utilizado</span>
+                                  <span style={{ color:C.textMuted, fontSize:10 }}>{fmtUsd(debtUsd)} de {fmtUsd(limitUsd)}</span>
+                                </div>
+                                <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
+                                  <div style={{ width:`${utilPctUsd}%`, height:'100%', background:utilColorUsd, borderRadius:99 }} />
+                                </div>
+                              </>
+                            ) : (
+                              <div style={{ color:C.danger, fontSize:10, fontWeight:600 }}>Deuda USD: {fmtUsd(debtUsd)}</div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1115,6 +1147,40 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             boxSizing:'border-box', outline:'none' }}
                         />
                       </div>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo en USD (opcional)</div>
+                        <div style={{ position:'relative' }}>
+                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="ej. 2,000"
+                            value={newCreditLimitUsd ? Number(newCreditLimitUsd || 0).toLocaleString('en-US') : ''}
+                            onChange={e => setNewCreditLimitUsd(e.target.value.replace(/[^0-9.]/g, ''))}
+                            style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10,
+                              borderRadius:10, border:`1px solid ${C.border}`,
+                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                              boxSizing:'border-box', outline:'none' }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Deuda actual en USD (opcional)</div>
+                        <div style={{ position:'relative' }}>
+                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="ej. 150.00"
+                            value={newInitialBalanceUsd ? Number(newInitialBalanceUsd || 0).toLocaleString('en-US') : ''}
+                            onChange={e => setNewInitialBalanceUsd(e.target.value.replace(/[^0-9.]/g, ''))}
+                            style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10,
+                              borderRadius:10, border:`1px solid ${C.border}`,
+                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                              boxSizing:'border-box', outline:'none' }}
+                          />
+                        </div>
+                      </div>
                     </>
                   )}
 
@@ -1161,7 +1227,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     const disabled = newSuffix.length < 4 || savingAccount || holderMissing;
                     return (
                       <div style={{ display:'flex', gap:8 }}>
-                        <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setAddAccountError(''); }}
+                        <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setNewCreditLimit(''); setNewCreditLimitUsd(''); setNewInitialBalance(''); setNewInitialBalanceUsd(''); setAddAccountError(''); }}
                           style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`,
                             background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer' }}>
                           Cancelar
