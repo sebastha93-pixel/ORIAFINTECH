@@ -15,7 +15,9 @@ export interface ParsedTransaction {
 function parseAmount(raw: string): number {
   const s = raw.trim();
   // US format with both comma and dot: "7,950.00" or "1,035,000.00"
+  // Colombian format: dot=thousands, comma=decimal: "163.300,00" → 163300
   if (s.includes(',') && s.includes('.')) {
+    if (s.indexOf('.') < s.indexOf(',')) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
     return parseFloat(s.replace(/,/g, '')) || 0;
   }
   // Comma only — if 3 digits after last comma it's a thousands separator: "68,150"
@@ -63,13 +65,14 @@ function cleanName(raw: string): string {
 
 function extractBancolombiaAccountSuffix(text: string): string | undefined {
   // Require ≥4 digits to avoid capturing dates (03) or short reference numbers
-  const fromMatch = text.match(/(?:desde|usando|de)\s+tu\s+(?:cuenta|producto|tarjeta|tc)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
+  // Handles "desde/de/con tu cuenta/tarjeta/T.Cred *XXXX"
+  const fromMatch = text.match(/(?:desde|usando|de|con)\s+tu\s+(?:cuenta|producto|tarjeta|tc|t\.cr[eé]d)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
   if (fromMatch) return fromMatch[1].slice(-4);
   const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
   if (toMatch) return toMatch[1].slice(-4);
   const terminMatch = text.match(/[Tt]erminaci[oó]n[^\n\d*]*\*{0,6}(\d{4})\b/);
   if (terminMatch) return terminMatch[1];
-  const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta)[^\n]*\*{2,}(\d{4})\b/i);
+  const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta|t\.cr[eé]d)[^\n]*\*{1,}(\d{4})\b/i);
   if (starredMatch) return starredMatch[1];
   return undefined;
 }
@@ -180,6 +183,24 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
     };
   }
 
+  // "Compraste COP163.300,00 en MERCHANT con tu T.Cred *4830"
+  const comprasteMatch = text.match(/[Cc]ompraste\s+(?:COP\s*)?([\d.,]+)\s+en\s+([^\n\r]+?)\s+con\s+tu/i);
+  if (comprasteMatch) {
+    const amount = parseAmount(comprasteMatch[1]);
+    const merchant = comprasteMatch[2].trim().replace(/\s+/g, ' ');
+    return {
+      amount,
+      type: 'expense',
+      description: `Compra en ${merchant} · Bancolombia`,
+      category: inferCategory(merchant),
+      date: new Date().toISOString(),
+      merchant,
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
   // "Compra aprobada por $X en MERCHANT"
   const compraMatch = text.match(/[Cc]ompra\s+aprobada\s+por\s+\$?\s*([\d.,]+)\s+en\s+([^\n\r.]+)/);
   if (compraMatch) {
@@ -241,6 +262,26 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
       rawText: text,
     };
   }
+  // "Recibiste una transferencia de NOMBRE por $X" — Bancolombia llave/Bre-B format
+  const recibisteDeNombrePorMatch = text.match(
+    /[Rr]ecibiste\s+una\s+transferencia\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)\s+por\s+\$?\s*([\d.,]+)/i,
+  );
+  if (recibisteDeNombrePorMatch) {
+    const amount = parseAmount(recibisteDeNombrePorMatch[2]);
+    const sender = recibisteDeNombrePorMatch[1].trim().replace(/\s+/g, ' ');
+    return {
+      amount,
+      type: 'income',
+      description: sender ? `Transferencia de ${sender} · Bancolombia` : 'Transferencia recibida · Bancolombia',
+      category: 'Transferencias',
+      date: new Date().toISOString(),
+      merchant: sender || undefined,
+      accountSuffix,
+      accountHolder,
+      rawText: text,
+    };
+  }
+
   // "Recibiste una transferencia de $X" — requires "una transferencia de" to avoid
   // matching "¿Recibiste este movimiento?" security questions on expense emails
   const recibisteTransMatch = text.match(
