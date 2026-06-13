@@ -5,6 +5,7 @@ import {
   type FinanceSnapshot, type Metrics, type OriaScore,
 } from '../lib/finance';
 import { ScoreRing } from '../components/ScoreRing';
+import { BankLogo } from '../components/BankLogo';
 
 // 🏠 INICIO — ¿Cómo voy hoy?
 // Exactly 5 elements: Patrimonio · Score · Recomendación · Meta principal · Resumen del mes.
@@ -81,6 +82,9 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
       </div>
 
       <div style={{ padding: '16px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+        {/* ── LIQUIDEZ ── */}
+        {snap.accounts.length > 0 && <LiquidezCard snap={snap} m={m} />}
 
         {/* ── 2 · SALUD FINANCIERA (Score ORIA) ── */}
         <div
@@ -191,6 +195,70 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
         </div>
 
       </div>
+    </div>
+  );
+}
+
+function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
+  const debit  = snap.accounts.filter(a => a.account_type !== 'credit_card');
+  const credit = snap.accounts.filter(a => a.account_type === 'credit_card');
+  const neto   = m.totalAssets - m.creditDebt;
+
+  return (
+    <div style={{ ...card, padding: '16px 16px' }}>
+      {/* Header */}
+      <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 14 }}>
+        💵 ¿CUÁNTO PUEDO GASTAR?
+      </div>
+
+      {/* Cuentas débito */}
+      {debit.map(a => (
+        <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          <BankLogo institution={a.institution} size={32} borderRadius={10} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ color: C.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+            <div style={{ color: C.textMuted, fontSize: 10 }}>{a.account_type === 'savings' ? 'Ahorros' : 'Corriente'}</div>
+          </div>
+          <div style={{ color: C.accent, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
+            {fmt(a.initial_balance ?? 0)}
+          </div>
+        </div>
+      ))}
+
+      {/* Subtotal efectivo */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: 'rgba(49,214,123,0.08)', border: '1px solid rgba(49,214,123,0.18)',
+        borderRadius: 10, padding: '8px 12px', margin: '4px 0 12px' }}>
+        <span style={{ color: C.accent, fontSize: 12, fontWeight: 700 }}>Efectivo total</span>
+        <span style={{ color: C.accent, fontSize: 15, fontWeight: 800 }}>{fmt(m.totalAssets)}</span>
+      </div>
+
+      {/* Tarjetas de crédito */}
+      {credit.length > 0 && (
+        <>
+          {credit.map(a => (
+            <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <BankLogo institution={a.institution} size={32} borderRadius={10} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: C.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+                <div style={{ color: C.textMuted, fontSize: 10 }}>Tarjeta de crédito</div>
+              </div>
+              <div style={{ color: C.danger, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
+                -{fmt(a.initial_balance ?? 0)}
+              </div>
+            </div>
+          ))}
+
+          {/* Divider + neto */}
+          <div style={{ borderTop: `1px solid ${C.border}`, margin: '4px 0 10px' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: C.text, fontSize: 13, fontWeight: 700 }}>Neto disponible</span>
+            <span style={{ color: neto >= 0 ? C.accent : C.danger, fontSize: 17, fontWeight: 800 }}>
+              {neto >= 0 ? '' : '-'}{fmt(Math.abs(neto))}
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 }
