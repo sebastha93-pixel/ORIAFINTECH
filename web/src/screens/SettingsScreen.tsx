@@ -285,13 +285,23 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const bank    = BANKS.find(b => b.id === selectedBank);
 
   async function loadAccounts() {
-    const { data } = await supabase
+    // Try full select (requires migrations 009 and 010 to be applied in Supabase)
+    const BASE_SELECT = 'id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,payment_due_day';
+    const FULL_SELECT = BASE_SELECT + ',credit_limit_usd,initial_balance_usd,card_network';
+
+    const baseQuery = () =>
+      supabase.from('accounts').select(BASE_SELECT).eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: true });
+
+    const full = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,credit_limit_usd,payment_due_day,initial_balance_usd,card_network')
+      .select(FULL_SELECT)
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
-    const rows = (data as BankAccount[]) ?? [];
+
+    // If new columns don't exist yet (migrations pending), fall back to base columns
+    const rawData = full.error ? (await baseQuery()).data : full.data;
+    const rows = (rawData as BankAccount[] | null) ?? [];
     setAccounts(rows);
     // Pre-fill draft inputs with existing values
     const drafts: Record<string, string> = {};
@@ -357,7 +367,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
     const cutoff = new Date();
     if (!balanceDigits) cutoff.setDate(cutoff.getDate() - 30);
     cutoff.setHours(0, 0, 0, 0);
-    const { error } = await supabase.from('accounts').insert({
+
+    const basePayload = {
       user_id: userId,
       name,
       institution: inst?.name ?? newInstitution,
@@ -369,11 +380,19 @@ export function SettingsScreen({ userId }: { userId: string }) {
       initial_balance: initialBalance,
       initial_balance_set_at: cutoff.toISOString(),
       ...(isCC && newCreditLimit ? { credit_limit: parseInt(newCreditLimit.replace(/\D/g, ''), 10) } : {}),
+      ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
+    };
+
+    let { error } = await supabase.from('accounts').insert({
+      ...basePayload,
       ...(isCC && newCreditLimitUsd ? { credit_limit_usd: parseFloat(newCreditLimitUsd) } : {}),
       ...(isCC && newInitialBalanceUsd ? { initial_balance_usd: parseFloat(newInitialBalanceUsd) } : {}),
-      ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
       ...(isCC ? { card_network: newCardNetwork } : {}),
     });
+    // If new columns don't exist yet (migrations pending), retry with base payload only
+    if (error?.code === '42703') {
+      ({ error } = await supabase.from('accounts').insert(basePayload));
+    }
     if (!error) {
       await loadAccounts();
       setShowAddAccount(false);
