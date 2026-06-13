@@ -256,6 +256,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newHolder, setNewHolder]           = useState('');
   const [newCreditLimit, setNewCreditLimit] = useState('');
   const [newDueDay, setNewDueDay]           = useState('');
+  const [newInitialBalance, setNewInitialBalance] = useState('');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
@@ -335,11 +336,13 @@ export function SettingsScreen({ userId }: { userId: string }) {
     const inst = INSTITUTIONS.find(i => i.id === newInstitution);
     const name = newNickname.trim() || `${inst?.name} ${ACCOUNT_TYPE_LABELS[newAccountType]} *${newSuffix.slice(-4)}`;
     const isCC = newAccountType === 'credit_card';
-    // Auto-set cutoff to 30 days ago so the account is ready for Gmail sync immediately.
-    // The user can adjust the initial balance later; this just unblocks the import window.
-    const defaultCutoff = new Date();
-    defaultCutoff.setDate(defaultCutoff.getDate() - 30);
-    defaultCutoff.setHours(0, 0, 0, 0);
+    const balanceDigits = newInitialBalance.replace(/\D/g, '');
+    const initialBalance = balanceDigits ? parseInt(balanceDigits, 10) : 0;
+    // If user entered a balance, cutoff is today (balance reflects current state).
+    // Otherwise, cutoff is 30 days ago to import the full Gmail window.
+    const cutoff = new Date();
+    if (!balanceDigits) cutoff.setDate(cutoff.getDate() - 30);
+    cutoff.setHours(0, 0, 0, 0);
     const { error } = await supabase.from('accounts').insert({
       user_id: userId,
       name,
@@ -349,8 +352,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       account_holder: newHolder.trim().toUpperCase() || null,
       currency_code: 'COP',
       is_active: true,
-      initial_balance: 0,
-      initial_balance_set_at: defaultCutoff.toISOString(),
+      initial_balance: initialBalance,
+      initial_balance_set_at: cutoff.toISOString(),
       ...(isCC && newCreditLimit ? { credit_limit: parseInt(newCreditLimit.replace(/\D/g, ''), 10) } : {}),
       ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
     });
@@ -362,6 +365,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setNewHolder('');
       setNewCreditLimit('');
       setNewDueDay('');
+      setNewInitialBalance('');
     } else {
       setAddAccountError(error.message);
     }
@@ -1113,6 +1117,32 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       </div>
                     </>
                   )}
+
+                  {/* Initial balance / current debt */}
+                  <div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>
+                      {newAccountType === 'credit_card' ? 'Deuda actual (opcional)' : 'Saldo actual (opcional)'}
+                    </div>
+                    <div style={{ position:'relative' }}>
+                      <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={newInitialBalance ? Number(newInitialBalance||0).toLocaleString('es-CO') : ''}
+                        onChange={e => setNewInitialBalance(e.target.value.replace(/\D/g,''))}
+                        style={{ width:'100%', paddingLeft:26, paddingRight:14, paddingTop:10, paddingBottom:10,
+                          borderRadius:10, border:`1px solid ${C.border}`,
+                          background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                          boxSizing:'border-box', outline:'none' }}
+                      />
+                    </div>
+                    <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
+                      {newAccountType === 'credit_card'
+                        ? 'Tu deuda actual en esta tarjeta.'
+                        : 'Saldo de tu cuenta hoy. Si lo dejas en 0, ORIA importará los últimos 30 días de movimientos automáticamente.'}
+                    </div>
+                  </div>
 
                   {addAccountError && (
                     <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`,
