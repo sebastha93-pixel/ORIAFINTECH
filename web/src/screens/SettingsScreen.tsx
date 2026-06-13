@@ -364,10 +364,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
     const isCC = newAccountType === 'credit_card';
     const balanceDigits = newInitialBalance.replace(/\D/g, '');
     const initialBalance = balanceDigits ? parseInt(balanceDigits, 10) : 0;
-    // Momento 0 = inicio del día en que se crea la cuenta, sin importar si se
-    // ingresó saldo o no. Solo se importan correos a partir de esta fecha.
+    // Momento 0 = fecha Y hora exacta de creación de la cuenta.
+    // Solo se importan correos con timestamp posterior a este momento.
     const cutoff = new Date();
-    cutoff.setHours(0, 0, 0, 0);
 
     const basePayload = {
       user_id: userId,
@@ -538,13 +537,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
       // Parse emails — try to link to registered accounts but import regardless
       const registeredAccounts = accounts.filter(a => a.account_suffix);
 
-      // Momento 0: la fecha más antigua en que se registró el saldo inicial de cualquier cuenta.
-      // Emails anteriores a esa fecha ya están cubiertos por el saldo inicial → no importar.
-      const cutoffDates = accounts
+      // Momento 0: timestamp exacto de creación de cada cuenta (fecha + hora).
+      // Emails con timestamp anterior al momento 0 no se importan.
+      const globalCutoff = accounts
         .filter(a => a.initial_balance_set_at)
-        .map(a => a.initial_balance_set_at!.slice(0, 10))
-        .sort();
-      const globalCutoff = cutoffDates[0] ?? null;
+        .map(a => a.initial_balance_set_at!)
+        .sort()[0] ?? null;
 
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
@@ -554,7 +552,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) { cNoParse++; continue; }
 
-        const emailDate = email.date.slice(0, 10);
+        // Comparar timestamp completo del correo vs momento 0 (fecha + hora)
+        const emailTs = email.date;
 
         // Try to match a registered account (best-effort — does NOT block import)
         let account_id: string | undefined;
@@ -572,12 +571,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
           if (holderOk) { account_id = matchedAccount.id; cLinked++; }
           else cUnlinked++;
 
-          // Per-account cutoff: omitir emails anteriores al momento 0 de esta cuenta
-          const acctCutoff = matchedAccount.initial_balance_set_at?.slice(0, 10);
-          if (acctCutoff && emailDate < acctCutoff) { cBeforeCutoff++; continue; }
+          // Cutoff por cuenta: omitir si el correo es anterior al momento 0 de esta cuenta
+          const acctCutoff = matchedAccount.initial_balance_set_at;
+          if (acctCutoff && emailTs < acctCutoff) { cBeforeCutoff++; continue; }
         } else {
-          // Sin cuenta vinculada: usar el cutoff global para evitar histórico no deseado
-          if (globalCutoff && emailDate < globalCutoff) { cBeforeCutoff++; continue; }
+          // Sin cuenta vinculada: usar el cutoff global
+          if (globalCutoff && emailTs < globalCutoff) { cBeforeCutoff++; continue; }
           cUnlinked++;
         }
 
