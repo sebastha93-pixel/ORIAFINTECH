@@ -29,6 +29,7 @@ interface BankAccount {
   credit_limit_usd:       number | null;
   payment_due_day:        number | null;
   initial_balance_usd:    number | null;
+  card_network:           string | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -124,6 +125,14 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   checking:    'Corriente',
   credit_card: 'Crédito',
 };
+
+const CARD_NETWORKS = [
+  { id: 'visa',       name: 'Visa',        color: '#1A1F71' },
+  { id: 'mastercard', name: 'Mastercard',   color: '#EB001B' },
+  { id: 'amex',       name: 'Amex',         color: '#2E77BC' },
+  { id: 'diners',     name: 'Diners Club',  color: '#004B87' },
+  { id: 'other',      name: 'Otra',         color: '#6b7280' },
+];
 
 const BANKS = [
   { id:'bancolombia',  name:'Bancolombia',         color:'#FFCD00',
@@ -261,6 +270,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newInitialBalance, setNewInitialBalance] = useState('');
   const [newInitialBalanceUsd, setNewInitialBalanceUsd] = useState('');
   const [newCreditLimitUsd, setNewCreditLimitUsd] = useState('');
+  const [newCardNetwork, setNewCardNetwork] = useState('visa');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
@@ -277,7 +287,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function loadAccounts() {
     const { data } = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,credit_limit_usd,payment_due_day,initial_balance_usd')
+      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,credit_limit_usd,payment_due_day,initial_balance_usd,card_network')
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
@@ -362,6 +372,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       ...(isCC && newCreditLimitUsd ? { credit_limit_usd: parseFloat(newCreditLimitUsd) } : {}),
       ...(isCC && newInitialBalanceUsd ? { initial_balance_usd: parseFloat(newInitialBalanceUsd) } : {}),
       ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
+      ...(isCC ? { card_network: newCardNetwork } : {}),
     });
     if (!error) {
       await loadAccounts();
@@ -873,21 +884,34 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         <BankLogo institution={acc.institution} size={40} borderRadius={12} />
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                           <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {acc.name}
                           </div>
-                          {isCC && (
-                            <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 6px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>
-                              💳 TC
-                            </span>
-                          )}
+                          {isCC && (() => {
+                            const net = CARD_NETWORKS.find(n => n.id === (acc.card_network ?? 'other'));
+                            return net ? (
+                              <span style={{ background:`${net.color}22`, border:`1px solid ${net.color}55`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:800, color:net.color, flexShrink:0 }}>
+                                {net.name.toUpperCase()}
+                              </span>
+                            ) : null;
+                          })()}
+                          {isCC && (() => {
+                            const hasDebt = (acc.initial_balance ?? 0) > 0 || (acc.initial_balance_usd ?? 0) > 0;
+                            if (!hasDebt) return <span style={{ background:'rgba(49,214,123,0.15)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
+                            const dueDay = acc.payment_due_day;
+                            if (!dueDay) return <span style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f59e0b', flexShrink:0 }}>⚠️ Pendiente</span>;
+                            const today = new Date().getDate();
+                            if (today < dueDay) return <span style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f59e0b', flexShrink:0 }}>⏰ Paga en {dueDay - today}d</span>;
+                            if (today === dueDay) return <span style={{ background:'rgba(249,115,22,0.15)', border:'1px solid rgba(249,115,22,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f97316', flexShrink:0 }}>⚡ Vence hoy</span>;
+                            return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
+                          })()}
                         </div>
                         <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
                           {acc.institution} · *{acc.account_suffix}
                           {acc.account_holder && <span> · {acc.account_holder}</span>}
                           {isCC && limit > 0 && <span> · Cupo {fmt(limit)}</span>}
-                        {isCC && limitUsd > 0 && <span> · Cupo {fmtUsd(limitUsd)}</span>}
+                          {isCC && limitUsd > 0 && <span> · Cupo {fmtUsd(limitUsd)}</span>}
                         </div>
                         {/* COP credit utilization bar */}
                         {isCC && utilPct != null && (
@@ -1117,6 +1141,21 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   {/* Credit card extra fields */}
                   {newAccountType === 'credit_card' && (
                     <>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Franquicia</div>
+                        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                          {CARD_NETWORKS.map(n => (
+                            <button key={n.id} onClick={() => setNewCardNetwork(n.id)}
+                              style={{ padding:'8px 14px', borderRadius:10,
+                                border:`1px solid ${newCardNetwork===n.id ? n.color : C.border}`,
+                                background: newCardNetwork===n.id ? `${n.color}22` : C.surface,
+                                color: newCardNetwork===n.id ? n.color : C.textMuted,
+                                fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              {n.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <div>
                         <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo total de la tarjeta</div>
                         <div style={{ position:'relative' }}>
