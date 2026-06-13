@@ -335,6 +335,11 @@ export function SettingsScreen({ userId }: { userId: string }) {
     const inst = INSTITUTIONS.find(i => i.id === newInstitution);
     const name = newNickname.trim() || `${inst?.name} ${ACCOUNT_TYPE_LABELS[newAccountType]} *${newSuffix.slice(-4)}`;
     const isCC = newAccountType === 'credit_card';
+    // Auto-set cutoff to 30 days ago so the account is ready for Gmail sync immediately.
+    // The user can adjust the initial balance later; this just unblocks the import window.
+    const defaultCutoff = new Date();
+    defaultCutoff.setDate(defaultCutoff.getDate() - 30);
+    defaultCutoff.setHours(0, 0, 0, 0);
     const { error } = await supabase.from('accounts').insert({
       user_id: userId,
       name,
@@ -344,6 +349,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       account_holder: newHolder.trim().toUpperCase() || null,
       currency_code: 'COP',
       is_active: true,
+      initial_balance: 0,
+      initial_balance_set_at: defaultCutoff.toISOString(),
       ...(isCC && newCreditLimit ? { credit_limit: parseInt(newCreditLimit.replace(/\D/g, ''), 10) } : {}),
       ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
     });
@@ -528,10 +535,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
         const match = suffixMatch;
 
-        // Cuenta sin saldo inicial configurado — no está lista aún
-        if (!match.initial_balance_set_at) { cNoBalance++; continue; }
-        // Solo importar emails posteriores al momento exacto del saldo inicial
-        if (email.date < match.initial_balance_set_at) { cBeforeCutoff++; continue; }
+        // Only enforce date cutoff when initial_balance_set_at is explicitly set.
+        // Without it the account still syncs within the Gmail 30-day query window.
+        if (match.initial_balance_set_at && email.date < match.initial_balance_set_at) { cBeforeCutoff++; continue; }
 
         parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
       }
@@ -827,8 +833,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
               </div>
 
               {accounts.length === 0 && !showAddAccount && (
-                <div style={{ textAlign:'center', padding:'16px 0', color:C.textMuted, fontSize:13 }}>
-                  Sin cuentas registradas. Los movimientos de todas tus cuentas serán importados.
+                <div style={{ textAlign:'center', padding:'16px 0', color:C.textMuted, fontSize:13, lineHeight:1.6 }}>
+                  Sin cuentas registradas.<br />
+                  <span style={{ color:'#f59e0b', fontWeight:600 }}>Agrega al menos una cuenta para que ORIA importe tus movimientos de Gmail.</span>
                 </div>
               )}
 

@@ -79,8 +79,7 @@ export async function runGmailSync(
       if (!holderNamesMatch(match.account_holder, result.accountHolder)) continue;
     }
 
-    if (!match.initial_balance_set_at) continue;
-    if (email.date < match.initial_balance_set_at) continue;
+    if (match.initial_balance_set_at && email.date < match.initial_balance_set_at) continue;
 
     parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
   }
