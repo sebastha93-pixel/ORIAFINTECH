@@ -67,8 +67,8 @@ export function LandingScreen({ onStart, onLogin }: Props) {
 
         /* ── Mobile ── */
         @media (max-width: 680px) {
-          .l-nav-login { display: none; }
-          .l-nav-cta { font-size: 13px !important; padding: 8px 16px !important; }
+          .l-nav-login { display: inline-flex; font-size: 12px !important; padding: 7px 14px !important; }
+          .l-nav-cta { font-size: 12px !important; padding: 7px 14px !important; }
 
           .l-hero { padding: 48px 20px 60px; }
           .l-hero-row { flex-direction: column; gap: 48px; align-items: flex-start; }
@@ -164,8 +164,8 @@ export function LandingScreen({ onStart, onLogin }: Props) {
               <button className="l-hero-btn-main l-btn-green" onClick={onStart} style={{ padding: '15px 36px', borderRadius: 14, border: 'none', background: '#31D67B', color: '#041A0D', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 8px 36px rgba(49,214,123,0.22)' }}>
                 Comenzar gratis
               </button>
-              <button className="l-hero-btn-sec l-btn-ghost" onClick={onLogin} style={{ padding: '15px 28px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.04)', color: '#CBD5E1', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
-                Ver demo →
+              <button className="l-hero-btn-sec l-btn-ghost" onClick={onLogin} style={{ padding: '15px 28px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.04)', color: '#CBD5E1', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
+                Iniciar sesión →
               </button>
             </div>
             <p style={{ color: '#334155', fontSize: 12, margin: 0 }}>Sin tarjeta de crédito · Configuración en 3 minutos</p>

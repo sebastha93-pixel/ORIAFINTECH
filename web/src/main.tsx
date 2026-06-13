@@ -116,7 +116,9 @@ function showUpdateBanner() {
     'position:fixed','top:0','left:0','right:0','z-index:99999',
     'background:linear-gradient(90deg,#0D2137,#112035)',
     'border-bottom:2px solid rgba(49,214,123,0.5)',
-    'padding:14px 20px','display:flex','align-items:center','gap:12px',
+    'padding:14px 20px',
+    'padding-top:calc(14px + env(safe-area-inset-top))',
+    'display:flex','align-items:center','gap:12px',
     'font-family:system-ui,sans-serif','box-shadow:0 4px 24px rgba(0,0,0,0.5)',
   ].join(';');
   banner.innerHTML = `
