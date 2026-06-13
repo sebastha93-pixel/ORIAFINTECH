@@ -24,6 +24,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   const now = new Date();
   const [transactions, setTransactions] = useState<Txn[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState<string | null>(null);
   const [tab, setTab]                   = useState(0);
   const [search, setSearch]             = useState('');
   const [selYear, setSelYear]           = useState(now.getFullYear());
@@ -33,18 +34,30 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   const [viewMode, setViewMode]         = useState<'category' | 'date'>('category');
 
   const loadTransactions = useCallback(async () => {
+    setLoadError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) { setLoading(false); return; }
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('id, transaction_type, amount, description, date, notes, gmail_message_id, category')
-        .eq('user_id', session.user.id)
-        .order('date', { ascending: false });
-      if (error) throw error;
-      setTransactions((data as Txn[]) ?? []);
+
+      const FULL = 'id, transaction_type, amount, description, date, notes, gmail_message_id, category';
+      const BASE = 'id, transaction_type, amount, description, date, notes, gmail_message_id';
+
+      const q = (cols: string) => supabase.from('transactions')
+        .select(cols).eq('user_id', session.user.id).order('date', { ascending: false });
+      const full = await q(FULL);
+
+      let txnData: unknown[] | null = full.data;
+      if (full.error) {
+        // Fallback: category column may not exist yet (run migration 011)
+        const base = await q(BASE);
+        if (base.error) throw base.error;
+        txnData = base.data;
+      }
+      setTransactions((txnData as Txn[]) ?? []);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
       console.error('loadTransactions:', e);
+      setLoadError(msg.slice(0, 200));
     } finally {
       setLoading(false);
     }
@@ -213,6 +226,15 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: C.textMuted }}>
             <div style={{ fontSize: 14 }}>Cargando movimientos…</div>
+          </div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#EF4444' }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>⚠️</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Error al cargar movimientos</div>
+            <div style={{ fontSize: 11, color: '#94A3B8', background: '#0F172A', padding: '10px 14px',
+              borderRadius: 10, textAlign: 'left', wordBreak: 'break-all', maxWidth: 340, margin: '0 auto' }}>
+              {loadError}
+            </div>
           </div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: C.textMuted }}>

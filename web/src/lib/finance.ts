@@ -76,14 +76,18 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
   const user = session.user;
   const { first, last, year, month } = currentMonthRange();
 
-  const [txnsRes, summariesRes, accountsRes, goalsRes] = await Promise.all([
-    supabase
-      .from('transactions')
-      .select('id, transaction_type, amount, description, date, notes, gmail_message_id, category')
-      .eq('user_id', user.id)
-      .gte('date', first)
-      .lte('date', last)
-      .order('date', { ascending: false }),
+  // Fetch transactions with category; fall back to base columns if migration 011 hasn't run yet
+  const txnQ = (cols: string) =>
+    supabase.from('transactions').select(cols)
+      .eq('user_id', user.id).gte('date', first).lte('date', last).order('date', { ascending: false });
+  const txnFull = await txnQ('id, transaction_type, amount, description, date, notes, gmail_message_id, category');
+  let txnData: unknown[] | null = txnFull.data;
+  if (txnFull.error) {
+    const txnBase = await txnQ('id, transaction_type, amount, description, date, notes, gmail_message_id');
+    txnData = txnBase.data;
+  }
+
+  const [summariesRes, accountsRes, goalsRes] = await Promise.all([
     supabase
       .from('monthly_summaries')
       .select('year, month, total_income, total_expenses, net_savings')
@@ -106,7 +110,7 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
 
   return {
     userName: firstName(user.email ?? '', user.user_metadata as Record<string, string>),
-    currentTxns:   (txnsRes.data as Txn[]) ?? [],
+    currentTxns:   (txnData as Txn[]) ?? [],
     prevSummaries: (summariesRes.data as MonthlySummary[]) ?? [],
     accounts:      (accountsRes.data as Account[]) ?? [],
     goals:         (goalsRes.data as Goal[]) ?? [],
