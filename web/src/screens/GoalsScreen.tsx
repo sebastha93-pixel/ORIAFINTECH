@@ -38,13 +38,16 @@ export function GoalsScreen({ userId }: { userId: string }) {
 
   async function loadGoals() {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('goals')
         .select('id, name, goal_type, target_amount, current_amount, monthly_contribution, target_date, icon, color')
         .eq('user_id', userId)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
+      if (error) throw error;
       setGoals((data as Goal[]) ?? []);
+    } catch (e) {
+      console.error('loadGoals:', e);
     } finally {
       setLoading(false);
     }

@@ -27,7 +27,7 @@ const DECISIONS = [
     prompt: 'Según mi ritmo de ahorro actual, ¿cuándo alcanzaré mis metas financieras activas? Termina con una recomendación accionable para llegar antes.' },
 ];
 
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:3001/api/v1';
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
 
 async function callAiChat(message: string, conversationId: string | null): Promise<{ reply: string; conversation_id: string; suggestions?: string[] }> {
   const { data: { session } } = await supabase.auth.getSession();

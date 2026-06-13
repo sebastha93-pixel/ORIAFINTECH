@@ -59,7 +59,7 @@ function currentMonthRange() {
   const m = now.getMonth() + 1;
   return {
     first: `${y}-${String(m).padStart(2, '0')}-01`,
-    last:  new Date(y, m, 0).toISOString().slice(0, 10),
+    last:  new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10),
     year: y, month: m,
   };
 }

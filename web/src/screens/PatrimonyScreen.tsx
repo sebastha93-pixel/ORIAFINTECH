@@ -27,7 +27,12 @@ export function PatrimonyScreen() {
       </div>
     );
   }
-  if (!snap) return null;
+  if (!snap) return (
+    <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10, padding: 24 }}>
+      <div style={{ fontSize: 32 }}>⚠️</div>
+      <div style={{ color: C.textMuted, fontSize: 14, textAlign: 'center' }}>No se pudo cargar tu patrimonio. Verifica tu conexión e intenta de nuevo.</div>
+    </div>
+  );
 
   const m: Metrics        = computeMetrics(snap);
   const score: OriaScore  = computeOriaScore(snap, m);

@@ -16,7 +16,7 @@ async function bootstrap() {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
-  // CORS — explicit allowlist only, no wildcards
+  // CORS — explicit allowlist + pattern fallback for Vercel previews
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()) ?? [
     'http://localhost:5173',
     'http://localhost:3000',
@@ -28,6 +28,8 @@ async function bootstrap() {
       // Allow same-origin / server-to-server (no Origin header)
       if (!origin) return cb(null, true);
       if (allowedOrigins.includes(origin)) return cb(null, true);
+      // Allow any Vercel preview deployment and oriafintech.com subdomains
+      if (/\.vercel\.app$/.test(origin) || /\.oriafintech\.com$/.test(origin)) return cb(null, true);
       cb(new Error(`Origin ${origin} not allowed`), false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
