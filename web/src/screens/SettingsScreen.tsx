@@ -414,6 +414,13 @@ export function SettingsScreen({ userId }: { userId: string }) {
     setSavingAccount(false);
   }
 
+  async function updatePaymentStatus(id: string, status: 'current' | 'overdue') {
+    const { error } = await supabase.from('accounts')
+      .update({ payment_status: status })
+      .eq('id', id).eq('user_id', userId);
+    if (!error) setAccounts(prev => prev.map(a => a.id === id ? { ...a, payment_status: status } : a));
+  }
+
   async function removeAccount(id: string) {
     const ok = window.confirm('¿Eliminar esta cuenta y todos sus movimientos importados?');
     if (!ok) return;
@@ -1042,6 +1049,28 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         </div>
                       )}
                     </div>
+
+                    {/* Estado de pago (solo tarjetas de crédito, siempre editable) */}
+                    {isCC && (
+                      <div style={{ marginTop:10, marginLeft:52 }}>
+                        <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>ESTADO DEL PAGO</div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          {([
+                            { val: 'current' as const, label: '✅ Al día',  bg:'rgba(49,214,123,0.12)', border:'rgba(49,214,123,0.35)', color:'#31D67B' },
+                            { val: 'overdue' as const, label: '🔴 En mora', bg:'rgba(239,68,68,0.12)',  border:'rgba(239,68,68,0.35)',  color:'#EF4444' },
+                          ]).map(opt => (
+                            <button key={opt.val} type="button"
+                              onClick={() => updatePaymentStatus(acc.id, opt.val)}
+                              style={{ flex:1, padding:'8px 0', borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:700,
+                                border:`1px solid ${acc.payment_status === opt.val ? opt.border : C.border}`,
+                                background: acc.payment_status === opt.val ? opt.bg : 'transparent',
+                                color: acc.payment_status === opt.val ? opt.color : C.textMuted }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
