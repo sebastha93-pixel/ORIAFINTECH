@@ -364,10 +364,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
     const isCC = newAccountType === 'credit_card';
     const balanceDigits = newInitialBalance.replace(/\D/g, '');
     const initialBalance = balanceDigits ? parseInt(balanceDigits, 10) : 0;
-    // If user entered a balance, cutoff is today (balance reflects current state).
-    // Otherwise, cutoff is 30 days ago to import the full Gmail window.
+    // Momento 0 = inicio del día en que se crea la cuenta, sin importar si se
+    // ingresó saldo o no. Solo se importan correos a partir de esta fecha.
     const cutoff = new Date();
-    if (!balanceDigits) cutoff.setDate(cutoff.getDate() - 30);
     cutoff.setHours(0, 0, 0, 0);
 
     const basePayload = {
