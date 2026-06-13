@@ -38,9 +38,6 @@ export async function runGmailSync(
   userId: string,
   accounts: SyncAccount[],
 ): Promise<SyncResult> {
-  const registeredAccounts = accounts.filter(a => a.account_suffix);
-  if (registeredAccounts.length === 0) return { created: 0, emailCount: 0 };
-
   const headers = await getAuthHeaders();
   const res = await fetch(`${API}/email-sync/fetch-emails`, { headers });
   if (!res.ok) {
@@ -62,26 +59,32 @@ export async function runGmailSync(
   };
   const parsed: NonNullable<ParsedItem>[] = [];
 
+  const registeredAccounts = accounts.filter(a => a.account_suffix);
+
   for (const email of emails) {
     const result = parseEmail(email.bank, email.body, email.subject);
     if (!result || result.amount <= 0) continue;
-    if (!result.accountSuffix && email.bank !== 'nequi') continue;
 
-    const match = registeredAccounts.find(a => {
-      if (email.bank === 'nequi') return a.institution?.toLowerCase().includes('nequi');
-      if (a.account_suffix !== result.accountSuffix) return false;
+    // Try to match a registered account (best-effort — does NOT block import)
+    let account_id: string | undefined;
+    const matchedAccount = registeredAccounts.find(a => {
+      if (email.bank === 'nequi') return !!a.institution?.toLowerCase().includes('nequi');
+      if (!result.accountSuffix || a.account_suffix !== result.accountSuffix) return false;
       return !!a.institution?.toLowerCase().includes(email.bank);
     });
 
-    if (!match) continue;
-
-    if (match.account_holder && result.accountHolder) {
-      if (!holderNamesMatch(match.account_holder, result.accountHolder)) continue;
+    if (matchedAccount) {
+      // Holder check is a soft filter — only reject when both are present and clearly mismatched
+      const holderOk =
+        !matchedAccount.account_holder ||
+        !result.accountHolder ||
+        holderNamesMatch(matchedAccount.account_holder, result.accountHolder);
+      if (holderOk) account_id = matchedAccount.id;
     }
 
-    if (match.initial_balance_set_at && email.date < match.initial_balance_set_at) continue;
-
-    parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
+    // Import the transaction regardless of whether a matching account was found.
+    // Unlinked transactions still appear in Movimientos; they can be reviewed manually.
+    parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
   }
 
   let created = 0;
@@ -97,6 +100,7 @@ export async function runGmailSync(
       notes:            'Auto-importado',
       ...(txn.account_id ? { account_id: txn.account_id } : {}),
     });
+    // error code 23505 = duplicate key (already imported) — silently skip
     if (!error) created++;
   }
 

@@ -525,84 +525,46 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
 
-      // Step 2: Parse emails — only import from registered accounts
+      // Parse emails — try to link to registered accounts but import regardless
       const registeredAccounts = accounts.filter(a => a.account_suffix);
-
-      // No accounts registered → nothing to import
-      if (registeredAccounts.length === 0) {
-        const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
-        setLastSync(`${time} · Registra al menos una cuenta para importar movimientos`);
-        setSyncing(false);
-        return;
-      }
 
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
-
-      // Contadores de diagnóstico
-      let cNoParse = 0, cNoSuffix = 0, cNoMatch = 0, cHolderMismatch = 0, cNoBalance = 0, cBeforeCutoff = 0;
-      const unmatchedSuffixes: string[] = [];
+      let cNoParse = 0, cLinked = 0, cUnlinked = 0;
 
       for (const email of emails) {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) { cNoParse++; continue; }
 
-        if (!result.accountSuffix && email.bank !== 'nequi') { cNoSuffix++; continue; }
-
-        // Primero buscar cuenta con sufijo + banco coincidentes
-        const suffixMatch = registeredAccounts.find(a => {
-          if (email.bank === 'nequi') return a.institution?.toLowerCase().includes('nequi');
-          if (a.account_suffix !== result.accountSuffix) return false;
+        // Try to match a registered account (best-effort — does NOT block import)
+        let account_id: string | undefined;
+        const matchedAccount = registeredAccounts.find(a => {
+          if (email.bank === 'nequi') return !!a.institution?.toLowerCase().includes('nequi');
+          if (!result.accountSuffix || a.account_suffix !== result.accountSuffix) return false;
           return !!a.institution?.toLowerCase().includes(email.bank);
         });
 
-        if (!suffixMatch) {
-          // No hay ninguna cuenta con ese sufijo registrada
-          cNoMatch++;
-          if (result.accountSuffix) {
-            const key = `${email.bank}:${result.accountSuffix}`;
-            if (!unmatchedSuffixes.includes(key)) unmatchedSuffixes.push(key);
-          }
-          continue;
+        if (matchedAccount) {
+          const holderOk =
+            !matchedAccount.account_holder ||
+            !result.accountHolder ||
+            holderNamesMatch(matchedAccount.account_holder, result.accountHolder);
+          if (holderOk) { account_id = matchedAccount.id; cLinked++; }
+          else cUnlinked++;
+        } else {
+          cUnlinked++;
         }
 
-        // Cuenta encontrada por sufijo — verificar titular
-        if (suffixMatch.account_holder && result.accountHolder) {
-          if (!holderNamesMatch(suffixMatch.account_holder, result.accountHolder)) {
-            // Sufijo correcto pero titular no coincide → probable cuenta de otra persona
-            cHolderMismatch++;
-            continue;
-          }
-        }
-
-        const match = suffixMatch;
-
-        // Only enforce date cutoff when initial_balance_set_at is explicitly set.
-        // Without it the account still syncs within the Gmail 30-day query window.
-        if (match.initial_balance_set_at && email.date < match.initial_balance_set_at) { cBeforeCutoff++; continue; }
-
-        parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
+        // Import regardless — unlinked transactions still appear in Movimientos
+        parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
       }
 
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
 
       if (parsed.length === 0) {
-        const reasons: string[] = [];
-        if (cNoParse > 0)         reasons.push(`${cNoParse} sin parsear`);
-        if (cNoSuffix > 0)        reasons.push(`${cNoSuffix} sin nº cuenta`);
-        if (cNoMatch > 0) {
-          const hint = unmatchedSuffixes.length > 0
-            ? ` (agregar: ${unmatchedSuffixes.slice(0, 5).join(', ')})`
-            : '';
-          reasons.push(`${cNoMatch} cuenta no registrada${hint}`);
-        }
-        if (cHolderMismatch > 0)  reasons.push(`${cHolderMismatch} titular no coincide`);
-        if (cNoBalance > 0)       reasons.push(`${cNoBalance} sin saldo inicial`);
-        if (cBeforeCutoff > 0)    reasons.push(`${cBeforeCutoff} anteriores al corte`);
-        setLastSync(`${time} · ${emails.length} correos · ${reasons.join(' · ') || 'sin movimientos nuevos'}`);
+        setLastSync(`${time} · ${emails.length} correos · ${cNoParse} sin parsear · sin movimientos nuevos`);
         return;
       }
-
       // Step 3: Insert via Supabase JS (user is authenticated → no RLS issues)
       let created = 0;
       const upsertErrors: string[] = [];
@@ -628,7 +590,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       setGmailCount(prev => prev + created);
       const errStr = upsertErrors.length > 0 ? ` ⚠️ ${upsertErrors[0]}` : '';
-      setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${errStr}`);
+      const linkInfo = cLinked > 0 ? ` · ${cLinked} vinculados` : cUnlinked > 0 ? ` · ${cUnlinked} sin cuenta` : '';
+      setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${linkInfo}${errStr}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setLastSync(`⚠️ ${msg.slice(0, 120)}`);
