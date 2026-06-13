@@ -61,9 +61,19 @@ export async function runGmailSync(
 
   const registeredAccounts = accounts.filter(a => a.account_suffix);
 
+  // Momento 0: la fecha más antigua en que se registró el saldo inicial de cualquier cuenta.
+  // Emails anteriores a esa fecha ya están cubiertos por el saldo inicial → no importar.
+  const cutoffDates = accounts
+    .filter(a => a.initial_balance_set_at)
+    .map(a => a.initial_balance_set_at!.slice(0, 10))
+    .sort();
+  const globalCutoff = cutoffDates[0] ?? null;
+
   for (const email of emails) {
     const result = parseEmail(email.bank, email.body, email.subject);
     if (!result || result.amount <= 0) continue;
+
+    const emailDate = email.date.slice(0, 10);
 
     // Try to match a registered account (best-effort — does NOT block import)
     let account_id: string | undefined;
@@ -80,10 +90,15 @@ export async function runGmailSync(
         !result.accountHolder ||
         holderNamesMatch(matchedAccount.account_holder, result.accountHolder);
       if (holderOk) account_id = matchedAccount.id;
+
+      // Per-account cutoff: skip emails before this account's momento 0
+      const acctCutoff = matchedAccount.initial_balance_set_at?.slice(0, 10);
+      if (acctCutoff && emailDate < acctCutoff) continue;
+    } else {
+      // No account matched — use the global cutoff to avoid pre-history noise
+      if (globalCutoff && emailDate < globalCutoff) continue;
     }
 
-    // Import the transaction regardless of whether a matching account was found.
-    // Unlinked transactions still appear in Movimientos; they can be reviewed manually.
     parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
   }
 

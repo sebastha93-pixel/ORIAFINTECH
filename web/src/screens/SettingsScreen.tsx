@@ -528,13 +528,23 @@ export function SettingsScreen({ userId }: { userId: string }) {
       // Parse emails — try to link to registered accounts but import regardless
       const registeredAccounts = accounts.filter(a => a.account_suffix);
 
+      // Momento 0: la fecha más antigua en que se registró el saldo inicial de cualquier cuenta.
+      // Emails anteriores a esa fecha ya están cubiertos por el saldo inicial → no importar.
+      const cutoffDates = accounts
+        .filter(a => a.initial_balance_set_at)
+        .map(a => a.initial_balance_set_at!.slice(0, 10))
+        .sort();
+      const globalCutoff = cutoffDates[0] ?? null;
+
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
-      let cNoParse = 0, cLinked = 0, cUnlinked = 0;
+      let cNoParse = 0, cLinked = 0, cUnlinked = 0, cBeforeCutoff = 0;
 
       for (const email of emails) {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) { cNoParse++; continue; }
+
+        const emailDate = email.date.slice(0, 10);
 
         // Try to match a registered account (best-effort — does NOT block import)
         let account_id: string | undefined;
@@ -551,18 +561,24 @@ export function SettingsScreen({ userId }: { userId: string }) {
             holderNamesMatch(matchedAccount.account_holder, result.accountHolder);
           if (holderOk) { account_id = matchedAccount.id; cLinked++; }
           else cUnlinked++;
+
+          // Per-account cutoff: omitir emails anteriores al momento 0 de esta cuenta
+          const acctCutoff = matchedAccount.initial_balance_set_at?.slice(0, 10);
+          if (acctCutoff && emailDate < acctCutoff) { cBeforeCutoff++; continue; }
         } else {
+          // Sin cuenta vinculada: usar el cutoff global para evitar histórico no deseado
+          if (globalCutoff && emailDate < globalCutoff) { cBeforeCutoff++; continue; }
           cUnlinked++;
         }
 
-        // Import regardless — unlinked transactions still appear in Movimientos
         parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
       }
 
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
 
       if (parsed.length === 0) {
-        setLastSync(`${time} · ${emails.length} correos · ${cNoParse} sin parsear · sin movimientos nuevos`);
+        const cutoffInfo = cBeforeCutoff > 0 ? ` · ${cBeforeCutoff} anteriores al momento 0` : '';
+        setLastSync(`${time} · ${emails.length} correos · ${cNoParse} sin parsear${cutoffInfo} · sin movimientos nuevos`);
         return;
       }
       // Step 3: Insert via Supabase JS (user is authenticated → no RLS issues)
@@ -591,7 +607,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setGmailCount(prev => prev + created);
       const errStr = upsertErrors.length > 0 ? ` ⚠️ ${upsertErrors[0]}` : '';
       const linkInfo = cLinked > 0 ? ` · ${cLinked} vinculados` : cUnlinked > 0 ? ` · ${cUnlinked} sin cuenta` : '';
-      setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${linkInfo}${errStr}`);
+      const cutoffStr = cBeforeCutoff > 0 ? ` · ${cBeforeCutoff} omitidos (antes del momento 0)` : '';
+      setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${linkInfo}${cutoffStr}${errStr}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setLastSync(`⚠️ ${msg.slice(0, 120)}`);
