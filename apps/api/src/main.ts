@@ -3,6 +3,7 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -15,23 +16,19 @@ async function bootstrap() {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
-  // CORS
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') ?? [
-    'http://localhost:19006',
-    'http://localhost:3000',
+  // CORS — explicit allowlist only, no wildcards
+  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()) ?? [
     'http://localhost:5173',
-    'https://nexo-finanzas-tech-api.vercel.app',
+    'http://localhost:3000',
     'https://oriafintech.com',
     'https://www.oriafintech.com',
   ];
   app.enableCors({
     origin: (origin, cb) => {
-      const allowed =
-        !origin ||
-        allowedOrigins.includes(origin) ||
-        /\.vercel\.app$/.test(origin) ||
-        /oriafintech\.com$/.test(origin);
-      cb(null, allowed);
+      // Allow same-origin / server-to-server (no Origin header)
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`Origin ${origin} not allowed`), false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -41,6 +38,9 @@ async function bootstrap() {
   // Global prefix & versioning
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+
+  // Global exception filter — sanitizes all error responses, no stack traces
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // Validation
   app.useGlobalPipes(
