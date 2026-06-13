@@ -30,6 +30,7 @@ interface BankAccount {
   payment_due_day:        number | null;
   initial_balance_usd:    number | null;
   card_network:           string | null;
+  payment_status:         'current' | 'overdue' | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -271,6 +272,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newInitialBalanceUsd, setNewInitialBalanceUsd] = useState('');
   const [newCreditLimitUsd, setNewCreditLimitUsd] = useState('');
   const [newCardNetwork, setNewCardNetwork] = useState('visa');
+  const [newPaymentStatus, setNewPaymentStatus] = useState<'current' | 'overdue'>('current');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
@@ -287,7 +289,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function loadAccounts() {
     // Try full select (requires migrations 009 and 010 to be applied in Supabase)
     const BASE_SELECT = 'id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,payment_due_day';
-    const FULL_SELECT = BASE_SELECT + ',credit_limit_usd,initial_balance_usd,card_network';
+    const FULL_SELECT = BASE_SELECT + ',credit_limit_usd,initial_balance_usd,card_network,payment_status';
 
     const baseQuery = () =>
       supabase.from('accounts').select(BASE_SELECT).eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: true });
@@ -388,6 +390,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       ...(isCC && newCreditLimitUsd ? { credit_limit_usd: parseFloat(newCreditLimitUsd) } : {}),
       ...(isCC && newInitialBalanceUsd ? { initial_balance_usd: parseFloat(newInitialBalanceUsd) } : {}),
       ...(isCC ? { card_network: newCardNetwork } : {}),
+      ...(isCC ? { payment_status: newPaymentStatus } : {}),
     });
     // If new columns don't exist yet (migrations pending), retry with base payload only
     if (error?.code === '42703') {
@@ -404,6 +407,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setNewDueDay('');
       setNewInitialBalance('');
       setNewInitialBalanceUsd('');
+      setNewPaymentStatus('current');
     } else {
       setAddAccountError(error.message);
     }
@@ -896,6 +900,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             ) : null;
                           })()}
                           {isCC && (() => {
+                            // Si el usuario definió el estado manualmente, usarlo directamente
+                            if (acc.payment_status === 'overdue')
+                              return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
+                            if (acc.payment_status === 'current')
+                              return <span style={{ background:'rgba(49,214,123,0.15)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
+                            // Sin estado manual: auto-derivar por fecha vs. día de pago
                             const hasDebt = (acc.initial_balance ?? 0) > 0 || (acc.initial_balance_usd ?? 0) > 0;
                             if (!hasDebt) return <span style={{ background:'rgba(49,214,123,0.15)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
                             const dueDay = acc.payment_due_day;
@@ -1184,6 +1194,24 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             background:C.surface, color:C.text, fontSize:14, fontWeight:600,
                             boxSizing:'border-box', outline:'none' }}
                         />
+                      </div>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Estado actual del pago</div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          {([
+                            { val: 'current', label: '✅ Al día',  bg: 'rgba(49,214,123,0.12)', border: 'rgba(49,214,123,0.35)', active: '#31D67B' },
+                            { val: 'overdue', label: '🔴 En mora', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)',  active: '#EF4444' },
+                          ] as const).map(opt => (
+                            <button key={opt.val} type="button"
+                              onClick={() => setNewPaymentStatus(opt.val)}
+                              style={{ flex:1, padding:'10px 0', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700,
+                                border: `1px solid ${newPaymentStatus === opt.val ? opt.border : C.border}`,
+                                background: newPaymentStatus === opt.val ? opt.bg : 'transparent',
+                                color: newPaymentStatus === opt.val ? opt.active : C.textMuted }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div>
                         <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo en USD (opcional)</div>
