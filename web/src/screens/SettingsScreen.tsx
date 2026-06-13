@@ -279,7 +279,6 @@ export function SettingsScreen({ userId }: { userId: string }) {
   // Initial balance editing: keyed by account id
   const [balanceDraft, setBalanceDraft]     = useState<Record<string, string>>({});
   const [savingBalance, setSavingBalance]   = useState<Record<string, boolean>>({});
-  const [syncWindowDays, setSyncWindowDays] = useState<Record<string, number>>({});
   // Cuentas que el usuario ha desbloqueado manualmente para re-editar hoy
   const [editingBalance, setEditingBalance] = useState<Record<string, boolean>>({});
 
@@ -328,27 +327,13 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function saveInitialBalance(acc: BankAccount) {
     const digits = (balanceDraft[acc.id] ?? '').replace(/\D/g, '');
     const amount = digits ? parseInt(digits, 10) : 0;
-    const days = syncWindowDays[acc.id] ?? 30;
-    // Cutoff = start of the sync window (days ago at midnight local time)
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    cutoff.setHours(0, 0, 0, 0);
-    const cutoffAt = cutoff.toISOString();
 
     setSavingBalance(prev => ({ ...prev, [acc.id]: true }));
+    // Only update the balance — never touch initial_balance_set_at (momento 0 is immutable after creation)
     const { error } = await supabase.from('accounts').update({
       initial_balance: amount,
-      initial_balance_set_at: cutoffAt,
     }).eq('id', acc.id).eq('user_id', userId);
     if (!error) {
-      // Delete gmail-imported transactions before the cutoff window
-      await supabase
-        .from('transactions')
-        .delete()
-        .eq('account_id', acc.id)
-        .eq('user_id', userId)
-        .not('gmail_message_id', 'is', null)
-        .lt('date', cutoffAt.slice(0, 10));
       setEditingBalance(prev => ({ ...prev, [acc.id]: false }));
       await loadAccounts();
     }
@@ -972,28 +957,6 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       </div>
                       {editable ? (
                         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                          {/* Sync window selector — only for debit accounts */}
-                          {!isCC && (
-                            <div>
-                              <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5 }}>IMPORTAR DESDE</div>
-                              <div style={{ display:'flex', gap:6 }}>
-                                {([7, 30, 90] as const).map(d => {
-                                  const selected = (syncWindowDays[acc.id] ?? 30) === d;
-                                  return (
-                                    <button key={d}
-                                      onClick={() => setSyncWindowDays(prev => ({ ...prev, [acc.id]: d }))}
-                                      style={{ flex:1, padding:'6px 0', borderRadius:8,
-                                        border:`1px solid ${selected ? C.primaryGlow : C.border}`,
-                                        background: selected ? 'rgba(59,130,246,0.15)' : 'transparent',
-                                        color: selected ? C.primaryGlow : C.textMuted,
-                                        fontSize:11, fontWeight: selected ? 700 : 400, cursor:'pointer' }}>
-                                      {d === 7 ? '7 días' : d === 30 ? '30 días' : '90 días'}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
                           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                           <div style={{ position:'relative', flex:1 }}>
                             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
@@ -1299,7 +1262,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
                       {newAccountType === 'credit_card'
                         ? 'Tu deuda actual en esta tarjeta.'
-                        : 'Saldo de tu cuenta hoy. Si lo dejas en 0, ORIA importará los últimos 30 días de movimientos automáticamente.'}
+                        : 'Saldo de tu cuenta en este momento. ORIA solo importará movimientos a partir de ahora.'}
                     </div>
                   </div>
 
