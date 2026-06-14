@@ -200,7 +200,7 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
 }
 
 function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
-  const trm    = snap.trm > 0 ? snap.trm : 4200;
+  const trm    = snap.trm > 0 ? snap.trm : 3516;
   const debit  = snap.accounts.filter(a => a.account_type !== 'credit_card');
   const credit = snap.accounts.filter(a => a.account_type === 'credit_card');
   const totalCupo = credit.reduce((s, a) => {

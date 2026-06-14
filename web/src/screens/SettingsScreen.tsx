@@ -273,7 +273,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newCreditLimitUsd, setNewCreditLimitUsd] = useState('');
   const [newCardNetwork, setNewCardNetwork] = useState('visa');
   const [newPaymentStatus, setNewPaymentStatus] = useState<'current' | 'overdue'>('current');
-  const [trm, setTrm]                       = useState(() => localStorage.getItem('nexo_trm') ?? '4200');
+  const [trm, setTrm]                       = useState(() => localStorage.getItem('nexo_trm') ?? '3516');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
@@ -861,7 +861,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 const locked  = isBalanceLocked(acc);
                 const editable = !locked;
                 const isSaving = savingBalance[acc.id] ?? false;
-                const trmVal  = parseFloat(trm) || 4200;
+                const trmVal  = parseFloat(trm) || 3516;
                 const debt    = acc.initial_balance ?? 0;
                 const limit   = acc.credit_limit ?? 0;
                 const debtUsd   = acc.initial_balance_usd ?? 0;
@@ -929,7 +929,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             </div>
                             {debtUsd > 0 && (
                               <div style={{ color:C.textMuted, fontSize:9, marginTop:2 }}>
-                                TRM: ${parseFloat(trm).toLocaleString('es-CO')} · {fmtUsd(debtUsd)} ≈ {fmt(Math.round(debtUsd * (parseFloat(trm) || 4200)))} COP
+                                TRM: ${parseFloat(trm).toLocaleString('es-CO')} · {fmtUsd(debtUsd)} ≈ {fmt(Math.round(debtUsd * (parseFloat(trm) || 3516)))} COP
                               </div>
                             )}
                           </div>

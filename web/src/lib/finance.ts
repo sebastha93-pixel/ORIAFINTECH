@@ -117,7 +117,7 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
     prevSummaries: (summariesRes.data as MonthlySummary[]) ?? [],
     accounts:      (accountsRes.data as Account[]) ?? [],
     goals:         (goalsRes.data as Goal[]) ?? [],
-    trm: parseFloat(localStorage.getItem('nexo_trm') ?? '4200'),
+    trm: parseFloat(localStorage.getItem('nexo_trm') ?? '3516'),
   };
 }
 
@@ -138,7 +138,7 @@ export interface Metrics {
 }
 
 export function computeMetrics(s: FinanceSnapshot): Metrics {
-  const trm = s.trm > 0 ? s.trm : 4200;
+  const trm = s.trm > 0 ? s.trm : 3516;
   const debitAccounts  = s.accounts.filter(a => a.account_type !== 'credit_card');
   const creditAccounts = s.accounts.filter(a => a.account_type === 'credit_card');
   const debitBase  = debitAccounts.reduce((t, a) => t + Number(a.initial_balance ?? 0), 0);
