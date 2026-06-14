@@ -12,13 +12,15 @@ const CATEGORIES = [
   { name:'Educación',       icon:'📚' },
   { name:'Servicios',       icon:'💡' },
   { name:'Ropa',            icon:'👔' },
-  { name:'Salario',         icon:'💰' },
   { name:'Efectivo',        icon:'🏧' },
   { name:'Transferencias',  icon:'🔄' },
   { name:'Gasolina',        icon:'⛽' },
   { name:'Restaurante',     icon:'🍽️' },
   { name:'Otros',           icon:'📦' },
+  { name:'__custom__',      icon:'✏️' },
 ];
+
+const CUSTOM_MARKER = '__custom__';
 
 interface Account { id: string; name: string; institution: string; }
 
@@ -32,6 +34,7 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
   const [amount, setAmount]     = useState('');
   const [desc, setDesc]         = useState('');
   const [cat, setCat]           = useState<string>('Otros');
+  const [customCat, setCustomCat] = useState('');
   const [date, setDate]         = useState(today);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountId, setAccountId] = useState<string>('');
@@ -54,10 +57,13 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
       });
   }, [userId]);
 
+  const effectiveCat = cat === CUSTOM_MARKER ? (customCat.trim() || 'Personalizado') : cat;
+
   async function handleSave() {
     const num = parseFloat(amount.replace(/[^0-9.]/g, ''));
     if (!num || num <= 0) { setError('Ingresa un monto válido'); return; }
     if (!desc.trim()) { setError('Ingresa una descripción'); return; }
+    if (cat === CUSTOM_MARKER && !customCat.trim()) { setError('Escribe un nombre para la categoría personalizada'); return; }
     setSaving(true);
     setError(null);
     const { error: err } = await supabase.from('transactions').insert({
@@ -65,7 +71,7 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
       transaction_type: type,
       amount: num,
       description: desc.trim(),
-      category: cat,
+      category: effectiveCat,
       date,
       notes: 'Ingresado manualmente',
       currency_code: 'COP',
@@ -141,6 +147,7 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
               {CATEGORIES.map(c => {
                 const sel = cat === c.name;
+                const isCustom = c.name === CUSTOM_MARKER;
                 return (
                   <button key={c.name} onClick={() => setCat(c.name)} style={{
                     padding:'10px 4px', borderRadius:12,
@@ -149,11 +156,25 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
                     cursor:'pointer', textAlign:'center',
                   }}>
                     <div style={{ fontSize:18, marginBottom:2 }}>{c.icon}</div>
-                    <div style={{ color: sel ? C.primaryGlow : C.textMuted, fontSize:9, fontWeight:600, lineHeight:1.2 }}>{c.name}</div>
+                    <div style={{ color: sel ? C.primaryGlow : C.textMuted, fontSize:9, fontWeight:600, lineHeight:1.2 }}>
+                      {isCustom ? (sel && customCat.trim() ? customCat.trim() : 'Personalizada') : c.name}
+                    </div>
                   </button>
                 );
               })}
             </div>
+
+            {/* Input for custom category name */}
+            {cat === CUSTOM_MARKER && (
+              <input
+                style={{ ...inp, marginTop:10 }}
+                type="text"
+                placeholder="Ej: Hijos, Mascotas, Negocio…"
+                value={customCat}
+                onChange={e => setCustomCat(e.target.value)}
+                autoFocus
+              />
+            )}
           </div>
 
           {/* Date */}

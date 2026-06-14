@@ -30,13 +30,15 @@ const CATEGORIES: { label: string; icon: string }[] = [
   { label: 'Educación',       icon: '📚' },
   { label: 'Servicios',       icon: '💡' },
   { label: 'Ropa',            icon: '👔' },
-  { label: 'Salario',         icon: '💰' },
   { label: 'Efectivo',        icon: '🏧' },
   { label: 'Transferencias',  icon: '🔄' },
   { label: 'Gasolina',        icon: '⛽' },
   { label: 'Restaurante',     icon: '🍽️' },
-  { label: 'Otros',           icon: '💳' },
+  { label: 'Otros',           icon: '📦' },
+  { label: '__custom__',      icon: '✏️' },
 ];
+
+const CUSTOM_MARKER = '__custom__';
 
 export function txIcon(desc: string, type: 'income' | 'expense', cat?: string | null): string {
   const d = (desc + ' ' + (cat ?? '')).toLowerCase();
@@ -90,6 +92,7 @@ function userNote(raw: string | null | undefined): string {
 export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotesChanged }: Props) {
   const [showCatPicker, setShowCatPicker] = useState(false);
   const [catSaving, setCatSaving]         = useState(false);
+  const [customCat, setCustomCat]         = useState('');
   const [notesSaving, setNotesSaving]     = useState(false);
   const [notesSaved, setNotesSaved]       = useState(false);
   const [editNotes, setEditNotes]         = useState<string | null>(null);
@@ -176,41 +179,78 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
         <div style={{ padding:'0 20px', display:'flex', flexDirection:'column', gap:2 }}>
           <Row label="Descripción" value={t.description ?? 'Sin descripción'} />
 
-          {/* Category row — tappable */}
-          <div
-            style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'11px 0', borderBottom:`1px solid ${C.border}`, cursor:'pointer' }}
-            onClick={() => setShowCatPicker(p => !p)}
-          >
-            <span style={{ color:C.textMuted, fontSize:13 }}>Categoría</span>
-            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <span style={{ color:C.primaryGlow, fontSize:13, fontWeight:600 }}>{category}</span>
-              <span style={{ color:C.textMuted, fontSize:11 }}>✏️</span>
+          {/* Category row — tappable edit button */}
+          <div style={{ padding:'10px 0', borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ color:C.textMuted, fontSize:13 }}>Categoría</span>
+              <button
+                onClick={() => { setShowCatPicker(p => !p); setCustomCat(''); }}
+                style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(59,130,246,0.12)',
+                  border:`1px solid rgba(59,130,246,0.3)`, borderRadius:20,
+                  padding:'5px 12px', cursor:'pointer' }}>
+                <span style={{ color:C.primaryGlow, fontSize:13, fontWeight:600 }}>{category}</span>
+                <span style={{ fontSize:11 }}>{showCatPicker ? '▲' : '✏️'}</span>
+              </button>
             </div>
-          </div>
 
-          {/* Category picker */}
-          {showCatPicker && (
-            <div style={{ padding:'12px 0', borderBottom:`1px solid ${C.border}` }}>
-              <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:10 }}>SELECCIONAR CATEGORÍA</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
-                {CATEGORIES.map(c => {
-                  const isSel = category === c.label;
-                  return (
-                    <button key={c.label}
-                      disabled={catSaving}
-                      onClick={() => handleCategorySelect(c.label)}
-                      style={{ padding:'10px 4px', borderRadius:12,
-                        border:`1px solid ${isSel ? C.primaryGlow : C.border}`,
-                        background: isSel ? 'rgba(59,130,246,0.15)' : C.bg,
-                        cursor:'pointer', textAlign:'center' }}>
-                      <div style={{ fontSize:18, marginBottom:2 }}>{c.icon}</div>
-                      <div style={{ color: isSel ? C.primaryGlow : C.textMuted, fontSize:9, fontWeight:600, lineHeight:1.2 }}>{c.label}</div>
-                    </button>
-                  );
-                })}
+            {/* Inline picker */}
+            {showCatPicker && (
+              <div style={{ marginTop:12 }}>
+                <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:10 }}>SELECCIONAR CATEGORÍA</div>
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+                  {CATEGORIES.map(c => {
+                    const isCustom = c.label === CUSTOM_MARKER;
+                    const isSel = isCustom
+                      ? !CATEGORIES.some(x => x.label !== CUSTOM_MARKER && x.label === category)
+                        && !!customCat.trim()
+                      : category === c.label;
+                    return (
+                      <button key={c.label}
+                        disabled={catSaving}
+                        onClick={() => {
+                          if (isCustom) return; // handled by save button below
+                          void handleCategorySelect(c.label);
+                        }}
+                        style={{ padding:'10px 4px', borderRadius:12,
+                          border:`1px solid ${isSel ? C.primaryGlow : C.border}`,
+                          background: isSel ? 'rgba(59,130,246,0.15)' : C.bg,
+                          cursor: catSaving ? 'default' : 'pointer', textAlign:'center',
+                          opacity: catSaving ? 0.6 : 1 }}>
+                        <div style={{ fontSize:18, marginBottom:2 }}>{c.icon}</div>
+                        <div style={{ color: isSel ? C.primaryGlow : C.textMuted, fontSize:9, fontWeight:600, lineHeight:1.2 }}>
+                          {isCustom ? 'Personalizada' : c.label}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom category input */}
+                <div style={{ marginTop:10, display:'flex', gap:8 }}>
+                  <input
+                    style={{ flex:1, background:C.bg, border:`1px solid ${C.border}`, borderRadius:10,
+                      color:C.text, fontSize:13, padding:'9px 12px', outline:'none', fontFamily:'inherit' }}
+                    placeholder="Nombre personalizado (Hijos, Mascota…)"
+                    value={customCat}
+                    onChange={e => setCustomCat(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && customCat.trim()) void handleCategorySelect(customCat.trim());
+                    }}
+                  />
+                  <button
+                    disabled={catSaving || !customCat.trim()}
+                    onClick={() => void handleCategorySelect(customCat.trim())}
+                    style={{ padding:'9px 14px', borderRadius:10, border:'none',
+                      background: customCat.trim() ? C.primaryGlow : C.border,
+                      color:'#fff', fontSize:13, fontWeight:700,
+                      cursor: customCat.trim() ? 'pointer' : 'default',
+                      opacity: catSaving ? 0.6 : 1 }}>
+                    OK
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <Row label="Fecha"  value={dateFormatted} capitalize />
           <Row label="Origen" value={origin} />

@@ -26,7 +26,11 @@ interface BankAccount {
   initial_balance:        number | null;
   initial_balance_set_at: string | null;
   credit_limit:           number | null;
+  credit_limit_usd:       number | null;
   payment_due_day:        number | null;
+  initial_balance_usd:    number | null;
+  card_network:           string | null;
+  payment_status:         'current' | 'overdue' | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -123,13 +127,41 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   credit_card: 'Crédito',
 };
 
+const CARD_NETWORKS = [
+  { id: 'visa',       name: 'Visa',        color: '#1A1F71' },
+  { id: 'mastercard', name: 'Mastercard',   color: '#EB001B' },
+  { id: 'amex',       name: 'Amex',         color: '#2E77BC' },
+  { id: 'diners',     name: 'Diners Club',  color: '#004B87' },
+  { id: 'other',      name: 'Otra',         color: '#6b7280' },
+];
+
 const BANKS = [
-  { id:'bancolombia', name:'Bancolombia', icon:'🏦', color:'#FFCD00',
+  { id:'bancolombia',  name:'Bancolombia',         color:'#FFCD00',
     steps:['Ingresa a la app o web de Bancolombia','Ve a Cuentas → tu cuenta → Extracto','Selecciona el período','Descarga en formato Excel o CSV'] },
-  { id:'davivienda', name:'Davivienda',   icon:'🏦', color:'#E8192C',
+  { id:'davivienda',   name:'Davivienda',           color:'#E8192C',
     steps:['Ingresa a la app o web de Davivienda','Ve a Mis productos → tu cuenta → Extracto','Selecciona el período','Descarga en formato Excel o CSV'] },
-  { id:'nequi',      name:'Nequi',        icon:'📱', color:'#7B3FF2',
+  { id:'nequi',        name:'Nequi',                color:'#7B3FF2',
     steps:['Abre Nequi','Ve a Movimientos','Toca los tres puntos (⋮)','Exportar movimientos → CSV'] },
+  { id:'bogota',       name:'Banco de Bogotá',      color:'#003DA5',
+    steps:['Ingresa a Banca Virtual de Banco de Bogotá','Ve a Cuentas → Movimientos','Selecciona el período','Descarga en formato CSV o Excel'] },
+  { id:'bbva',         name:'BBVA',                 color:'#004B91',
+    steps:['Ingresa a BBVA Net Personal','Ve a Mis cuentas → Movimientos','Selecciona el período','Descarga en formato CSV'] },
+  { id:'itau',         name:'Itaú',                 color:'#EC7000',
+    steps:['Ingresa a la app o web de Itaú','Ve a Extractos','Selecciona el período','Descarga en formato CSV o Excel'] },
+  { id:'nubank',       name:'Nubank',               color:'#820AD1',
+    steps:['Abre la app Nubank','Ve a Tarjeta de crédito → Extracto','Selecciona el mes','Exportar en PDF o CSV'] },
+  { id:'lulo',         name:'Lulo Bank',            color:'#00C896',
+    steps:['Abre la app Lulo Bank','Ve a Movimientos','Toca Exportar','Descarga en CSV'] },
+  { id:'colpatria',    name:'Scotiabank Colpatria', color:'#EC111A',
+    steps:['Ingresa al portal de Scotiabank Colpatria','Ve a Mis productos → Extractos','Selecciona el período','Descarga en CSV o Excel'] },
+  { id:'popular',      name:'Banco Popular',        color:'#005BAA',
+    steps:['Ingresa a la Banca Virtual de Banco Popular','Ve a Cuentas → Movimientos','Selecciona el período','Descarga en CSV'] },
+  { id:'occidente',    name:'Banco de Occidente',   color:'#0072BC',
+    steps:['Ingresa a la Banca Virtual de Banco de Occidente','Ve a Cuentas → Extracto','Selecciona el período','Descarga en CSV o Excel'] },
+  { id:'rappipay',     name:'RappiPay',             color:'#FF441F',
+    steps:['Abre la app Rappi','Ve a RappiPay → Movimientos','Toca Exportar movimientos','Descarga en CSV'] },
+  { id:'otro',         name:'Otro banco',           color:'#6b7280',
+    steps:['Ingresa al portal web o app de tu banco','Busca Movimientos o Extracto de cuenta','Selecciona el período deseado','Descarga en formato CSV, Excel o TXT'] },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -154,11 +186,63 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     : {};
 }
 
+// ── NotificationCard ─────────────────────────────────────────────────────────
+
+function NotificationCard() {
+  const [perm, setPerm] = React.useState<NotificationPermission>(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied',
+  );
+
+  async function requestPerm() {
+    if (typeof Notification === 'undefined') return;
+    const result = await Notification.requestPermission();
+    setPerm(result);
+    if (result === 'granted') {
+      new Notification('ORIA · Notificaciones activadas', {
+        body: 'Te avisaremos cuando se importen nuevos movimientos.',
+        icon: '/favicon.png',
+      });
+    }
+  }
+
+  const label = perm === 'granted' ? 'Activadas' : perm === 'denied' ? 'Bloqueadas por el navegador' : 'Desactivadas';
+  const color = perm === 'granted' ? C.accent : perm === 'denied' ? C.danger : C.textMuted;
+
+  return (
+    <div style={{ ...card }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:perm !== 'granted' ? 14 : 0 }}>
+        <div style={{ width:40, height:40, borderRadius:12, background:'rgba(59,130,246,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>🔔</div>
+        <div style={{ flex:1 }}>
+          <div style={{ color:C.text, fontSize:14, fontWeight:700 }}>Notificaciones</div>
+          <div style={{ color, fontSize:12, marginTop:2 }}>{label}</div>
+        </div>
+      </div>
+      {perm !== 'granted' && (
+        <button onClick={requestPerm} disabled={perm === 'denied'}
+          style={{ width:'100%', padding:'12px 0', borderRadius:12, border:'none',
+            background: perm === 'denied' ? C.surfaceEl : 'rgba(59,130,246,0.15)',
+            color: perm === 'denied' ? C.textMuted : C.primaryGlow,
+            fontSize:13, fontWeight:700, cursor: perm === 'denied' ? 'default' : 'pointer' }}>
+          {perm === 'denied'
+            ? 'Actívalas en Ajustes del navegador'
+            : '🔔 Activar notificaciones'}
+        </button>
+      )}
+      {perm === 'denied' && (
+        <div style={{ color:C.textMuted, fontSize:11, marginTop:10, lineHeight:1.5, textAlign:'center' }}>
+          Ve a Ajustes → Privacidad → Notificaciones y permite las de oriafintech.com
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SettingsScreen({ userId }: { userId: string }) {
   const [tab, setTab]               = useState<'gmail'|'cuentas'|'csv'>('gmail');
   const [selectedBank, setSelectedBank] = useState<string|null>(null);
+  const [bankDropOpen, setBankDropOpen] = useState(false);
   const [imported, setImported]     = useState<Transaction[]>([]);
   const [csvStatus, setCsvStatus]   = useState<'idle'|'done'|'error'>('idle');
   const [csvError, setCsvError]     = useState('');
@@ -184,13 +268,18 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newHolder, setNewHolder]           = useState('');
   const [newCreditLimit, setNewCreditLimit] = useState('');
   const [newDueDay, setNewDueDay]           = useState('');
+  const [newInitialBalance, setNewInitialBalance] = useState('');
+  const [newInitialBalanceUsd, setNewInitialBalanceUsd] = useState('');
+  const [newCreditLimitUsd, setNewCreditLimitUsd] = useState('');
+  const [newCardNetwork, setNewCardNetwork] = useState('visa');
+  const [newPaymentStatus, setNewPaymentStatus] = useState<'current' | 'overdue'>('current');
+  const [trm, setTrm]                       = useState(() => localStorage.getItem('nexo_trm') ?? '3516');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
   // Initial balance editing: keyed by account id
   const [balanceDraft, setBalanceDraft]     = useState<Record<string, string>>({});
   const [savingBalance, setSavingBalance]   = useState<Record<string, boolean>>({});
-  const [syncWindowDays, setSyncWindowDays] = useState<Record<string, number>>({});
   // Cuentas que el usuario ha desbloqueado manualmente para re-editar hoy
   const [editingBalance, setEditingBalance] = useState<Record<string, boolean>>({});
 
@@ -198,13 +287,23 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const bank    = BANKS.find(b => b.id === selectedBank);
 
   async function loadAccounts() {
-    const { data } = await supabase
+    // Try full select (requires migrations 009 and 010 to be applied in Supabase)
+    const BASE_SELECT = 'id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,payment_due_day';
+    const FULL_SELECT = BASE_SELECT + ',credit_limit_usd,initial_balance_usd,card_network,payment_status';
+
+    const baseQuery = () =>
+      supabase.from('accounts').select(BASE_SELECT).eq('user_id', userId).eq('is_active', true).order('created_at', { ascending: true });
+
+    const full = await supabase
       .from('accounts')
-      .select('id,name,institution,account_type,account_suffix,account_holder,currency_code,initial_balance,initial_balance_set_at,credit_limit,payment_due_day')
+      .select(FULL_SELECT)
       .eq('user_id', userId)
       .eq('is_active', true)
       .order('created_at', { ascending: true });
-    const rows = (data as BankAccount[]) ?? [];
+
+    // If new columns don't exist yet (migrations pending), fall back to base columns
+    const rawData = full.error ? (await baseQuery()).data : full.data;
+    const rows = (rawData as BankAccount[] | null) ?? [];
     setAccounts(rows);
     // Pre-fill draft inputs with existing values
     const drafts: Record<string, string> = {};
@@ -229,27 +328,13 @@ export function SettingsScreen({ userId }: { userId: string }) {
   async function saveInitialBalance(acc: BankAccount) {
     const digits = (balanceDraft[acc.id] ?? '').replace(/\D/g, '');
     const amount = digits ? parseInt(digits, 10) : 0;
-    const days = syncWindowDays[acc.id] ?? 30;
-    // Cutoff = start of the sync window (days ago at midnight local time)
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    cutoff.setHours(0, 0, 0, 0);
-    const cutoffAt = cutoff.toISOString();
 
     setSavingBalance(prev => ({ ...prev, [acc.id]: true }));
+    // Only update the balance — never touch initial_balance_set_at (momento 0 is immutable after creation)
     const { error } = await supabase.from('accounts').update({
       initial_balance: amount,
-      initial_balance_set_at: cutoffAt,
     }).eq('id', acc.id).eq('user_id', userId);
     if (!error) {
-      // Delete gmail-imported transactions before the cutoff window
-      await supabase
-        .from('transactions')
-        .delete()
-        .eq('account_id', acc.id)
-        .eq('user_id', userId)
-        .not('gmail_message_id', 'is', null)
-        .lt('date', cutoffAt.slice(0, 10));
       setEditingBalance(prev => ({ ...prev, [acc.id]: false }));
       await loadAccounts();
     }
@@ -263,7 +348,13 @@ export function SettingsScreen({ userId }: { userId: string }) {
     const inst = INSTITUTIONS.find(i => i.id === newInstitution);
     const name = newNickname.trim() || `${inst?.name} ${ACCOUNT_TYPE_LABELS[newAccountType]} *${newSuffix.slice(-4)}`;
     const isCC = newAccountType === 'credit_card';
-    const { error } = await supabase.from('accounts').insert({
+    const balanceDigits = newInitialBalance.replace(/\D/g, '');
+    const initialBalance = balanceDigits ? parseInt(balanceDigits, 10) : 0;
+    // Momento 0 = fecha Y hora exacta de creación de la cuenta.
+    // Solo se importan correos con timestamp posterior a este momento.
+    const cutoff = new Date();
+
+    const basePayload = {
       user_id: userId,
       name,
       institution: inst?.name ?? newInstitution,
@@ -272,9 +363,23 @@ export function SettingsScreen({ userId }: { userId: string }) {
       account_holder: newHolder.trim().toUpperCase() || null,
       currency_code: 'COP',
       is_active: true,
+      initial_balance: initialBalance,
+      initial_balance_set_at: cutoff.toISOString(),
       ...(isCC && newCreditLimit ? { credit_limit: parseInt(newCreditLimit.replace(/\D/g, ''), 10) } : {}),
       ...(isCC && newDueDay ? { payment_due_day: parseInt(newDueDay, 10) } : {}),
+    };
+
+    let { error } = await supabase.from('accounts').insert({
+      ...basePayload,
+      ...(isCC && newCreditLimitUsd ? { credit_limit_usd: parseFloat(newCreditLimitUsd) } : {}),
+      ...(isCC && newInitialBalanceUsd ? { initial_balance_usd: parseFloat(newInitialBalanceUsd) } : {}),
+      ...(isCC ? { card_network: newCardNetwork } : {}),
+      ...(isCC ? { payment_status: newPaymentStatus } : {}),
     });
+    // If new columns don't exist yet (migrations pending), retry with base payload only
+    if (error?.code === '42703') {
+      ({ error } = await supabase.from('accounts').insert(basePayload));
+    }
     if (!error) {
       await loadAccounts();
       setShowAddAccount(false);
@@ -282,11 +387,22 @@ export function SettingsScreen({ userId }: { userId: string }) {
       setNewNickname('');
       setNewHolder('');
       setNewCreditLimit('');
+      setNewCreditLimitUsd('');
       setNewDueDay('');
+      setNewInitialBalance('');
+      setNewInitialBalanceUsd('');
+      setNewPaymentStatus('current');
     } else {
       setAddAccountError(error.message);
     }
     setSavingAccount(false);
+  }
+
+  async function updatePaymentStatus(id: string, status: 'current' | 'overdue') {
+    const { error } = await supabase.from('accounts')
+      .update({ payment_status: status })
+      .eq('id', id).eq('user_id', userId);
+    if (!error) setAccounts(prev => prev.map(a => a.id === id ? { ...a, payment_status: status } : a));
   }
 
   async function removeAccount(id: string) {
@@ -390,87 +506,76 @@ export function SettingsScreen({ userId }: { userId: string }) {
       // Step 1: Fetch raw emails from backend (authenticated)
       const headers = await getAuthHeaders();
       const emailsRes = await fetch(`${RAILWAY_API}/email-sync/fetch-emails`, { headers });
+
+      if (!emailsRes.ok) {
+        const body = await emailsRes.text().catch(() => '');
+        if (emailsRes.status === 401 || body.includes('token refresh failed') || body.includes('reconnect')) {
+          setGmailConnected(false);
+          localStorage.removeItem('nexo_gmail_connected');
+          localStorage.removeItem('nexo_gmail_email');
+          throw new Error('Tu sesión de Gmail expiró. Reconecta tu cuenta con el botón de abajo.');
+        }
+        throw new Error(`HTTP ${emailsRes.status}: ${body.slice(0, 120)}`);
+      }
+
       const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
 
-      // Step 2: Parse emails — only import from registered accounts
+      // Parse emails — try to link to registered accounts but import regardless
       const registeredAccounts = accounts.filter(a => a.account_suffix);
 
-      // No accounts registered → nothing to import
-      if (registeredAccounts.length === 0) {
-        const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
-        setLastSync(`${time} · Registra al menos una cuenta para importar movimientos`);
-        setSyncing(false);
-        return;
-      }
+      // Momento 0: timestamp exacto de creación de cada cuenta (fecha + hora).
+      // Emails con timestamp anterior al momento 0 no se importan.
+      const globalCutoff = accounts
+        .filter(a => a.initial_balance_set_at)
+        .map(a => a.initial_balance_set_at!)
+        .sort()[0] ?? null;
 
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
-
-      // Contadores de diagnóstico
-      let cNoParse = 0, cNoSuffix = 0, cNoMatch = 0, cHolderMismatch = 0, cNoBalance = 0, cBeforeCutoff = 0;
-      const unmatchedSuffixes: string[] = [];
+      let cNoParse = 0, cLinked = 0, cUnlinked = 0, cBeforeCutoff = 0;
 
       for (const email of emails) {
         const result = parseEmail(email.bank, email.body, email.subject);
         if (!result || result.amount <= 0) { cNoParse++; continue; }
 
-        if (!result.accountSuffix && email.bank !== 'nequi') { cNoSuffix++; continue; }
+        // Comparar timestamp completo del correo vs momento 0 (fecha + hora)
+        const emailTs = email.date;
 
-        // Primero buscar cuenta con sufijo + banco coincidentes
-        const suffixMatch = registeredAccounts.find(a => {
-          if (email.bank === 'nequi') return a.institution?.toLowerCase().includes('nequi');
-          if (a.account_suffix !== result.accountSuffix) return false;
+        // Try to match a registered account (best-effort — does NOT block import)
+        let account_id: string | undefined;
+        const matchedAccount = registeredAccounts.find(a => {
+          if (email.bank === 'nequi') return !!a.institution?.toLowerCase().includes('nequi');
+          if (!result.accountSuffix || a.account_suffix !== result.accountSuffix) return false;
           return !!a.institution?.toLowerCase().includes(email.bank);
         });
 
-        if (!suffixMatch) {
-          // No hay ninguna cuenta con ese sufijo registrada
-          cNoMatch++;
-          if (result.accountSuffix) {
-            const key = `${email.bank}:${result.accountSuffix}`;
-            if (!unmatchedSuffixes.includes(key)) unmatchedSuffixes.push(key);
-          }
-          continue;
+        if (matchedAccount) {
+          const holderOk =
+            !matchedAccount.account_holder ||
+            !result.accountHolder ||
+            holderNamesMatch(matchedAccount.account_holder, result.accountHolder);
+          if (holderOk) { account_id = matchedAccount.id; cLinked++; }
+          else cUnlinked++;
+
+          // Cutoff por cuenta: omitir si el correo es anterior al momento 0 de esta cuenta
+          const acctCutoff = matchedAccount.initial_balance_set_at;
+          if (acctCutoff && emailTs < acctCutoff) { cBeforeCutoff++; continue; }
+        } else {
+          // Sin cuenta vinculada: usar el cutoff global
+          if (globalCutoff && emailTs < globalCutoff) { cBeforeCutoff++; continue; }
+          cUnlinked++;
         }
 
-        // Cuenta encontrada por sufijo — verificar titular
-        if (suffixMatch.account_holder && result.accountHolder) {
-          if (!holderNamesMatch(suffixMatch.account_holder, result.accountHolder)) {
-            // Sufijo correcto pero titular no coincide → probable cuenta de otra persona
-            cHolderMismatch++;
-            continue;
-          }
-        }
-
-        const match = suffixMatch;
-
-        // Cuenta sin saldo inicial configurado — no está lista aún
-        if (!match.initial_balance_set_at) { cNoBalance++; continue; }
-        // Solo importar emails posteriores al momento exacto del saldo inicial
-        if (email.date < match.initial_balance_set_at) { cBeforeCutoff++; continue; }
-
-        parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id: match.id });
+        parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
       }
 
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
 
       if (parsed.length === 0) {
-        const reasons: string[] = [];
-        if (cNoParse > 0)         reasons.push(`${cNoParse} sin parsear`);
-        if (cNoSuffix > 0)        reasons.push(`${cNoSuffix} sin nº cuenta`);
-        if (cNoMatch > 0) {
-          const hint = unmatchedSuffixes.length > 0
-            ? ` (agregar: ${unmatchedSuffixes.slice(0, 5).join(', ')})`
-            : '';
-          reasons.push(`${cNoMatch} cuenta no registrada${hint}`);
-        }
-        if (cHolderMismatch > 0)  reasons.push(`${cHolderMismatch} titular no coincide`);
-        if (cNoBalance > 0)       reasons.push(`${cNoBalance} sin saldo inicial`);
-        if (cBeforeCutoff > 0)    reasons.push(`${cBeforeCutoff} anteriores al corte`);
-        setLastSync(`${time} · ${emails.length} correos · ${reasons.join(' · ') || 'sin movimientos nuevos'}`);
+        const cutoffInfo = cBeforeCutoff > 0 ? ` · ${cBeforeCutoff} anteriores al momento 0` : '';
+        setLastSync(`${time} · ${emails.length} correos · ${cNoParse} sin parsear${cutoffInfo} · sin movimientos nuevos`);
         return;
       }
-
       // Step 3: Insert via Supabase JS (user is authenticated → no RLS issues)
       let created = 0;
       const upsertErrors: string[] = [];
@@ -496,9 +601,12 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       setGmailCount(prev => prev + created);
       const errStr = upsertErrors.length > 0 ? ` ⚠️ ${upsertErrors[0]}` : '';
-      setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${errStr}`);
+      const linkInfo = cLinked > 0 ? ` · ${cLinked} vinculados` : cUnlinked > 0 ? ` · ${cUnlinked} sin cuenta` : '';
+      const cutoffStr = cBeforeCutoff > 0 ? ` · ${cBeforeCutoff} omitidos (antes del momento 0)` : '';
+      setLastSync(`${time} · ${emails.length} correos / ${parsed.length} parseados / ${created} nuevos${linkInfo}${cutoffStr}${errStr}`);
     } catch (e) {
-      setLastSync('Error al sincronizar');
+      const msg = e instanceof Error ? e.message : String(e);
+      setLastSync(`⚠️ ${msg.slice(0, 120)}`);
       console.error('Sync error:', e);
     } finally {
       setSyncing(false);
@@ -598,11 +706,11 @@ export function SettingsScreen({ userId }: { userId: string }) {
   }
 
   return (
-    <div style={{ paddingBottom: 100 }}>
+    <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
       {/* Header */}
       <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 24px' }}>
-        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Sincronizar banco</div>
-        <div style={{ color:C.textMuted, fontSize:13 }}>Conecta Gmail o sube un extracto CSV</div>
+        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Perfil</div>
+        <div style={{ color:C.textMuted, fontSize:13 }}>Cuentas vinculadas, sincronización y seguridad</div>
       </div>
 
       {/* Tab switcher */}
@@ -682,7 +790,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   🗑 Limpiar y re-sincronizar desde cero
                 </button>
                 <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
-                  ORIA sincroniza automáticamente 2 veces al día (6am y 8pm).
+                  ORIA sincroniza automáticamente cada 2 horas y al abrir la app.
                 </div>
 
                 {/* Diagnostic tool */}
@@ -726,6 +834,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 </div>
               ))}
             </div>
+
+            {/* Notifications */}
+            <NotificationCard />
           </>
         )}
 
@@ -739,8 +850,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
               </div>
 
               {accounts.length === 0 && !showAddAccount && (
-                <div style={{ textAlign:'center', padding:'16px 0', color:C.textMuted, fontSize:13 }}>
-                  Sin cuentas registradas. Los movimientos de todas tus cuentas serán importados.
+                <div style={{ textAlign:'center', padding:'16px 0', color:C.textMuted, fontSize:13, lineHeight:1.6 }}>
+                  Sin cuentas registradas.<br />
+                  <span style={{ color:'#f59e0b', fontWeight:600 }}>Agrega al menos una cuenta para que ORIA importe tus movimientos de Gmail.</span>
                 </div>
               )}
 
@@ -749,10 +861,17 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 const locked  = isBalanceLocked(acc);
                 const editable = !locked;
                 const isSaving = savingBalance[acc.id] ?? false;
+                const trmVal  = parseFloat(trm) || 3516;
                 const debt    = acc.initial_balance ?? 0;
                 const limit   = acc.credit_limit ?? 0;
-                const utilPct = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
+                const debtUsd   = acc.initial_balance_usd ?? 0;
+                const limitUsd  = acc.credit_limit_usd ?? 0;
+                // Combined utilization: convert everything to COP using TRM
+                const totalDebt  = debt + debtUsd * trmVal;
+                const totalLimit = limit + limitUsd * trmVal;
+                const utilPct = totalLimit > 0 ? Math.min(100, Math.round((totalDebt / totalLimit) * 100)) : null;
                 const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? '#f59e0b' : C.accent;
+                const fmtUsd = (n: number) => 'US$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
                 return (
                   <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
                     {/* Account row */}
@@ -761,31 +880,58 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         <BankLogo institution={acc.institution} size={40} borderRadius={12} />
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
                           <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {acc.name}
                           </div>
-                          {isCC && (
-                            <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 6px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>
-                              💳 TC
-                            </span>
-                          )}
+                          {isCC && (() => {
+                            const net = CARD_NETWORKS.find(n => n.id === (acc.card_network ?? 'other'));
+                            return net ? (
+                              <span style={{ background:`${net.color}22`, border:`1px solid ${net.color}55`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:800, color:net.color, flexShrink:0 }}>
+                                {net.name.toUpperCase()}
+                              </span>
+                            ) : null;
+                          })()}
+                          {isCC && (() => {
+                            // Si el usuario definió el estado manualmente, usarlo directamente
+                            if (acc.payment_status === 'overdue')
+                              return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
+                            if (acc.payment_status === 'current')
+                              return <span style={{ background:'rgba(49,214,123,0.15)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
+                            // Sin estado manual: auto-derivar por fecha vs. día de pago
+                            const hasDebt = (acc.initial_balance ?? 0) > 0 || (acc.initial_balance_usd ?? 0) > 0;
+                            if (!hasDebt) return <span style={{ background:'rgba(49,214,123,0.15)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
+                            const dueDay = acc.payment_due_day;
+                            if (!dueDay) return <span style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f59e0b', flexShrink:0 }}>⚠️ Pendiente</span>;
+                            const today = new Date().getDate();
+                            if (today < dueDay) return <span style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f59e0b', flexShrink:0 }}>⏰ Paga en {dueDay - today}d</span>;
+                            if (today === dueDay) return <span style={{ background:'rgba(249,115,22,0.15)', border:'1px solid rgba(249,115,22,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f97316', flexShrink:0 }}>⚡ Vence hoy</span>;
+                            return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
+                          })()}
                         </div>
                         <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
                           {acc.institution} · *{acc.account_suffix}
                           {acc.account_holder && <span> · {acc.account_holder}</span>}
                           {isCC && limit > 0 && <span> · Cupo {fmt(limit)}</span>}
+                          {isCC && limitUsd > 0 && <span> · Cupo {fmtUsd(limitUsd)}</span>}
                         </div>
-                        {/* Credit utilization bar */}
+                        {/* Combined utilization bar (COP + USD converted at TRM) */}
                         {isCC && utilPct != null && (
                           <div style={{ marginTop:6 }}>
                             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
                               <span style={{ color:utilColor, fontSize:10, fontWeight:700 }}>{utilPct}% utilizado</span>
-                              <span style={{ color:C.textMuted, fontSize:10 }}>{fmt(debt)} de {fmt(limit)}</span>
+                              <span style={{ color:C.textMuted, fontSize:10 }}>
+                                {fmt(debt)}{debtUsd > 0 ? ` + ${fmtUsd(debtUsd)}` : ''} de {fmt(limit)}{limitUsd > 0 ? ` + ${fmtUsd(limitUsd)}` : ''}
+                              </span>
                             </div>
                             <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
                               <div style={{ width:`${utilPct}%`, height:'100%', background:utilColor, borderRadius:99 }} />
                             </div>
+                            {debtUsd > 0 && (
+                              <div style={{ color:C.textMuted, fontSize:9, marginTop:2 }}>
+                                TRM: ${parseFloat(trm).toLocaleString('es-CO')} · {fmtUsd(debtUsd)} ≈ {fmt(Math.round(debtUsd * (parseFloat(trm) || 3516)))} COP
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -803,28 +949,6 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       </div>
                       {editable ? (
                         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                          {/* Sync window selector — only for debit accounts */}
-                          {!isCC && (
-                            <div>
-                              <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5 }}>IMPORTAR DESDE</div>
-                              <div style={{ display:'flex', gap:6 }}>
-                                {([7, 30, 90] as const).map(d => {
-                                  const selected = (syncWindowDays[acc.id] ?? 30) === d;
-                                  return (
-                                    <button key={d}
-                                      onClick={() => setSyncWindowDays(prev => ({ ...prev, [acc.id]: d }))}
-                                      style={{ flex:1, padding:'6px 0', borderRadius:8,
-                                        border:`1px solid ${selected ? C.primaryGlow : C.border}`,
-                                        background: selected ? 'rgba(59,130,246,0.15)' : 'transparent',
-                                        color: selected ? C.primaryGlow : C.textMuted,
-                                        fontSize:11, fontWeight: selected ? 700 : 400, cursor:'pointer' }}>
-                                      {d === 7 ? '7 días' : d === 30 ? '30 días' : '90 días'}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
                           <div style={{ display:'flex', gap:8, alignItems:'center' }}>
                           <div style={{ position:'relative', flex:1 }}>
                             <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
@@ -878,6 +1002,28 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         </div>
                       )}
                     </div>
+
+                    {/* Estado de pago (solo tarjetas de crédito, siempre editable) */}
+                    {isCC && (
+                      <div style={{ marginTop:10, marginLeft:52 }}>
+                        <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>ESTADO DEL PAGO</div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          {([
+                            { val: 'current' as const, label: '✅ Al día',  bg:'rgba(49,214,123,0.12)', border:'rgba(49,214,123,0.35)', color:'#31D67B' },
+                            { val: 'overdue' as const, label: '🔴 En mora', bg:'rgba(239,68,68,0.12)',  border:'rgba(239,68,68,0.35)',  color:'#EF4444' },
+                          ]).map(opt => (
+                            <button key={opt.val} type="button"
+                              onClick={() => updatePaymentStatus(acc.id, opt.val)}
+                              style={{ flex:1, padding:'8px 0', borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:700,
+                                border:`1px solid ${acc.payment_status === opt.val ? opt.border : C.border}`,
+                                background: acc.payment_status === opt.val ? opt.bg : 'transparent',
+                                color: acc.payment_status === opt.val ? opt.color : C.textMuted }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -987,6 +1133,21 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   {newAccountType === 'credit_card' && (
                     <>
                       <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Franquicia</div>
+                        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                          {CARD_NETWORKS.map(n => (
+                            <button key={n.id} onClick={() => setNewCardNetwork(n.id)}
+                              style={{ padding:'8px 14px', borderRadius:10,
+                                border:`1px solid ${newCardNetwork===n.id ? n.color : C.border}`,
+                                background: newCardNetwork===n.id ? `${n.color}22` : C.surface,
+                                color: newCardNetwork===n.id ? n.color : C.textMuted,
+                                fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                              {n.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
                         <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo total de la tarjeta</div>
                         <div style={{ position:'relative' }}>
                           <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
@@ -1016,8 +1177,86 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             boxSizing:'border-box', outline:'none' }}
                         />
                       </div>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Estado actual del pago</div>
+                        <div style={{ display:'flex', gap:8 }}>
+                          {([
+                            { val: 'current', label: '✅ Al día',  bg: 'rgba(49,214,123,0.12)', border: 'rgba(49,214,123,0.35)', active: '#31D67B' },
+                            { val: 'overdue', label: '🔴 En mora', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)',  active: '#EF4444' },
+                          ] as const).map(opt => (
+                            <button key={opt.val} type="button"
+                              onClick={() => setNewPaymentStatus(opt.val)}
+                              style={{ flex:1, padding:'10px 0', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700,
+                                border: `1px solid ${newPaymentStatus === opt.val ? opt.border : C.border}`,
+                                background: newPaymentStatus === opt.val ? opt.bg : 'transparent',
+                                color: newPaymentStatus === opt.val ? opt.active : C.textMuted }}>
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo en USD (opcional)</div>
+                        <div style={{ position:'relative' }}>
+                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="ej. 2,000"
+                            value={newCreditLimitUsd ? Number(newCreditLimitUsd || 0).toLocaleString('en-US') : ''}
+                            onChange={e => setNewCreditLimitUsd(e.target.value.replace(/[^0-9.]/g, ''))}
+                            style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10,
+                              borderRadius:10, border:`1px solid ${C.border}`,
+                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                              boxSizing:'border-box', outline:'none' }}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Deuda actual en USD (opcional)</div>
+                        <div style={{ position:'relative' }}>
+                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="ej. 150.00"
+                            value={newInitialBalanceUsd ? Number(newInitialBalanceUsd || 0).toLocaleString('en-US') : ''}
+                            onChange={e => setNewInitialBalanceUsd(e.target.value.replace(/[^0-9.]/g, ''))}
+                            style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10,
+                              borderRadius:10, border:`1px solid ${C.border}`,
+                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                              boxSizing:'border-box', outline:'none' }}
+                          />
+                        </div>
+                      </div>
                     </>
                   )}
+
+                  {/* Initial balance / current debt */}
+                  <div>
+                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>
+                      {newAccountType === 'credit_card' ? 'Deuda actual (opcional)' : 'Saldo actual (opcional)'}
+                    </div>
+                    <div style={{ position:'relative' }}>
+                      <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="0"
+                        value={newInitialBalance ? Number(newInitialBalance||0).toLocaleString('es-CO') : ''}
+                        onChange={e => setNewInitialBalance(e.target.value.replace(/\D/g,''))}
+                        style={{ width:'100%', paddingLeft:26, paddingRight:14, paddingTop:10, paddingBottom:10,
+                          borderRadius:10, border:`1px solid ${C.border}`,
+                          background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                          boxSizing:'border-box', outline:'none' }}
+                      />
+                    </div>
+                    <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
+                      {newAccountType === 'credit_card'
+                        ? 'Tu deuda actual en esta tarjeta.'
+                        : 'Saldo de tu cuenta en este momento. ORIA solo importará movimientos a partir de ahora.'}
+                    </div>
+                  </div>
 
                   {addAccountError && (
                     <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`,
@@ -1036,7 +1275,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     const disabled = newSuffix.length < 4 || savingAccount || holderMissing;
                     return (
                       <div style={{ display:'flex', gap:8 }}>
-                        <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setAddAccountError(''); }}
+                        <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setNewCreditLimit(''); setNewCreditLimitUsd(''); setNewInitialBalance(''); setNewInitialBalanceUsd(''); setAddAccountError(''); }}
                           style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`,
                             background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer' }}>
                           Cancelar
@@ -1071,26 +1310,101 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 </div>
               </div>
             )}
+
+            {/* TRM setting — only shown when at least one CC has USD fields */}
+            {accounts.some(a => a.account_type === 'credit_card' && ((a.credit_limit_usd ?? 0) > 0 || (a.initial_balance_usd ?? 0) > 0)) && (
+              <div style={{ ...card }}>
+                <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:0.5, marginBottom:10 }}>
+                  💱 TASA DE CAMBIO (TRM)
+                </div>
+                <div style={{ color:C.textSec, fontSize:12, lineHeight:1.5, marginBottom:10 }}>
+                  Usada para convertir tus saldos en USD a COP y calcular la ocupación real de tus tarjetas.
+                </div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <div style={{ position:'relative', flex:1 }}>
+                    <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={parseFloat(trm) ? Number(trm).toLocaleString('es-CO') : ''}
+                      placeholder="4.200"
+                      onChange={e => setTrm(e.target.value.replace(/\D/g, ''))}
+                      style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:9, paddingBottom:9,
+                        borderRadius:10, border:`1px solid ${C.border}`,
+                        background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                        boxSizing:'border-box', outline:'none' }}
+                    />
+                  </div>
+                  <span style={{ color:C.textMuted, fontSize:12 }}>COP / USD</span>
+                  <button
+                    onClick={() => { localStorage.setItem('nexo_trm', trm); }}
+                    style={{ padding:'9px 14px', borderRadius:10, border:'none',
+                      background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                      color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                    Guardar
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {/* ── CSV TAB ── */}
         {tab === 'csv' && (
           <>
+            {/* Bank picker — dropdown grid */}
             <div>
               <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>SELECCIONA TU BANCO</div>
-              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                {BANKS.map(b => (
-                  <button key={b.id} onClick={() => { setSelectedBank(b.id); setCsvStatus('idle'); setImported([]); }}
-                    style={{ ...card, display:'flex', alignItems:'center', gap:12, padding:'14px 16px', cursor:'pointer',
-                      border: selectedBank===b.id ? `1px solid ${b.color}66` : `1px solid ${C.border}`,
-                      background: selectedBank===b.id ? `${b.color}0D` : C.surface, textAlign:'left' }}>
-                    <div style={{ width:40, height:40, borderRadius:12, background:`${b.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>{b.icon}</div>
-                    <div style={{ color:C.text, fontSize:15, fontWeight:600 }}>{b.name}</div>
-                    {selectedBank===b.id && <div style={{ marginLeft:'auto', color:b.color, fontSize:18 }}>✓</div>}
-                  </button>
-                ))}
-              </div>
+
+              {/* Trigger */}
+              <button
+                onClick={() => setBankDropOpen(o => !o)}
+                style={{ width:'100%', ...card, display:'flex', alignItems:'center', gap:12,
+                  padding:'12px 14px', cursor:'pointer', textAlign:'left' }}>
+                {bank ? (
+                  <>
+                    <BankLogo institution={bank.name} size={38} borderRadius={10} />
+                    <span style={{ color:C.text, fontSize:15, fontWeight:600, flex:1 }}>{bank.name}</span>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ width:38, height:38, borderRadius:10, background:C.surfaceEl,
+                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏦</div>
+                    <span style={{ color:C.textMuted, fontSize:14, flex:1 }}>Selecciona tu banco…</span>
+                  </>
+                )}
+                <span style={{ color:C.textMuted, fontSize:12,
+                  display:'inline-block',
+                  transform: bankDropOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s' }}>▼</span>
+              </button>
+
+              {/* Grid dropdown */}
+              {bankDropOpen && (
+                <div style={{ ...card, marginTop:6, padding:12 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+                    {BANKS.map(b => {
+                      const sel = selectedBank === b.id;
+                      return (
+                        <button key={b.id}
+                          onClick={() => { setSelectedBank(b.id); setBankDropOpen(false); setCsvStatus('idle'); setImported([]); }}
+                          style={{ padding:'10px 4px', borderRadius:12, cursor:'pointer', display:'flex',
+                            flexDirection:'column', alignItems:'center', gap:5,
+                            border:`1px solid ${sel ? b.color+'88' : C.border}`,
+                            background: sel ? `${b.color}18` : C.bg }}>
+                          <BankLogo institution={b.name} size={36} borderRadius={10} />
+                          <span style={{ color: sel ? C.text : C.textMuted, fontSize:8, fontWeight:600,
+                            lineHeight:1.2, textAlign:'center',
+                            overflow:'hidden', display:'-webkit-box',
+                            WebkitLineClamp:2, WebkitBoxOrient:'vertical' as never }}>
+                            {b.name}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             {bank && (
@@ -1175,22 +1489,31 @@ export function SettingsScreen({ userId }: { userId: string }) {
       <div style={{ padding:'8px 16px 32px', display:'flex', flexDirection:'column', gap:10 }}>
         <button
           onClick={async () => {
-            const ok = window.confirm('¿Borrar TODOS los movimientos y cierres anteriores? Esta acción no se puede deshacer.');
+            const ok = window.confirm(
+              '⚠️ Reinicio completo\n\n' +
+              'Esto va a borrar:\n' +
+              '• Todos los movimientos\n' +
+              '• Todas las cuentas y tarjetas\n' +
+              '• La conexión de Gmail\n\n' +
+              'Después deberás crear tus cuentas de nuevo y reconectar Gmail.\n' +
+              'El momento 0 será la fecha en que crees las nuevas cuentas.\n\n' +
+              '¿Continuar? Esta acción no se puede deshacer.'
+            );
             if (!ok) return;
             await Promise.all([
               supabase.from('transactions').delete().eq('user_id', userId),
               supabase.from('monthly_summaries').delete().eq('user_id', userId),
+              supabase.from('email_connections').delete().eq('user_id', userId),
             ]);
-            await supabase.from('accounts').update({
-              initial_balance: 0,
-              initial_balance_set_at: null,
-              current_balance: 0,
-            }).eq('user_id', userId);
+            await supabase.from('accounts').delete().eq('user_id', userId);
+            localStorage.removeItem('nexo_gmail_connected');
+            localStorage.removeItem('nexo_gmail_email');
             window.location.reload();
           }}
           style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.2)`, background:'transparent', color:C.textMuted, fontSize:14, fontWeight:600, cursor:'pointer' }}>
           🗑️ Borrar todo y empezar desde cero
         </button>
+        <UpdateButton />
         <button
           onClick={() => { localStorage.removeItem('nexo_gmail_connected'); localStorage.removeItem('nexo_gmail_email'); supabase.auth.signOut(); }}
           style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.3)`, background:'rgba(239,68,68,0.07)', color:C.danger, fontSize:15, fontWeight:700, cursor:'pointer' }}>
@@ -1198,5 +1521,48 @@ export function SettingsScreen({ userId }: { userId: string }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function UpdateButton() {
+  const [status, setStatus] = useState<'idle' | 'checking' | 'latest' | 'updating'>('idle');
+
+  async function checkNow() {
+    setStatus('checking');
+    try {
+      const res = await fetch('/version.json?_=' + Date.now(), { cache: 'no-store' });
+      if (!res.ok) throw new Error('network');
+      const { v } = await res.json() as { v: number };
+      const stored = localStorage.getItem('oria_deployed_v');
+      if (stored && stored !== String(v)) {
+        localStorage.setItem('oria_deployed_v', String(v));
+        setStatus('updating');
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        localStorage.setItem('oria_deployed_v', String(v));
+        setStatus('latest');
+        setTimeout(() => setStatus('idle'), 3000);
+      }
+    } catch {
+      setStatus('idle');
+    }
+  }
+
+  const label =
+    status === 'checking' ? '⏳ Verificando…'  :
+    status === 'latest'   ? '✅ Ya tienes la última versión' :
+    status === 'updating' ? '✨ Aplicando actualización…'   :
+    '🔄 Verificar actualizaciones';
+
+  return (
+    <button
+      onClick={checkNow}
+      disabled={status !== 'idle'}
+      style={{ width:'100%', padding:'14px 0', borderRadius:14,
+        border:'1px solid rgba(59,130,246,0.25)', background:'rgba(59,130,246,0.07)',
+        color: status === 'latest' ? C.accent : C.primaryGlow,
+        fontSize:14, fontWeight:600, cursor: status === 'idle' ? 'pointer' : 'default' }}>
+      {label}
+    </button>
   );
 }

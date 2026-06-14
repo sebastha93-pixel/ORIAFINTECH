@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=390, initial-scale=1">
+<title>ORIA — Screens para video</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#060D1A; font-family:'Inter',system-ui,sans-serif; color:#F7F9FC; width:390px; }
+  .screen { width:390px; min-height:844px; background:#060D1A; display:none; flex-direction:column; }
+  .screen.active { display:flex; }
+
+  /* NAV */
+  .nav { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; }
+  .logo-wrap { display:flex; align-items:center; gap:10px; }
+  .logo-svg { width:32px; height:32px; }
+  .logo-text { font-size:18px; font-weight:800; letter-spacing:4px; }
+
+  /* DASHBOARD */
+  .dash-header { background:linear-gradient(180deg,#0B1629,#081426); padding:48px 20px 24px; }
+  .greeting-sm { color:#475569; font-size:11px; font-weight:600; letter-spacing:1px; }
+  .greeting-name { font-size:24px; font-weight:800; margin:4px 0 24px; }
+  .balance-card { background:linear-gradient(135deg,rgba(49,214,123,0.08),rgba(96,165,250,0.05)); border:1px solid rgba(49,214,123,0.16); border-radius:22px; padding:22px; }
+  .balance-label { color:#475569; font-size:10px; letter-spacing:1.5px; font-weight:600; margin-bottom:8px; }
+  .balance-amount { font-size:34px; font-weight:900; letter-spacing:-1px; margin-bottom:16px; }
+  .balance-row { display:flex; justify-content:space-between; }
+  .balance-item { text-align:center; }
+  .balance-item-label { color:#475569; font-size:10px; margin-bottom:4px; }
+  .balance-item-val { font-size:14px; font-weight:700; }
+  .section-title { color:#475569; font-size:11px; font-weight:600; letter-spacing:1px; padding:20px 20px 12px; }
+  .tx-list { padding:0 20px; display:flex; flex-direction:column; gap:2px; }
+  .tx-item { display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+  .tx-icon { width:42px; height:42px; border-radius:13px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .tx-name { font-size:14px; font-weight:600; margin-bottom:3px; }
+  .tx-cat { color:#475569; font-size:12px; }
+  .tx-amt { margin-left:auto; font-size:14px; font-weight:700; }
+
+  /* CHAT */
+  .chat-header { background:linear-gradient(180deg,#0B1629,#081426); padding:48px 20px 20px; display:flex; align-items:center; gap:14px; }
+  .chat-avatar { width:44px; height:44px; border-radius:50%; background:rgba(49,214,123,0.08); border:1px solid rgba(49,214,123,0.18); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .chat-status { display:flex; align-items:center; gap:6px; margin-top:3px; }
+  .chat-dot { width:7px; height:7px; border-radius:50%; background:#31D67B; }
+  .chat-active { color:#31D67B; font-size:12px; }
+  .chat-msgs { flex:1; padding:16px; display:flex; flex-direction:column; gap:14px; overflow:hidden; }
+  .msg-ai { display:flex; align-items:flex-end; gap:10px; }
+  .msg-ai-avatar { width:32px; height:32px; border-radius:50%; background:rgba(49,214,123,0.08); border:1px solid rgba(49,214,123,0.15); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .bubble-ai { background:#112035; border:1px solid rgba(255,255,255,0.07); border-radius:18px 18px 18px 4px; padding:12px 14px; max-width:78%; font-size:14px; line-height:1.6; color:#CBD5E1; }
+  .bubble-user { background:linear-gradient(135deg,#22C55E,#16A34A); border-radius:18px 18px 4px 18px; padding:12px 14px; max-width:78%; font-size:14px; line-height:1.6; margin-left:auto; }
+  .chat-input { margin:12px 16px; display:flex; align-items:center; background:#112035; border:1px solid rgba(255,255,255,0.08); border-radius:18px; padding:0 8px 0 16px; gap:8px; height:56px; }
+  .chat-placeholder { flex:1; color:#334155; font-size:14px; }
+  .chat-send { width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg,#31D67B,#22A85A); display:flex; align-items:center; justify-content:center; }
+
+  /* GOALS */
+  .goal-card { margin:0 20px 14px; background:#112035; border:1px solid rgba(255,255,255,0.07); border-radius:20px; padding:20px; }
+  .goal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .goal-name { font-size:16px; font-weight:700; }
+  .goal-pct { font-size:14px; font-weight:700; color:#31D67B; }
+  .goal-bar-bg { background:rgba(255,255,255,0.06); border-radius:999px; height:6px; margin-bottom:12px; }
+  .goal-bar { background:linear-gradient(90deg,#31D67B,#22A85A); border-radius:999px; height:6px; }
+  .goal-amounts { display:flex; justify-content:space-between; }
+  .goal-current { color:#31D67B; font-size:13px; font-weight:700; }
+  .goal-target { color:#475569; font-size:13px; }
+
+  /* TABBAR */
+  .tabbar { height:76px; background:rgba(6,13,26,0.96); border-top:1px solid rgba(255,255,255,0.06); display:flex; justify-content:space-around; align-items:center; padding:0 10px 8px; flex-shrink:0; }
+  .tab { display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; }
+  .tab-icon { width:24px; height:24px; border-radius:8px; }
+  .tab-label { font-size:10px; font-weight:500; }
+
+  /* BOTONES */
+  .btn-green { background:#31D67B; color:#041A0D; border:none; border-radius:14px; padding:15px; font-size:16px; font-weight:800; width:100%; cursor:pointer; }
+
+  /* ANIMATIONS */
+  @keyframes fadeInUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes countUp { from{opacity:0} to{opacity:1} }
+  @keyframes slideIn { from{opacity:0;transform:translateX(-10px)} to{opacity:1;transform:translateX(0)} }
+  @keyframes barGrow { from{width:0} to{width:var(--w)} }
+  .anim-1 { animation:fadeInUp 0.5s ease both; }
+  .anim-2 { animation:fadeInUp 0.5s 0.15s ease both; }
+  .anim-3 { animation:fadeInUp 0.5s 0.3s ease both; }
+  .anim-4 { animation:fadeInUp 0.5s 0.45s ease both; }
+  .anim-5 { animation:fadeInUp 0.5s 0.6s ease both; }
+  .anim-6 { animation:fadeInUp 0.5s 0.75s ease both; }
+  .bar-anim { animation:barGrow 1.2s 0.5s ease-out both; }
+
+  /* SCREEN CONTROLS */
+  .controls { position:fixed; bottom:90px; right:10px; display:flex; flex-direction:column; gap:8px; z-index:999; }
+  .ctrl-btn { width:36px; height:36px; border-radius:10px; background:rgba(49,214,123,0.15); border:1px solid rgba(49,214,123,0.3); color:#31D67B; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+</style>
+</head>
+<body>
+
+<!-- SVG DEFS -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <linearGradient id="g1" x1="28" y1="6" x2="12" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#31D67B"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<!-- SCREEN 1: DASHBOARD -->
+<div class="screen active" id="s1">
+  <div class="dash-header">
+    <div class="greeting-sm anim-1">BUENOS DÍAS</div>
+    <div class="greeting-name anim-2">Sebastián 👋</div>
+    <div class="balance-card anim-3">
+      <div class="balance-label">PATRIMONIO NETO</div>
+      <div class="balance-amount">$8.240.000</div>
+      <div class="balance-row">
+        <div class="balance-item">
+          <div class="balance-item-label">Activos</div>
+          <div class="balance-item-val" style="color:#31D67B">$10.4M</div>
+        </div>
+        <div class="balance-item">
+          <div class="balance-item-label">Deudas</div>
+          <div class="balance-item-val" style="color:#F87171">$2.16M</div>
+        </div>
+        <div class="balance-item">
+          <div class="balance-item-label">Ahorro</div>
+          <div class="balance-item-val" style="color:#60A5FA">28%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="section-title anim-4">MOVIMIENTOS RECIENTES</div>
+  <div class="tx-list">
+    <div class="tx-item anim-4"><div class="tx-icon">💰</div><div><div class="tx-name">Nómina julio</div><div class="tx-cat">Salario</div></div><div class="tx-amt" style="color:#31D67B">+$4.500.000</div></div>
+    <div class="tx-item anim-5"><div class="tx-icon">🛒</div><div><div class="tx-name">Éxito · Mercado</div><div class="tx-cat">Alimentación</div></div><div class="tx-amt" style="color:#94A3B8">-$185.000</div></div>
+    <div class="tx-item anim-5"><div class="tx-icon">🎬</div><div><div class="tx-name">Netflix</div><div class="tx-cat">Suscripciones</div></div><div class="tx-amt" style="color:#94A3B8">-$23.900</div></div>
+    <div class="tx-item anim-6"><div class="tx-icon">🛵</div><div><div class="tx-name">Rappi Express</div><div class="tx-cat">Restaurantes</div></div><div class="tx-amt" style="color:#94A3B8">-$67.000</div></div>
+    <div class="tx-item anim-6"><div class="tx-icon">⛽</div><div><div class="tx-name">Terpel</div><div class="tx-cat">Transporte</div></div><div class="tx-amt" style="color:#94A3B8">-$120.000</div></div>
+  </div>
+  <div style="flex:1"></div>
+  <div class="tabbar">
+    <div class="tab"><div class="tab-icon" style="background:rgba(49,214,123,0.12);border:1px solid rgba(49,214,123,0.3)"></div><div class="tab-label" style="color:#31D67B">Inicio</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Movim.</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">ORIA</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Metas</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Ajustes</div></div>
+  </div>
+</div>
+
+<!-- SCREEN 2: AI CHAT -->
+<div class="screen" id="s2">
+  <div class="chat-header">
+    <div class="chat-avatar">
+      <svg width="28" height="28" viewBox="0 0 40 40" fill="none"><path d="M 28 6.14 A 16 16 0 1 1 12 6.14" stroke="url(#g1)" stroke-width="3.5" stroke-linecap="round" fill="none"/></svg>
+    </div>
+    <div>
+      <div style="font-size:18px;font-weight:800">ORIA</div>
+      <div class="chat-status"><div class="chat-dot"></div><span class="chat-active">Activa · responde en segundos</span></div>
+    </div>
+  </div>
+  <div class="chat-msgs">
+    <div class="msg-ai anim-1">
+      <div class="msg-ai-avatar"><svg width="20" height="20" viewBox="0 0 40 40" fill="none"><path d="M 28 6.14 A 16 16 0 1 1 12 6.14" stroke="url(#g1)" stroke-width="3.5" stroke-linecap="round" fill="none"/></svg></div>
+      <div class="bubble-ai">¡Hola Sebastián! 👋 Soy ORIA, tu asesora financiera.<br>¿En qué te ayudo hoy?</div>
+    </div>
+    <div class="bubble-user anim-2">¿Puedo comprar un apartamento este año?</div>
+    <div class="msg-ai anim-3">
+      <div class="msg-ai-avatar"><svg width="20" height="20" viewBox="0 0 40 40" fill="none"><path d="M 28 6.14 A 16 16 0 1 1 12 6.14" stroke="url(#g1)" stroke-width="3.5" stroke-linecap="round" fill="none"/></svg></div>
+      <div class="bubble-ai">Con tu tasa de ahorro del <strong style="color:#31D67B">28%</strong> y patrimonio de <strong style="color:#31D67B">$8.2M</strong>, podrías tener cuota inicial de $50M en <strong>18 meses</strong> si mantienes el ritmo actual. 🏠<br><br>Antes te recomiendo cerrar la deuda de tu tarjeta Visa.</div>
+    </div>
+    <div class="bubble-user anim-4">¿Qué deuda pago primero?</div>
+    <div class="msg-ai anim-5">
+      <div class="msg-ai-avatar"><svg width="20" height="20" viewBox="0 0 40 40" fill="none"><path d="M 28 6.14 A 16 16 0 1 1 12 6.14" stroke="url(#g1)" stroke-width="3.5" stroke-linecap="round" fill="none"/></svg></div>
+      <div class="bubble-ai">Tu Visa tiene la tasa más alta (2.2% MV). Liquidarla te ahorra <strong style="color:#31D67B">$340.000 al año</strong>. Redirige el 30% de restaurantes y la cierras en 4 meses. 💡</div>
+    </div>
+  </div>
+  <div class="chat-input">
+    <span class="chat-placeholder">Pregúntame sobre tus finanzas...</span>
+    <div class="chat-send"><svg width="14" height="14" viewBox="0 0 10 10" fill="none"><path d="M2 5h6M6 3l2 2-2 2" stroke="#041A0D" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+  </div>
+  <div class="tabbar">
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Inicio</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Movim.</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(49,214,123,0.12);border:1px solid rgba(49,214,123,0.3)"></div><div class="tab-label" style="color:#31D67B">ORIA</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Metas</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Ajustes</div></div>
+  </div>
+</div>
+
+<!-- SCREEN 3: METAS -->
+<div class="screen" id="s3">
+  <div class="dash-header">
+    <div class="greeting-sm anim-1">TUS METAS</div>
+    <div class="greeting-name anim-2">Progreso 🎯</div>
+  </div>
+  <div style="padding:20px 0">
+    <div class="goal-card anim-3">
+      <div class="goal-header"><div class="goal-name">Cuota inicial apartamento</div><div class="goal-pct">34%</div></div>
+      <div class="goal-bar-bg"><div class="goal-bar bar-anim" style="--w:34%;width:34%"></div></div>
+      <div class="goal-amounts"><div class="goal-current">$17.000.000</div><div class="goal-target">Meta: $50.000.000</div></div>
+    </div>
+    <div class="goal-card anim-4">
+      <div class="goal-header"><div class="goal-name">Fondo de emergencia</div><div class="goal-pct">72%</div></div>
+      <div class="goal-bar-bg"><div class="goal-bar bar-anim" style="--w:72%;width:72%;background:linear-gradient(90deg,#60A5FA,#3B82F6)"></div></div>
+      <div class="goal-amounts"><div class="goal-current" style="color:#60A5FA">$10.800.000</div><div class="goal-target">Meta: $15.000.000</div></div>
+    </div>
+    <div class="goal-card anim-5">
+      <div class="goal-header"><div class="goal-name">Viaje a Europa</div><div class="goal-pct">18%</div></div>
+      <div class="goal-bar-bg"><div class="goal-bar bar-anim" style="--w:18%;width:18%;background:linear-gradient(90deg,#818CF8,#6366F1)"></div></div>
+      <div class="goal-amounts"><div class="goal-current" style="color:#818CF8">$3.600.000</div><div class="goal-target">Meta: $20.000.000</div></div>
+    </div>
+  </div>
+  <div style="flex:1"></div>
+  <div class="tabbar">
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Inicio</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Movim.</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">ORIA</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(49,214,123,0.12);border:1px solid rgba(49,214,123,0.3)"></div><div class="tab-label" style="color:#31D67B">Metas</div></div>
+    <div class="tab"><div class="tab-icon" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06)"></div><div class="tab-label" style="color:#334155">Ajustes</div></div>
+  </div>
+</div>
+
+<!-- CONTROLES -->
+<div class="controls">
+  <button class="ctrl-btn" onclick="prev()">↑</button>
+  <button class="ctrl-btn" onclick="next()">↓</button>
+</div>
+
+<script>
+  const screens = ['s1','s2','s3'];
+  let current = 0;
+  function show(i) {
+    screens.forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('active');
+      el.querySelectorAll('[class*="anim-"]').forEach(e => {
+        e.style.animation = 'none';
+        e.offsetHeight;
+        e.style.animation = '';
+      });
+    });
+    document.getElementById(screens[i]).classList.add('active');
+  }
+  function next() { current = (current+1)%screens.length; show(current); }
+  function prev() { current = (current-1+screens.length)%screens.length; show(current); }
+</script>
+</body>
+</html>

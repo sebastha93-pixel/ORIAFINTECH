@@ -5,8 +5,8 @@ import { supabase } from '../lib/supabase';
 
 type Mode = 'login' | 'register' | 'reset';
 
-export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) {
-  const [mode, setMode]       = useState<Mode>('login');
+export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (userId: string) => void; initialMode?: Mode }) {
+  const [mode, setMode]       = useState<Mode>(initialMode);
   const [email, setEmail]     = useState('');
   const [password, setPass]   = useState('');
   const [show, setShow]       = useState(false);
@@ -23,40 +23,52 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
     setError('');
     setInfo('');
 
-    if (mode === 'login') {
-      const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
-      if (err) { setError(translateError(err.message)); }
-      else if (data.user) { onLogin(data.user.id); }
+    try {
+      if (mode === 'login') {
+        const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
+        if (err) { setError(translateError(err.message)); }
+        else if (data.user) { onLogin(data.user.id); }
 
-    } else if (mode === 'register') {
-      const { data, error: err } = await supabase.auth.signUp({
-        email, password,
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (err) { setError(translateError(err.message)); }
-      else if (data.user?.identities?.length === 0) {
-        setError('Este correo ya está registrado. Inicia sesión.');
+      } else if (mode === 'register') {
+        const { data, error: err } = await supabase.auth.signUp({
+          email, password,
+          options: { emailRedirectTo: window.location.origin },
+        });
+        if (err) {
+          setError(translateError(err.message));
+        } else if (data.user?.identities?.length === 0) {
+          setError('Este correo ya está registrado. Inicia sesión.');
+        } else if (data.user) {
+          setInfo('✅ Cuenta creada. Revisa tu correo para confirmarla, luego inicia sesión.');
+          setMode('login');
+        } else {
+          setError('No se pudo crear la cuenta. Intenta de nuevo.');
+        }
+
       } else {
-        setInfo('✅ Cuenta creada. Revisa tu correo para confirmarla, luego inicia sesión.');
-        setMode('login');
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}?reset=1`,
+        });
+        if (err) { setError(translateError(err.message)); }
+        else { setInfo('✅ Te enviamos un enlace para restablecer tu contraseña.'); }
       }
-
-    } else {
-      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}?reset=1`,
-      });
-      if (err) { setError(translateError(err.message)); }
-      else { setInfo('✅ Te enviamos un enlace para restablecer tu contraseña.'); }
+    } catch {
+      setError('Error de conexión. Verifica tu internet e intenta de nuevo.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   function translateError(msg: string): string {
-    if (/invalid.*credentials/i.test(msg)) return 'Correo o contraseña incorrectos.';
-    if (/email.*confirmed/i.test(msg))     return 'Confirma tu correo antes de iniciar sesión.';
-    if (/already.*registered/i.test(msg))  return 'Este correo ya está registrado.';
-    if (/password.*6/i.test(msg))          return 'La contraseña debe tener al menos 6 caracteres.';
+    if (/invalid.*credentials/i.test(msg))      return 'Correo o contraseña incorrectos.';
+    if (/email.*not.*confirmed/i.test(msg))      return 'Debes confirmar tu correo. Revisa tu bandeja de entrada.';
+    if (/email.*confirmed/i.test(msg))           return 'Debes confirmar tu correo. Revisa tu bandeja de entrada.';
+    if (/already.*registered/i.test(msg))        return 'Este correo ya está registrado. Inicia sesión.';
+    if (/user.*already.*registered/i.test(msg))  return 'Este correo ya está registrado. Inicia sesión.';
+    if (/password.*6/i.test(msg))                return 'La contraseña debe tener al menos 6 caracteres.';
+    if (/signup.*disabled/i.test(msg))           return 'El registro está temporalmente deshabilitado.';
+    if (/rate.*limit/i.test(msg))                return 'Demasiados intentos. Espera unos minutos.';
+    if (/network/i.test(msg))                    return 'Error de conexión. Verifica tu internet.';
     return msg;
   }
 
@@ -95,11 +107,11 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
             </div>
           )}
 
+          <form onSubmit={e => { e.preventDefault(); handleSubmit(); }} noValidate>
           <div style={{ ...inputWrap, marginBottom:12 }}>
             <span style={{ marginRight:10, fontSize:16 }}>✉️</span>
             <input style={inputStyle} placeholder="Correo electrónico" value={email}
-              onChange={e=>setEmail(e.target.value)} type="email"
-              onKeyDown={e=>e.key==='Enter'&&handleSubmit()} />
+              onChange={e=>setEmail(e.target.value)} type="email" autoComplete="email" />
           </div>
 
           {mode !== 'reset' && (
@@ -107,8 +119,8 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
               <span style={{ marginRight:10, fontSize:16 }}>🔒</span>
               <input style={{ ...inputStyle, flex:1 }} placeholder="Contraseña (mín. 6 caracteres)" value={password}
                 onChange={e=>setPass(e.target.value)} type={show?'text':'password'}
-                onKeyDown={e=>e.key==='Enter'&&handleSubmit()} />
-              <button onClick={()=>setShow(!show)} style={{ background:'none', border:'none', cursor:'pointer', color:C.textMuted, fontSize:14 }}>
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+              <button type="button" onClick={()=>setShow(!show)} style={{ background:'none', border:'none', cursor:'pointer', color:C.textMuted, fontSize:14 }}>
                 {show?'🙈':'👁️'}
               </button>
             </div>
@@ -116,17 +128,18 @@ export function LoginScreen({ onLogin }: { onLogin: (userId: string) => void }) 
 
           {mode === 'login' && (
             <div style={{ textAlign:'right', marginBottom:20 }}>
-              <button onClick={()=>{setMode('reset');setError('');setInfo('');}}
+              <button type="button" onClick={()=>{setMode('reset');setError('');setInfo('');}}
                 style={{ background:'none', border:'none', color:C.primaryGlow, fontSize:13, cursor:'pointer', padding:0 }}>
                 ¿Olvidaste tu contraseña?
               </button>
             </div>
           )}
 
-          <button onClick={handleSubmit} disabled={loading}
+          <button type="submit" disabled={loading}
             style={{ width:'100%', padding:'14px 0', borderRadius:14, border:'none', background: loading ? C.border : gradAccent, color:'#fff', fontSize:15, fontWeight:700, cursor: loading ? 'default' : 'pointer' }}>
             {loading ? '⏳ Cargando…' : mode === 'login' ? 'Entrar' : mode === 'register' ? 'Crear cuenta' : 'Enviar enlace'}
           </button>
+          </form>
 
           <div style={{ textAlign:'center', marginTop:16, fontSize:13 }}>
             {mode === 'login' ? (

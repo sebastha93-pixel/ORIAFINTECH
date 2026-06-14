@@ -1,0 +1,14 @@
+<svg width="400" height="120" viewBox="0 0 400 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="280" y1="6" x2="120" y2="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#31D67B"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+  </defs>
+  <!-- Isotipo: arco incompleto 300° -->
+  <path d="M 70 16.14 A 44 44 0 1 1 30 16.14"
+    stroke="url(#grad)" stroke-width="9" stroke-linecap="round" fill="none"/>
+  <!-- Wordmark -->
+  <text x="110" y="75" font-family="Inter, system-ui, sans-serif" font-weight="800"
+    font-size="62" letter-spacing="11" fill="#F7F9FC">ORIA</text>
+</svg>

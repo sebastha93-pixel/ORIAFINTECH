@@ -1,17 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LoginScreen }          from './screens/LoginScreen';
 import { LandingScreen }        from './screens/LandingScreen';
 import { OriaLogo }             from './components/OriaLogo';
 import { DashboardScreen }      from './screens/DashboardScreen';
+import { PatrimonyScreen }      from './screens/PatrimonyScreen';
 import { TransactionsScreen }   from './screens/TransactionsScreen';
 import { GoalsScreen }          from './screens/GoalsScreen';
 import { AiChatScreen }         from './screens/AiChatScreen';
 import { SettingsScreen }       from './screens/SettingsScreen';
 import { AddTransactionScreen } from './screens/AddTransactionScreen';
 import { TabBar }               from './components/TabBar';
+import { SyncToast }            from './components/SyncToast';
 import { supabase }             from './lib/supabase';
+import { useAutoGmailSync }     from './hooks/useAutoGmailSync';
 
-type Screen = 'dashboard' | 'transactions' | 'goals' | 'ai' | 'settings';
+type Screen = 'dashboard' | 'patrimony' | 'transactions' | 'goals' | 'ai' | 'settings';
+
+const INACTIVITY_MS = 30 * 60 * 1000; // auto-logout after 30 min of inactivity
 
 export default function App() {
   const [userId, setUserId]       = useState<string | null>(null);
@@ -19,7 +24,19 @@ export default function App() {
   const [screen, setScreen]       = useState<Screen>('dashboard');
   const [showAdd, setShowAdd]     = useState(false);
   const [txReloadKey, setTxReloadKey] = useState(0);
-  const [showLogin, setShowLogin] = useState(false);
+  const [showLogin, setShowLogin] = useState<'login' | 'register' | false>(false);
+  const inactivityTimer           = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const signOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    setUserId(null);
+  }, []);
+
+  // Reset inactivity timer on any user interaction
+  const resetTimer = useCallback(() => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(signOut, INACTIVITY_MS);
+  }, [signOut]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -32,11 +49,29 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Auto-logout on inactivity — only while authenticated
+  useEffect(() => {
+    if (!userId) return;
+    const events = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
+    resetTimer();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+      if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
+    };
+  }, [userId, resetTimer]);
+
   useEffect(() => {
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
     window.scrollTo(0, 0);
   }, [screen]);
+
+  // Auto-sync Gmail on open and reload transactions when new ones arrive
+  const { newCount, clearCount } = useAutoGmailSync(
+    userId,
+    () => setTxReloadKey(k => k + 1),
+  );
 
   if (loading) {
     return (
@@ -47,8 +82,8 @@ export default function App() {
   }
 
   if (!userId) {
-    if (showLogin) return <LoginScreen onLogin={setUserId} />;
-    return <LandingScreen onStart={() => setShowLogin(true)} onLogin={() => setShowLogin(true)} />;
+    if (showLogin) return <LoginScreen onLogin={setUserId} initialMode={showLogin} />;
+    return <LandingScreen onStart={() => setShowLogin('register')} onLogin={() => setShowLogin('login')} />;
   }
 
   function handleTab(id: string) {
@@ -57,7 +92,8 @@ export default function App() {
 
   return (
     <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14' }}>
-      {screen === 'dashboard'    && <DashboardScreen />}
+      {screen === 'dashboard'    && <DashboardScreen onNavigate={handleTab} />}
+      {screen === 'patrimony'    && <PatrimonyScreen />}
       {screen === 'transactions' && <TransactionsScreen reloadKey={txReloadKey} />}
       {screen === 'goals'        && <GoalsScreen userId={userId} />}
       {screen === 'ai'           && <AiChatScreen />}
@@ -65,11 +101,13 @@ export default function App() {
 
       <TabBar active={screen} onTab={handleTab} />
 
+      {newCount > 0 && <SyncToast count={newCount} onDismiss={clearCount} />}
+
       {(screen === 'dashboard' || screen === 'transactions') && (
         <button
           onClick={() => setShowAdd(true)}
           style={{
-            position:'fixed', bottom:90, right:20,
+            position:'fixed', bottom:'calc(90px + env(safe-area-inset-bottom))', right:20,
             width:52, height:52, borderRadius:16, border:'none',
             background:'linear-gradient(135deg,#31D67B,#22A85A)',
             color:'#fff', fontSize:26, cursor:'pointer', zIndex:200,

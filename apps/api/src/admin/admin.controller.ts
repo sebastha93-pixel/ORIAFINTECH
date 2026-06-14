@@ -1,6 +1,7 @@
 import { Controller, Post, Headers, ForbiddenException, Inject } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { timingSafeEqual } from 'crypto';
 import { SUPABASE_CLIENT } from '../common/supabase/supabase.module';
 
 function bankSuffix(bank: string): string {
@@ -32,7 +33,12 @@ export class AdminController {
   @Post('migrate-descriptions')
   async migrateDescriptions(@Headers('x-admin-secret') secret: string) {
     const expected = this.config.get<string>('ADMIN_SECRET');
-    if (!expected || secret !== expected) throw new ForbiddenException();
+    if (!expected || !secret) throw new ForbiddenException();
+    // Timing-safe comparison prevents timing-based secret enumeration
+    const match =
+      secret.length === expected.length &&
+      timingSafeEqual(Buffer.from(secret), Buffer.from(expected));
+    if (!match) throw new ForbiddenException();
 
     const { data: txns, error } = await this.supabase
       .from('transactions')

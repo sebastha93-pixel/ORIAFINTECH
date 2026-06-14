@@ -41,7 +41,9 @@ const successHtml = (email: string, userId: string, count: number, frontendUrl: 
   <script>
     function notify() {
       if (window.opener && !window.opener.closed) {
-        window.opener.postMessage({ type: 'nexo_gmail_connected', email: '${email}', userId: '${userId}', count: ${count} }, '*');
+        const allowed = ['https://oriafintech.com','https://www.oriafintech.com','http://localhost:5173'];
+        const target  = allowed.includes(window.opener.location.origin) ? window.opener.location.origin : allowed[0];
+        window.opener.postMessage({ type: 'nexo_gmail_connected', email: '${email}', userId: '${userId}', count: ${count} }, target);
         window.close();
       } else {
         window.location.href = '${frontendUrl}?gmail=connected&email=${encodeURIComponent(email)}&count=${count}';
@@ -51,6 +53,15 @@ const successHtml = (email: string, userId: string, count: number, frontendUrl: 
   </script>
 </body>
 </html>`;
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
 
 const errorHtml = (msg: string) => `<!DOCTYPE html>
 <html lang="es">
@@ -100,7 +111,7 @@ export class EmailSyncController {
     @Query('error') oauthError?: string,
   ): Promise<string> {
     if (oauthError) {
-      return errorHtml(`Google OAuth error: ${oauthError}`);
+      return errorHtml(`Google OAuth error: ${escapeHtml(oauthError)}`);
     }
     if (!code) {
       return errorHtml('Parámetro code faltante. Intenta conectar de nuevo.');
@@ -133,7 +144,7 @@ export class EmailSyncController {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`OAuth callback error: ${msg}`);
-      return errorHtml(msg);
+      return errorHtml('No se pudo conectar Gmail. Intenta de nuevo.');
     }
   }
 

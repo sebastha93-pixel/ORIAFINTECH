@@ -1,19 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
-import { TransactionDetailSheet, txIcon, txCategory, type TxDetail } from '../components/TransactionDetailSheet';
+import { TransactionDetailSheet, txIcon, type TxDetail } from '../components/TransactionDetailSheet';
 import { downloadMonthlyReport } from '../lib/reportExcel';
+import { groupByCategory, buildInsights, categorize, type Insight } from '../lib/insights';
+import type { Txn } from '../lib/finance';
 
-interface Txn {
-  id: string;
-  transaction_type: 'income' | 'expense';
-  amount: number;
-  description: string | null;
-  date: string;
-  notes: string | null;
-  gmail_message_id?: string | null;
-  category?: string | null;
-}
+// 💳 MOVIMIENTOS — ¿Qué está pasando con mi dinero?
+// Resumen del mes → Insights IA → grupos inteligentes por categoría.
 
 const TABS = ['Todos', 'Ingresos', 'Gastos'];
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -22,29 +16,53 @@ function formatMonthLabel(year: number, month: number) {
   return `${MONTH_NAMES[month]} ${year}`;
 }
 
+function monthPrefixOf(year: number, month: number) {
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
 export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   const now = new Date();
   const [transactions, setTransactions] = useState<Txn[]>([]);
   const [loading, setLoading]           = useState(true);
+  const [loadError, setLoadError]       = useState<string | null>(null);
   const [tab, setTab]                   = useState(0);
   const [search, setSearch]             = useState('');
   const [selYear, setSelYear]           = useState(now.getFullYear());
   const [selMonth, setSelMonth]         = useState(now.getMonth());
   const [selectedTx, setSelectedTx]     = useState<TxDetail | null>(null);
+  const [openGroups, setOpenGroups]     = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode]         = useState<'category' | 'date'>('category');
 
   const loadTransactions = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
-    const { data } = await supabase
-      .from('transactions')
-      .select('id, transaction_type, amount, description, date, notes, gmail_message_id, category')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false });
-    setTransactions((data as Txn[]) ?? []);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) { setLoading(false); return; }
+
+      const FULL = 'id, transaction_type, amount, description, date, notes, gmail_message_id, category';
+      const BASE = 'id, transaction_type, amount, description, date, notes, gmail_message_id';
+
+      const q = (cols: string) => supabase.from('transactions')
+        .select(cols).eq('user_id', session.user.id).order('date', { ascending: false });
+      const full = await q(FULL);
+
+      let txnData: unknown[] | null = full.data;
+      if (full.error) {
+        // Fallback: category column may not exist yet (run migration 011)
+        const base = await q(BASE);
+        if (base.error) throw base.error;
+        txnData = base.data;
+      }
+      setTransactions((txnData as Txn[]) ?? []);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('loadTransactions:', e);
+      setLoadError(msg.slice(0, 200));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  // Reload when mounted or when parent signals a new transaction was saved
   useEffect(() => { loadTransactions(); }, [loadTransactions, reloadKey]);
 
   function prevMonth() {
@@ -69,159 +87,213 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
     setSelectedTx(prev => prev && prev.id === id ? { ...prev, notes } : prev);
   }
 
-  const isCurrent    = selYear === now.getFullYear() && selMonth === now.getMonth();
-  const monthPrefix  = `${selYear}-${String(selMonth + 1).padStart(2, '0')}`;
-  const monthTxns    = transactions.filter(t => t.date.startsWith(monthPrefix));
+  function toggleGroup(name: string) {
+    setOpenGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  }
+
+  const isCurrent   = selYear === now.getFullYear() && selMonth === now.getMonth();
+  const monthPrefix = monthPrefixOf(selYear, selMonth);
+  const prevDate    = new Date(selYear, selMonth - 1, 1);
+  const prevPrefix  = monthPrefixOf(prevDate.getFullYear(), prevDate.getMonth());
+
+  const monthTxns     = transactions.filter(t => t.date.startsWith(monthPrefix));
+  const prevMonthTxns = transactions.filter(t => t.date.startsWith(prevPrefix));
 
   const filtered = monthTxns.filter(t => {
     if (tab === 1 && t.transaction_type !== 'income')  return false;
     if (tab === 2 && t.transaction_type !== 'expense') return false;
     if (search) {
-      const hay = ((t.description ?? '') + ' ' + (t.category ?? '')).toLowerCase();
+      const hay = ((t.description ?? '') + ' ' + (t.category ?? '') + ' ' + categorize(t).name).toLowerCase();
       if (!hay.includes(search.toLowerCase())) return false;
     }
     return true;
   });
 
-  const grouped: Record<string, Txn[]> = {};
-  filtered.forEach(t => {
-    if (!grouped[t.date]) grouped[t.date] = [];
-    grouped[t.date].push(t);
-  });
-
   const totalIncome  = monthTxns.filter(t => t.transaction_type === 'income').reduce((s, t) => s + Number(t.amount), 0);
   const totalExpense = monthTxns.filter(t => t.transaction_type === 'expense').reduce((s, t) => s + Number(t.amount), 0);
+  const savings      = totalIncome - totalExpense;
+
+  const insights: Insight[] = buildInsights(monthTxns, prevMonthTxns, fmt);
+  const groups = groupByCategory(filtered);
+
+  const byDate: Record<string, Txn[]> = {};
+  filtered.forEach(t => { (byDate[t.date] ??= []).push(t); });
 
   return (
-    <div style={{ paddingBottom: 100 }}>
-      <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 20px' }}>
-        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:2 }}>Movimientos</div>
+    <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
 
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:12, marginBottom:16 }}>
+      {/* ── HEADER: resumen del mes ── */}
+      <div style={{ background: 'linear-gradient(160deg,#102040,#081426)', padding: '48px 20px 20px' }}>
+        <div style={{ color: C.text, fontSize: 22, fontWeight: 800, marginBottom: 2 }}>Movimientos</div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 16 }}>
           <button onClick={prevMonth}
-            style={{ background:'rgba(255,255,255,0.07)', border:'none', borderRadius:10, width:36, height:36,
-              color:C.text, fontSize:18, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            style={{ background: 'rgba(255,255,255,0.07)', border: 'none', borderRadius: 10, width: 36, height: 36,
+              color: C.text, fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             ‹
           </button>
-          <div style={{ textAlign:'center' }}>
-            <div style={{ color:C.text, fontSize:15, fontWeight:700, textTransform:'capitalize' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ color: C.text, fontSize: 15, fontWeight: 700, textTransform: 'capitalize' }}>
               {formatMonthLabel(selYear, selMonth)}
             </div>
             {isCurrent && (
-              <div style={{ color:C.accent, fontSize:10, fontWeight:600, marginTop:1 }}>MES ACTUAL</div>
+              <div style={{ color: C.accent, fontSize: 10, fontWeight: 600, marginTop: 1 }}>MES ACTUAL</div>
             )}
           </div>
           <button onClick={nextMonth}
             style={{ background: isCurrent ? 'transparent' : 'rgba(255,255,255,0.07)',
-              border:'none', borderRadius:10, width:36, height:36,
+              border: 'none', borderRadius: 10, width: 36, height: 36,
               color: isCurrent ? C.border : C.text,
-              fontSize:18, cursor: isCurrent ? 'default' : 'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center' }}>
+              fontSize: 18, cursor: isCurrent ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             ›
           </button>
         </div>
 
-        <div style={{ display:'flex', gap:10 }}>
-          <div style={{ flex:1, background:'rgba(49,214,123,0.12)', border:'1px solid rgba(49,214,123,0.25)', borderRadius:14, padding:'10px 14px' }}>
-            <div style={{ color:C.textMuted, fontSize:11, marginBottom:2 }}>Ingresos</div>
-            <div style={{ color:C.accent, fontSize:15, fontWeight:700 }}>{fmt(totalIncome)}</div>
-          </div>
-          <div style={{ flex:1, background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:14, padding:'10px 14px' }}>
-            <div style={{ color:C.textMuted, fontSize:11, marginBottom:2 }}>Gastos</div>
-            <div style={{ color:C.danger, fontSize:15, fontWeight:700 }}>{fmt(totalExpense)}</div>
-          </div>
-          <div style={{ flex:1, background:'rgba(59,130,246,0.12)', border:'1px solid rgba(59,130,246,0.25)', borderRadius:14, padding:'10px 14px' }}>
-            <div style={{ color:C.textMuted, fontSize:11, marginBottom:2 }}>Balance</div>
-            <div style={{ color:C.primaryGlow, fontSize:15, fontWeight:700 }}>{fmt(totalIncome - totalExpense)}</div>
-          </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <SummaryCell label="Ingresos" value={fmt(totalIncome)} color={C.accent}     bg="rgba(49,214,123" />
+          <SummaryCell label="Gastos"   value={fmt(totalExpense)} color={C.danger}    bg="rgba(239,68,68" />
+          <SummaryCell label="Ahorro"   value={fmt(savings)} color={savings >= 0 ? C.primaryGlow : C.danger} bg="rgba(59,130,246" />
         </div>
 
         {monthTxns.length > 0 && (
           <button
             onClick={() => downloadMonthlyReport(monthTxns, selYear, selMonth)}
-            style={{ marginTop:14, width:'100%', padding:'10px 0', borderRadius:12,
-              border:'1px solid rgba(59,130,246,0.35)', background:'rgba(59,130,246,0.1)',
-              color:C.primaryGlow, fontSize:13, fontWeight:600, cursor:'pointer',
-              display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+            style={{ marginTop: 14, width: '100%', padding: '10px 0', borderRadius: 12,
+              border: '1px solid rgba(59,130,246,0.35)', background: 'rgba(59,130,246,0.1)',
+              color: C.primaryGlow, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
             📥 Descargar informe Excel
           </button>
         )}
       </div>
 
-      <div style={{ padding:'16px 16px 0' }}>
-        <div style={{ display:'flex', alignItems:'center', background:C.surface, border:`1px solid ${C.border}`, borderRadius:14, padding:'0 14px', height:44, marginBottom:14 }}>
-          <span style={{ color:C.textMuted, marginRight:8, fontSize:15 }}>🔍</span>
+      <div style={{ padding: '16px 16px 0' }}>
+
+        {/* ── INSIGHTS IA ── */}
+        {insights.length > 0 && (
+          <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {insights.map((ins, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 14,
+                background: ins.tone === 'good' ? 'rgba(49,214,123,0.08)' : ins.tone === 'bad' ? 'rgba(239,68,68,0.07)' : 'rgba(59,130,246,0.07)',
+                border: `1px solid ${ins.tone === 'good' ? 'rgba(49,214,123,0.2)' : ins.tone === 'bad' ? 'rgba(239,68,68,0.18)' : 'rgba(59,130,246,0.18)'}`,
+              }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{ins.emoji}</span>
+                <span style={{ color: C.textSec, fontSize: 12.5, lineHeight: 1.45 }}>{ins.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Search */}
+        <div style={{ display: 'flex', alignItems: 'center', background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: '0 14px', height: 44, marginBottom: 14 }}>
+          <span style={{ color: C.textMuted, marginRight: 8, fontSize: 15 }}>🔍</span>
           <input
-            style={{ flex:1, background:'none', border:'none', outline:'none', color:C.text, fontSize:14 }}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: C.text, fontSize: 14 }}
             placeholder="Buscar por descripción o categoría..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
 
-        <div style={{ display:'flex', background:C.surface, borderRadius:14, border:`1px solid ${C.border}`, padding:4, marginBottom:16, gap:4 }}>
-          {TABS.map((t, i) => (
-            <button key={t} onClick={() => setTab(i)} style={{
-              flex:1, padding:'8px 0', borderRadius:10, border:'none', cursor:'pointer', fontSize:13, fontWeight:600,
-              background: tab === i ? C.accent : 'transparent',
-              color: tab === i ? '#fff' : C.textMuted,
-            }}>{t}</button>
-          ))}
+        {/* Tabs + view toggle */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <div style={{ flex: 1, display: 'flex', background: C.surface, borderRadius: 14, border: `1px solid ${C.border}`, padding: 4, gap: 4 }}>
+            {TABS.map((t, i) => (
+              <button key={t} onClick={() => setTab(i)} style={{
+                flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                background: tab === i ? C.accent : 'transparent',
+                color: tab === i ? '#fff' : C.textMuted,
+              }}>{t}</button>
+            ))}
+          </div>
+          <button
+            onClick={() => setViewMode(v => v === 'category' ? 'date' : 'category')}
+            title={viewMode === 'category' ? 'Ver por fecha' : 'Ver por categoría'}
+            style={{ width: 48, borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface,
+              color: C.textSec, fontSize: 16, cursor: 'pointer' }}>
+            {viewMode === 'category' ? '📅' : '🏷️'}
+          </button>
         </div>
       </div>
 
-      <div style={{ padding:'0 16px' }}>
+      <div style={{ padding: '0 16px' }}>
         {loading ? (
-          <div style={{ textAlign:'center', padding:'60px 0', color:C.textMuted }}>
-            <div style={{ fontSize:14 }}>Cargando movimientos…</div>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: C.textMuted }}>
+            <div style={{ fontSize: 14 }}>Cargando movimientos…</div>
+          </div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: '#EF4444' }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>⚠️</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Error al cargar movimientos</div>
+            <div style={{ fontSize: 11, color: '#94A3B8', background: '#0F172A', padding: '10px 14px',
+              borderRadius: 10, textAlign: 'left', wordBreak: 'break-all', maxWidth: 340, margin: '0 auto' }}>
+              {loadError}
+            </div>
           </div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign:'center', padding:'60px 0', color:C.textMuted }}>
-            <div style={{ fontSize:40, marginBottom:12 }}>💸</div>
-            <div style={{ fontSize:14 }}>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: C.textMuted }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>💸</div>
+            <div style={{ fontSize: 14 }}>
               {transactions.length === 0
                 ? 'Toca ＋ para agregar tu primer movimiento'
                 : `Sin movimientos en ${formatMonthLabel(selYear, selMonth).toLowerCase()}`}
             </div>
           </div>
-        ) : (
-          Object.entries(grouped).sort((a, b) => b[0].localeCompare(a[0])).map(([date, txns]) => (
-            <div key={date} style={{ marginBottom:20 }}>
-              <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:8, textTransform:'uppercase' }}>
-                {new Date(date + 'T12:00:00').toLocaleDateString('es-CO', { weekday:'long', day:'2-digit', month:'long' })}
-              </div>
-              <div style={{ ...card }}>
-                {txns.map((t, i) => (
-                  <div key={t.id}
-                    onClick={() => setSelectedTx(t)}
-                    style={{ display:'flex', alignItems:'center', gap:12,
-                      paddingBottom:i<txns.length-1?12:0, marginBottom:i<txns.length-1?12:0,
-                      borderBottom:i<txns.length-1?`1px solid ${C.border}`:'none', cursor:'pointer' }}>
-                    <div style={{ width:42, height:42, borderRadius:13,
-                      background:`${t.transaction_type==='income'?C.accent:C.primaryGlow}22`,
-                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>
-                      {txIcon(t.description ?? '', t.transaction_type, t.category)}
-                    </div>
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <div style={{ color:C.text, fontSize:14, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                        {t.description ?? 'Movimiento'}
-                      </div>
-                      <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
-                        {txCategory(t.description ?? '', t.transaction_type, t.category)}
-                      </div>
-                    </div>
-                    <div style={{ textAlign:'right', flexShrink:0, display:'flex', alignItems:'center', gap:8 }}>
-                      <div>
-                        <div style={{ color:t.transaction_type==='income'?C.accent:C.text, fontSize:14, fontWeight:700 }}>
-                          {t.transaction_type==='income'?'+':'-'}{fmt(Number(t.amount))}
-                        </div>
-                        <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>
-                          {t.transaction_type==='income'?'Ingreso':'Gasto'}
-                        </div>
-                      </div>
-                      <span style={{ color:C.border, fontSize:16 }}>›</span>
+        ) : viewMode === 'category' ? (
+          /* ── GRUPOS POR CATEGORÍA ── */
+          groups.map(g => {
+            const open = openGroups.has(g.name);
+            const isIncomeGroup = g.txns.every(t => t.transaction_type === 'income');
+            return (
+              <div key={g.name} style={{ ...card, padding: 0, marginBottom: 12, overflow: 'hidden' }}>
+                <div
+                  onClick={() => toggleGroup(g.name)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer' }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12,
+                    background: `${isIncomeGroup ? C.accent : C.primaryGlow}18`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>
+                    {g.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: C.text, fontSize: 14, fontWeight: 700 }}>{g.name}</div>
+                    <div style={{ color: C.textMuted, fontSize: 11, marginTop: 1 }}>
+                      {g.txns.length} movimiento{g.txns.length !== 1 ? 's' : ''}
                     </div>
                   </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ color: isIncomeGroup ? C.accent : C.text, fontSize: 14, fontWeight: 800 }}>
+                      {isIncomeGroup ? '+' : '-'}{fmt(g.total)}
+                    </div>
+                  </div>
+                  <span style={{ color: C.border, fontSize: 13 }}>{open ? '▴' : '▾'}</span>
+                </div>
+
+                {open && (
+                  <div style={{ borderTop: `1px solid ${C.border}`, padding: '4px 16px 8px' }}>
+                    {g.txns.map(t => (
+                      <TxRow key={t.id} t={t} onClick={() => setSelectedTx(t)} showDate />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        ) : (
+          /* ── VISTA POR FECHA (clásica) ── */
+          Object.entries(byDate).sort((a, b) => b[0].localeCompare(a[0])).map(([date, txns]) => (
+            <div key={date} style={{ marginBottom: 20 }}>
+              <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 600, letterSpacing: 1, marginBottom: 8, textTransform: 'uppercase' }}>
+                {new Date(date + 'T12:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: '2-digit', month: 'long' })}
+              </div>
+              <div style={{ ...card, paddingTop: 4, paddingBottom: 8 }}>
+                {txns.map(t => (
+                  <TxRow key={t.id} t={t} onClick={() => setSelectedTx(t)} />
                 ))}
               </div>
             </div>
@@ -235,6 +307,45 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
         onCategoryChanged={handleCategoryChanged}
         onNotesChanged={handleNotesChanged}
       />
+    </div>
+  );
+}
+
+function TxRow({ t, onClick, showDate }: { t: Txn; onClick: () => void; showDate?: boolean }) {
+  return (
+    <div onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+        borderBottom: `1px solid ${C.border}`, cursor: 'pointer' }}>
+      <div style={{ width: 36, height: 36, borderRadius: 11,
+        background: `${t.transaction_type === 'income' ? C.accent : C.primaryGlow}15`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+        {txIcon(t.description ?? '', t.transaction_type, t.category)}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ color: C.text, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {t.description ?? 'Movimiento'}
+        </div>
+        {showDate && (
+          <div style={{ color: C.textMuted, fontSize: 10.5, marginTop: 1 }}>
+            {new Date(t.date + 'T12:00:00').toLocaleDateString('es-CO', { day: '2-digit', month: 'short' })}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <span style={{ color: t.transaction_type === 'income' ? C.accent : C.text, fontSize: 13, fontWeight: 700 }}>
+          {t.transaction_type === 'income' ? '+' : '-'}{fmt(Number(t.amount))}
+        </span>
+        <span style={{ color: C.border, fontSize: 14 }}>›</span>
+      </div>
+    </div>
+  );
+}
+
+function SummaryCell({ label, value, color, bg }: { label: string; value: string; color: string; bg: string }) {
+  return (
+    <div style={{ flex: 1, background: `${bg},0.12)`, border: `1px solid ${bg},0.25)`, borderRadius: 14, padding: '10px 12px' }}>
+      <div style={{ color: C.textMuted, fontSize: 11, marginBottom: 2 }}>{label}</div>
+      <div style={{ color, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
     </div>
   );
 }

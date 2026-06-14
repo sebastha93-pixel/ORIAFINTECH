@@ -4,7 +4,9 @@ import { classifyTransaction } from './classifier';
 function parseAmount(raw: string): number {
   const s = raw.trim();
   // US format with both comma and dot: "7,950.00" or "1,035,000.00"
+  // Colombian format: dot=thousands, comma=decimal: "163.300,00" → 163300
   if (s.includes(',') && s.includes('.')) {
+    if (s.indexOf('.') < s.indexOf(',')) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
     return parseFloat(s.replace(/,/g, '')) || 0;
   }
   // Comma only — if 3 digits after last comma it's a thousands separator: "68,150"
@@ -104,6 +106,9 @@ export function parse(emailBody: string, subject: string): ParsedTransaction | n
   }
 
   const text = emailBody + ' ' + subject;
+  // Skip declined/rejected transactions — never import a charge that didn't go through
+  if (/Respuesta:\s*Declinada|Fondos\s+Insuficientes|Rechazad|No\s+autorizada/i.test(text)) return null;
+
   const accountSuffix = extractDaviviendaAccountSuffix(text);
   const accountHolder = extractEmailHolderDav(text);
 
