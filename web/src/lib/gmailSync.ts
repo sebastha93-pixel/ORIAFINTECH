@@ -63,10 +63,9 @@ export async function runGmailSync(
 
   // Momento 0: timestamp exacto (fecha + hora) de creación de cada cuenta.
   // Emails con timestamp anterior al momento 0 no se importan.
-  const globalCutoff = accounts
-    .filter(a => a.initial_balance_set_at)
-    .map(a => a.initial_balance_set_at!)
-    .sort()[0] ?? null;
+  // Global cutoff = most RECENT account creation (most conservative fallback)
+  const cutoffDates = accounts.filter(a => a.initial_balance_set_at).map(a => a.initial_balance_set_at!).sort();
+  const globalCutoff = cutoffDates.length ? cutoffDates[cutoffDates.length - 1] : null;
 
   for (const email of emails) {
     const result = parseEmail(email.bank, email.body, email.subject);
@@ -84,18 +83,21 @@ export async function runGmailSync(
     });
 
     if (matchedAccount) {
-      // Holder check is a soft filter — only reject when both are present and clearly mismatched
       const holderOk =
         !matchedAccount.account_holder ||
         !result.accountHolder ||
         holderNamesMatch(matchedAccount.account_holder, result.accountHolder);
-      if (holderOk) account_id = matchedAccount.id;
 
-      // Cutoff por cuenta: omitir si el correo es anterior al momento 0 de esta cuenta
-      const acctCutoff = matchedAccount.initial_balance_set_at;
-      if (acctCutoff && emailTs < acctCutoff) continue;
+      if (holderOk) {
+        account_id = matchedAccount.id;
+        // Apply this account's cutoff (most specific)
+        const acctCutoff = matchedAccount.initial_balance_set_at;
+        if (acctCutoff && emailTs < acctCutoff) continue;
+      } else {
+        // Holder mismatch: fall back to global cutoff (don't use matched account's cutoff)
+        if (globalCutoff && emailTs < globalCutoff) continue;
+      }
     } else {
-      // Sin cuenta vinculada: usar el cutoff global
       if (globalCutoff && emailTs < globalCutoff) continue;
     }
 

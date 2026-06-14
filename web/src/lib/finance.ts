@@ -222,7 +222,9 @@ export function computeOriaScore(s: FinanceSnapshot, m: Metrics): OriaScore {
   });
 
   // 2. Cash flow consistency — 20 pts (positive months in last 3 closed + current)
-  const lastMonths = [...s.prevSummaries].slice(0, 3).map(x => Number(x.total_income) - Number(x.total_expenses));
+  // Use same slice as avgMonthlyNet (asc.slice(-3)) so score is consistent with metrics
+  const recent3 = [...s.prevSummaries].sort((a, b) => a.year - b.year || a.month - b.month).slice(-3);
+  const lastMonths = recent3.map(x => Number(x.total_income) - Number(x.total_expenses));
   lastMonths.push(m.curNet);
   const positives = lastMonths.filter(n => n > 0).length;
   const flowPts   = Math.round((positives / lastMonths.length) * 20);
