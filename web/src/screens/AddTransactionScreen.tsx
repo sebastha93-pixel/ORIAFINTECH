@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { C } from '../theme';
 import { supabase } from '../lib/supabase';
+import { BankLogo } from '../components/BankLogo';
 
 const CATEGORIES = [
   { name:'Alimentación',    icon:'🛒' },
@@ -22,7 +23,7 @@ const CATEGORIES = [
 
 const CUSTOM_MARKER = '__custom__';
 
-interface Account { id: string; name: string; institution: string; }
+interface Account { id: string; name: string; institution: string; account_suffix: string | null; }
 
 export function AddTransactionScreen({ userId, onClose, onSaved }: {
   userId: string;
@@ -37,24 +38,20 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
   const [customCat, setCustomCat] = useState('');
   const [date, setDate]         = useState(today);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  // '' = not selected, 'efectivo' = cash, uuid = account
   const [accountId, setAccountId] = useState<string>('');
   const [saving, setSaving]     = useState(false);
   const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
-    // Lock body scroll while modal is open
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
   }, []);
 
   useEffect(() => {
-    supabase.from('accounts').select('id, name, institution')
+    supabase.from('accounts').select('id, name, institution, account_suffix')
       .eq('user_id', userId).eq('is_active', true)
-      .then(({ data }) => {
-        const accs = (data as Account[]) ?? [];
-        setAccounts(accs);
-        if (accs.length === 1) setAccountId(accs[0].id);
-      });
+      .then(({ data }) => setAccounts((data as Account[]) ?? []));
   }, [userId]);
 
   const effectiveCat = cat === CUSTOM_MARKER ? (customCat.trim() || 'Personalizado') : cat;
@@ -63,6 +60,7 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
     const num = parseFloat(amount.replace(/[^0-9.]/g, ''));
     if (!num || num <= 0) { setError('Ingresa un monto válido'); return; }
     if (!desc.trim()) { setError('Ingresa una descripción'); return; }
+    if (!accountId) { setError('Selecciona de dónde sale o entra el dinero'); return; }
     if (cat === CUSTOM_MARKER && !customCat.trim()) { setError('Escribe un nombre para la categoría personalizada'); return; }
     setSaving(true);
     setError(null);
@@ -75,7 +73,7 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
       date,
       notes: 'Ingresado manualmente',
       currency_code: 'COP',
-      ...(accountId ? { account_id: accountId } : {}),
+      ...(accountId && accountId !== 'efectivo' ? { account_id: accountId } : {}),
     });
     setSaving(false);
     if (err) { setError('Error al guardar. Intenta de nuevo.'); return; }
@@ -141,6 +139,56 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
               value={desc} onChange={e => setDesc(e.target.value)} />
           </div>
 
+          {/* Account / source — REQUIRED */}
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:8 }}>
+              <span style={{ color: C.danger, fontSize:11, fontWeight:700, letterSpacing:0.5 }}>
+                {type === 'income' ? 'DESTINO *' : 'ORIGEN *'}
+              </span>
+              {!accountId && (
+                <span style={{ fontSize:10, color:C.danger, background:'rgba(239,68,68,0.1)', padding:'2px 7px', borderRadius:6 }}>
+                  Requerido
+                </span>
+              )}
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+              {/* Efectivo option */}
+              <button
+                onClick={() => setAccountId(accountId === 'efectivo' ? '' : 'efectivo')}
+                style={{
+                  display:'flex', alignItems:'center', gap:8,
+                  padding:'9px 14px', borderRadius:12, cursor:'pointer',
+                  border:`1px solid ${accountId === 'efectivo' ? C.accent : C.border}`,
+                  background: accountId === 'efectivo' ? 'rgba(49,214,123,0.12)' : C.bg,
+                }}>
+                <span style={{ fontSize:18 }}>💵</span>
+                <span style={{ color: accountId === 'efectivo' ? C.accent : C.textSec, fontSize:13, fontWeight:600 }}>
+                  Efectivo
+                </span>
+              </button>
+              {/* Registered accounts */}
+              {accounts.map(a => {
+                const sel = accountId === a.id;
+                return (
+                  <button
+                    key={a.id}
+                    onClick={() => setAccountId(sel ? '' : a.id)}
+                    style={{
+                      display:'flex', alignItems:'center', gap:8,
+                      padding:'9px 14px', borderRadius:12, cursor:'pointer',
+                      border:`1px solid ${sel ? C.primaryGlow : C.border}`,
+                      background: sel ? 'rgba(59,130,246,0.12)' : C.bg,
+                    }}>
+                    <BankLogo institution={a.institution} size={22} borderRadius={6} />
+                    <span style={{ color: sel ? C.primaryGlow : C.textSec, fontSize:13, fontWeight:600 }}>
+                      {a.name}{a.account_suffix ? ` · *${a.account_suffix}` : ''}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Category grid */}
           <div>
             <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:8 }}>CATEGORÍA</div>
@@ -164,7 +212,6 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
               })}
             </div>
 
-            {/* Input for custom category name */}
             {cat === CUSTOM_MARKER && (
               <input
                 style={{ ...inp, marginTop:10 }}
@@ -183,25 +230,15 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
             <input style={inp} type="date" value={date} onChange={e => setDate(e.target.value)} />
           </div>
 
-          {/* Account selector — only when multiple */}
-          {accounts.length > 1 && (
-            <div>
-              <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>CUENTA</div>
-              <select style={{ ...inp, appearance:'none' }} value={accountId} onChange={e => setAccountId(e.target.value)}>
-                <option value="">Sin cuenta específica</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name} – {a.institution}</option>)}
-              </select>
-            </div>
-          )}
-
           {error && <div style={{ color:C.danger, fontSize:13, textAlign:'center' }}>{error}</div>}
 
-          <button onClick={handleSave} disabled={saving} style={{
+          <button onClick={handleSave} disabled={saving || !accountId} style={{
             width:'100%', padding:'15px 0', borderRadius:14, border:'none',
-            background: type === 'income' ? C.accent : C.danger,
-            color:'#fff', fontSize:15, fontWeight:700, cursor:'pointer',
+            background: !accountId ? C.surfaceEl : type === 'income' ? C.accent : C.danger,
+            color: !accountId ? C.textMuted : '#fff',
+            fontSize:15, fontWeight:700, cursor: (!accountId || saving) ? 'default' : 'pointer',
           }}>
-            {saving ? 'Guardando…' : 'Guardar movimiento'}
+            {saving ? 'Guardando…' : !accountId ? 'Selecciona origen o destino' : 'Guardar movimiento'}
           </button>
         </div>
       </div>

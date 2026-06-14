@@ -1073,7 +1073,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Últimos 4 dígitos de la cuenta</div>
                     <input
                       type="number"
-                      placeholder="ej. 7070"
+                      placeholder="ej. 1234"
                       value={newSuffix}
                       maxLength={4}
                       onChange={e => setNewSuffix(e.target.value.slice(-4))}
@@ -1116,7 +1116,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         </div>
                         <input
                           type="text"
-                          placeholder="ej. SEBASTIAN HURTADO"
+                          placeholder="ej. NOMBRE APELLIDO"
                           value={newHolder}
                           onChange={e => setNewHolder(e.target.value)}
                           style={{ width:'100%', padding:'10px 14px', borderRadius:10,
