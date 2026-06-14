@@ -28,6 +28,8 @@ export interface Account {
   account_type: string;
   initial_balance: number | null;
   credit_limit: number | null;
+  initial_balance_usd: number | null;
+  credit_limit_usd: number | null;
   institution: string;
   account_suffix: string | null;
   name: string;
@@ -51,6 +53,7 @@ export interface FinanceSnapshot {
   prevSummaries: MonthlySummary[];   // newest first
   accounts: Account[];
   goals: Goal[];
+  trm: number;   // COP per 1 USD, from user setting (localStorage)
 }
 
 function currentMonthRange() {
@@ -97,7 +100,7 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
       .order('month', { ascending: false }),
     supabase
       .from('accounts')
-      .select('account_type, initial_balance, credit_limit, institution, account_suffix, name')
+      .select('account_type, initial_balance, credit_limit, initial_balance_usd, credit_limit_usd, institution, account_suffix, name')
       .eq('user_id', user.id)
       .eq('is_active', true),
     supabase
@@ -114,6 +117,7 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
     prevSummaries: (summariesRes.data as MonthlySummary[]) ?? [],
     accounts:      (accountsRes.data as Account[]) ?? [],
     goals:         (goalsRes.data as Goal[]) ?? [],
+    trm: parseFloat(localStorage.getItem('nexo_trm') ?? '4200'),
   };
 }
 
@@ -134,10 +138,13 @@ export interface Metrics {
 }
 
 export function computeMetrics(s: FinanceSnapshot): Metrics {
+  const trm = s.trm > 0 ? s.trm : 4200;
   const debitAccounts  = s.accounts.filter(a => a.account_type !== 'credit_card');
   const creditAccounts = s.accounts.filter(a => a.account_type === 'credit_card');
   const debitBase  = debitAccounts.reduce((t, a) => t + Number(a.initial_balance ?? 0), 0);
-  const creditDebt = creditAccounts.reduce((t, a) => t + Number(a.initial_balance ?? 0), 0);
+  // Credit debt = COP balance + USD balance converted to COP
+  const creditDebt = creditAccounts.reduce((t, a) =>
+    t + Number(a.initial_balance ?? 0) + Number(a.initial_balance_usd ?? 0) * trm, 0);
 
   const curIncome  = s.currentTxns.filter(t => t.transaction_type === 'income').reduce((t, x) => t + Number(x.amount), 0);
   const curExpense = s.currentTxns.filter(t => t.transaction_type === 'expense').reduce((t, x) => t + Number(x.amount), 0);
@@ -157,10 +164,12 @@ export function computeMetrics(s: FinanceSnapshot): Metrics {
   const now = new Date();
   history.push({ label: MONTHS[now.getMonth()], value: netWorth });
 
+  // Utilization = (COP debt + USD debt*TRM) / (COP limit + USD limit*TRM)
   const utils = creditAccounts
     .map(a => {
-      const l = Number(a.credit_limit ?? 0);
-      return l > 0 ? (Number(a.initial_balance ?? 0) / l) * 100 : null;
+      const totalDebt  = Number(a.initial_balance ?? 0) + Number(a.initial_balance_usd ?? 0) * trm;
+      const totalLimit = Number(a.credit_limit ?? 0) + Number(a.credit_limit_usd ?? 0) * trm;
+      return totalLimit > 0 ? (totalDebt / totalLimit) * 100 : null;
     })
     .filter((u): u is number => u !== null);
   const maxCcUtil = creditAccounts.length === 0 ? null : utils.length ? Math.round(Math.max(...utils)) : 0;

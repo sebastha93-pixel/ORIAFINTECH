@@ -200,9 +200,14 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
 }
 
 function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
+  const trm    = snap.trm > 0 ? snap.trm : 4200;
   const debit  = snap.accounts.filter(a => a.account_type !== 'credit_card');
   const credit = snap.accounts.filter(a => a.account_type === 'credit_card');
-  const totalCupo = credit.reduce((s, a) => s + Math.max(0, (a.credit_limit ?? 0) - (a.initial_balance ?? 0)), 0);
+  const totalCupo = credit.reduce((s, a) => {
+    const copCupo = (a.credit_limit ?? 0) - (a.initial_balance ?? 0);
+    const usdCupo = ((a.credit_limit_usd ?? 0) - (a.initial_balance_usd ?? 0)) * trm;
+    return s + Math.max(0, copCupo + usdCupo);
+  }, 0);
   const neto   = m.totalAssets + totalCupo;
 
   return (
@@ -238,7 +243,9 @@ function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
       {credit.length > 0 && (
         <>
           {credit.map(a => {
-            const cupo = (a.credit_limit ?? 0) - (a.initial_balance ?? 0);
+            const copCupo = (a.credit_limit ?? 0) - (a.initial_balance ?? 0);
+            const usdCupo = ((a.credit_limit_usd ?? 0) - (a.initial_balance_usd ?? 0)) * trm;
+            const cupo = copCupo + usdCupo;
             return (
               <div key={a.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                 <BankLogo institution={a.institution} size={32} borderRadius={10} />

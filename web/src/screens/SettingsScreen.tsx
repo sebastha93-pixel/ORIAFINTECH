@@ -273,6 +273,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [newCreditLimitUsd, setNewCreditLimitUsd] = useState('');
   const [newCardNetwork, setNewCardNetwork] = useState('visa');
   const [newPaymentStatus, setNewPaymentStatus] = useState<'current' | 'overdue'>('current');
+  const [trm, setTrm]                       = useState(() => localStorage.getItem('nexo_trm') ?? '4200');
   const [savingAccount, setSavingAccount]   = useState(false);
   const [addAccountError, setAddAccountError] = useState('');
 
@@ -860,14 +861,16 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 const locked  = isBalanceLocked(acc);
                 const editable = !locked;
                 const isSaving = savingBalance[acc.id] ?? false;
+                const trmVal  = parseFloat(trm) || 4200;
                 const debt    = acc.initial_balance ?? 0;
                 const limit   = acc.credit_limit ?? 0;
-                const utilPct = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
-                const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? '#f59e0b' : C.accent;
                 const debtUsd   = acc.initial_balance_usd ?? 0;
                 const limitUsd  = acc.credit_limit_usd ?? 0;
-                const utilPctUsd = limitUsd > 0 ? Math.min(100, Math.round((debtUsd / limitUsd) * 100)) : null;
-                const utilColorUsd = utilPctUsd == null ? C.textMuted : utilPctUsd >= 80 ? C.danger : utilPctUsd >= 50 ? '#f59e0b' : C.accent;
+                // Combined utilization: convert everything to COP using TRM
+                const totalDebt  = debt + debtUsd * trmVal;
+                const totalLimit = limit + limitUsd * trmVal;
+                const utilPct = totalLimit > 0 ? Math.min(100, Math.round((totalDebt / totalLimit) * 100)) : null;
+                const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? '#f59e0b' : C.accent;
                 const fmtUsd = (n: number) => 'US$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
                 return (
                   <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
@@ -912,33 +915,22 @@ export function SettingsScreen({ userId }: { userId: string }) {
                           {isCC && limit > 0 && <span> · Cupo {fmt(limit)}</span>}
                           {isCC && limitUsd > 0 && <span> · Cupo {fmtUsd(limitUsd)}</span>}
                         </div>
-                        {/* COP credit utilization bar */}
+                        {/* Combined utilization bar (COP + USD converted at TRM) */}
                         {isCC && utilPct != null && (
                           <div style={{ marginTop:6 }}>
                             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                              <span style={{ color:utilColor, fontSize:10, fontWeight:700 }}>{utilPct}% COP utilizado</span>
-                              <span style={{ color:C.textMuted, fontSize:10 }}>{fmt(debt)} de {fmt(limit)}</span>
+                              <span style={{ color:utilColor, fontSize:10, fontWeight:700 }}>{utilPct}% utilizado</span>
+                              <span style={{ color:C.textMuted, fontSize:10 }}>
+                                {fmt(debt)}{debtUsd > 0 ? ` + ${fmtUsd(debtUsd)}` : ''} de {fmt(limit)}{limitUsd > 0 ? ` + ${fmtUsd(limitUsd)}` : ''}
+                              </span>
                             </div>
                             <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
                               <div style={{ width:`${utilPct}%`, height:'100%', background:utilColor, borderRadius:99 }} />
                             </div>
-                          </div>
-                        )}
-                        {/* USD credit utilization bar */}
-                        {isCC && (debtUsd > 0 || limitUsd > 0) && (
-                          <div style={{ marginTop:4 }}>
-                            {utilPctUsd != null ? (
-                              <>
-                                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                                  <span style={{ color:utilColorUsd, fontSize:10, fontWeight:700 }}>{utilPctUsd}% USD utilizado</span>
-                                  <span style={{ color:C.textMuted, fontSize:10 }}>{fmtUsd(debtUsd)} de {fmtUsd(limitUsd)}</span>
-                                </div>
-                                <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
-                                  <div style={{ width:`${utilPctUsd}%`, height:'100%', background:utilColorUsd, borderRadius:99 }} />
-                                </div>
-                              </>
-                            ) : (
-                              <div style={{ color:C.danger, fontSize:10, fontWeight:600 }}>Deuda USD: {fmtUsd(debtUsd)}</div>
+                            {debtUsd > 0 && (
+                              <div style={{ color:C.textMuted, fontSize:9, marginTop:2 }}>
+                                TRM: ${parseFloat(trm).toLocaleString('es-CO')} · {fmtUsd(debtUsd)} ≈ {fmt(Math.round(debtUsd * (parseFloat(trm) || 4200)))} COP
+                              </div>
                             )}
                           </div>
                         )}
@@ -1315,6 +1307,42 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 </div>
                 <div style={{ color:C.textSec, fontSize:12, lineHeight:1.6 }}>
                   Solo se importarán movimientos de tus {accounts.length} cuenta{accounts.length!==1?'s':''} registrada{accounts.length!==1?'s':''}.
+                </div>
+              </div>
+            )}
+
+            {/* TRM setting — only shown when at least one CC has USD fields */}
+            {accounts.some(a => a.account_type === 'credit_card' && ((a.credit_limit_usd ?? 0) > 0 || (a.initial_balance_usd ?? 0) > 0)) && (
+              <div style={{ ...card }}>
+                <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:0.5, marginBottom:10 }}>
+                  💱 TASA DE CAMBIO (TRM)
+                </div>
+                <div style={{ color:C.textSec, fontSize:12, lineHeight:1.5, marginBottom:10 }}>
+                  Usada para convertir tus saldos en USD a COP y calcular la ocupación real de tus tarjetas.
+                </div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <div style={{ position:'relative', flex:1 }}>
+                    <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={parseFloat(trm) ? Number(trm).toLocaleString('es-CO') : ''}
+                      placeholder="4.200"
+                      onChange={e => setTrm(e.target.value.replace(/\D/g, ''))}
+                      style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:9, paddingBottom:9,
+                        borderRadius:10, border:`1px solid ${C.border}`,
+                        background:C.surface, color:C.text, fontSize:14, fontWeight:600,
+                        boxSizing:'border-box', outline:'none' }}
+                    />
+                  </div>
+                  <span style={{ color:C.textMuted, fontSize:12 }}>COP / USD</span>
+                  <button
+                    onClick={() => { localStorage.setItem('nexo_trm', trm); }}
+                    style={{ padding:'9px 14px', borderRadius:10, border:'none',
+                      background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                      color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                    Guardar
+                  </button>
                 </div>
               </div>
             )}
