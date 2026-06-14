@@ -262,7 +262,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
           <div style={{ textAlign: 'center', padding: '60px 0', color: C.textMuted }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>💸</div>
             <div style={{ fontSize: 14 }}>
-              {transactions.length === 0
+              {monthTxns.length === 0
                 ? 'Toca ＋ para agregar tu primer movimiento'
                 : `Sin movimientos en ${formatMonthLabel(selYear, selMonth).toLowerCase()}`}
             </div>

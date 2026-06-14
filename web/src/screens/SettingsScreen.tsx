@@ -525,10 +525,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
       // Momento 0: timestamp exacto de creación de cada cuenta (fecha + hora).
       // Emails con timestamp anterior al momento 0 no se importan.
-      const globalCutoff = accounts
-        .filter(a => a.initial_balance_set_at)
-        .map(a => a.initial_balance_set_at!)
-        .sort()[0] ?? null;
+      const cutoffDates = accounts.filter(a => a.initial_balance_set_at).map(a => a.initial_balance_set_at!).sort();
+      const globalCutoff = cutoffDates.length ? cutoffDates[cutoffDates.length - 1] : null;
 
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
@@ -554,14 +552,17 @@ export function SettingsScreen({ userId }: { userId: string }) {
             !matchedAccount.account_holder ||
             !result.accountHolder ||
             holderNamesMatch(matchedAccount.account_holder, result.accountHolder);
-          if (holderOk) { account_id = matchedAccount.id; cLinked++; }
-          else cUnlinked++;
 
-          // Cutoff por cuenta: omitir si el correo es anterior al momento 0 de esta cuenta
-          const acctCutoff = matchedAccount.initial_balance_set_at;
-          if (acctCutoff && emailTs < acctCutoff) { cBeforeCutoff++; continue; }
+          if (holderOk) {
+            account_id = matchedAccount.id; cLinked++;
+            const acctCutoff = matchedAccount.initial_balance_set_at;
+            if (acctCutoff && emailTs < acctCutoff) { cBeforeCutoff++; continue; }
+          } else {
+            // Holder mismatch: use global cutoff, not matched account's
+            cUnlinked++;
+            if (globalCutoff && emailTs < globalCutoff) { cBeforeCutoff++; continue; }
+          }
         } else {
-          // Sin cuenta vinculada: usar el cutoff global
           if (globalCutoff && emailTs < globalCutoff) { cBeforeCutoff++; continue; }
           cUnlinked++;
         }
