@@ -23,6 +23,7 @@ function monthPrefixOf(year: number, month: number) {
 export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   const now = new Date();
   const [transactions, setTransactions] = useState<Txn[]>([]);
+  const [accounts, setAccounts]         = useState<{ id: string; name: string; account_type: string; initial_balance: number | null; initial_balance_set_at: string | null }[]>([]);
   const [loading, setLoading]           = useState(true);
   const [loadError, setLoadError]       = useState<string | null>(null);
   const [tab, setTab]                   = useState(0);
@@ -48,12 +49,19 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
 
       let txnData: unknown[] | null = full.data;
       if (full.error) {
-        // Fallback: category column may not exist yet (run migration 011)
         const base = await q(BASE);
         if (base.error) throw base.error;
         txnData = base.data;
       }
       setTransactions((txnData as Txn[]) ?? []);
+
+      // Load accounts for saldo inicial virtual entries
+      const { data: acctData } = await supabase
+        .from('accounts')
+        .select('id, name, account_type, initial_balance, initial_balance_set_at')
+        .eq('user_id', session.user.id)
+        .eq('is_active', true);
+      setAccounts(acctData ?? []);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('loadTransactions:', e);
@@ -100,7 +108,21 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   const prevDate    = new Date(selYear, selMonth - 1, 1);
   const prevPrefix  = monthPrefixOf(prevDate.getFullYear(), prevDate.getMonth());
 
-  const monthTxns     = transactions.filter(t => t.date.startsWith(monthPrefix));
+  // Virtual "Saldo inicial" income entries: one per debit account created this viewed month
+  const virtualSaldos: Txn[] = accounts
+    .filter(a => a.account_type !== 'credit_card' && (a.initial_balance ?? 0) > 0 && a.initial_balance_set_at?.startsWith(monthPrefix))
+    .map(a => ({
+      id: `__saldo_${a.id}`,
+      transaction_type: 'income' as const,
+      amount: a.initial_balance!,
+      description: `Saldo inicial · ${a.name}`,
+      date: a.initial_balance_set_at!.slice(0, 10),
+      notes: 'Saldo inicial',
+      gmail_message_id: null,
+      category: 'Saldo inicial',
+    }));
+
+  const monthTxns     = [...transactions.filter(t => t.date.startsWith(monthPrefix)), ...virtualSaldos];
   const prevMonthTxns = transactions.filter(t => t.date.startsWith(prevPrefix));
 
   const filtered = monthTxns.filter(t => {
@@ -277,7 +299,9 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
                 {open && (
                   <div style={{ borderTop: `1px solid ${C.border}`, padding: '4px 16px 8px' }}>
                     {g.txns.map(t => (
-                      <TxRow key={t.id} t={t} onClick={() => setSelectedTx(t)} showDate />
+                      <TxRow key={t.id} t={t}
+                        onClick={t.id.startsWith('__saldo_') ? undefined : () => setSelectedTx(t)}
+                        showDate />
                     ))}
                   </div>
                 )}
@@ -293,7 +317,8 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
               </div>
               <div style={{ ...card, paddingTop: 4, paddingBottom: 8 }}>
                 {txns.map(t => (
-                  <TxRow key={t.id} t={t} onClick={() => setSelectedTx(t)} />
+                  <TxRow key={t.id} t={t}
+                    onClick={t.id.startsWith('__saldo_') ? undefined : () => setSelectedTx(t)} />
                 ))}
               </div>
             </div>
@@ -311,15 +336,17 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   );
 }
 
-function TxRow({ t, onClick, showDate }: { t: Txn; onClick: () => void; showDate?: boolean }) {
+function TxRow({ t, onClick, showDate }: { t: Txn; onClick?: () => void; showDate?: boolean }) {
+  const isVirtual = t.id.startsWith('__saldo_');
   return (
     <div onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-        borderBottom: `1px solid ${C.border}`, cursor: 'pointer' }}>
+        borderBottom: `1px solid ${C.border}`, cursor: onClick ? 'pointer' : 'default',
+        opacity: isVirtual ? 0.85 : 1 }}>
       <div style={{ width: 36, height: 36, borderRadius: 11,
-        background: `${t.transaction_type === 'income' ? C.accent : C.primaryGlow}15`,
+        background: isVirtual ? 'rgba(49,214,123,0.12)' : `${t.transaction_type === 'income' ? C.accent : C.primaryGlow}15`,
         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
-        {txIcon(t.description ?? '', t.transaction_type, t.category)}
+        {isVirtual ? '🏦' : txIcon(t.description ?? '', t.transaction_type, t.category)}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: C.text, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -335,7 +362,7 @@ function TxRow({ t, onClick, showDate }: { t: Txn; onClick: () => void; showDate
         <span style={{ color: t.transaction_type === 'income' ? C.accent : C.text, fontSize: 13, fontWeight: 700 }}>
           {t.transaction_type === 'income' ? '+' : '-'}{fmt(Number(t.amount))}
         </span>
-        <span style={{ color: C.border, fontSize: 14 }}>›</span>
+        {!isVirtual && <span style={{ color: C.border, fontSize: 14 }}>›</span>}
       </div>
     </div>
   );
