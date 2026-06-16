@@ -19,9 +19,22 @@ export interface SyncResult {
 
 export async function getAuthHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {};
+  if (!session?.access_token) throw new Error('No active session — please log in again');
+  return { Authorization: `Bearer ${session.access_token}` };
+}
+
+// Exported so SettingsScreen can reuse the same logic (single source of truth)
+export function computeGlobalCutoff(accounts: Pick<SyncAccount, 'initial_balance_set_at'>[]): string | null {
+  const dates = accounts
+    .filter(a => a.initial_balance_set_at)
+    .map(a => a.initial_balance_set_at!)
+    .sort();
+  return dates.length ? dates[dates.length - 1] : null;
+}
+
+// Use Date objects, not string comparison, to handle timezone-offset formats correctly
+function beforeCutoff(emailTs: string, cutoff: string): boolean {
+  return new Date(emailTs) < new Date(cutoff);
 }
 
 export function holderNamesMatch(registered: string, fromEmail: string): boolean {
@@ -30,7 +43,8 @@ export function holderNamesMatch(registered: string, fromEmail: string): boolean
   const reg = normalize(registered);
   const em  = normalize(fromEmail);
   if (reg.includes(em) || em.includes(reg)) return true;
-  const regWords = reg.split(/\s+/).filter(w => w.length > 2);
+  // Require at least 4 chars to avoid false positives on common short tokens
+  const regWords = reg.split(/\s+/).filter(w => w.length > 3);
   return regWords.some(w => em.includes(w));
 }
 
@@ -50,9 +64,10 @@ export async function runGmailSync(
     throw new Error(`HTTP ${res.status}`);
   }
 
-  const emails = await res.json() as {
-    messageId: string; bank: string; subject: string; body: string; date: string;
-  }[];
+  const raw = await res.json() as unknown;
+  if (!Array.isArray(raw)) throw new Error('Respuesta inesperada del servidor de correo');
+  const emails = (raw as { messageId: string; bank: string; subject: string; body: string; date: string }[])
+    .filter(e => e && typeof e.messageId === 'string' && typeof e.bank === 'string');
 
   type ParsedItem = ReturnType<typeof parseEmail> & {
     messageId: string; date: string; account_id?: string;
@@ -62,19 +77,15 @@ export async function runGmailSync(
   const registeredAccounts = accounts.filter(a => a.account_suffix);
 
   // Momento 0: timestamp exacto (fecha + hora) de creación de cada cuenta.
-  // Emails con timestamp anterior al momento 0 no se importan.
-  // Global cutoff = most RECENT account creation (most conservative fallback)
-  const cutoffDates = accounts.filter(a => a.initial_balance_set_at).map(a => a.initial_balance_set_at!).sort();
-  const globalCutoff = cutoffDates.length ? cutoffDates[cutoffDates.length - 1] : null;
+  // Global cutoff = most RECENT account creation (most conservative fallback).
+  const globalCutoff = computeGlobalCutoff(accounts);
 
   for (const email of emails) {
     const result = parseEmail(email.bank, email.body, email.subject);
     if (!result || result.amount <= 0) continue;
 
-    // Comparar timestamp completo del correo vs momento 0 (fecha + hora)
     const emailTs = email.date;
 
-    // Try to match a registered account (best-effort — does NOT block import)
     let account_id: string | undefined;
     const matchedAccount = registeredAccounts.find(a => {
       if (email.bank === 'nequi') return !!a.institution?.toLowerCase().includes('nequi');
@@ -90,15 +101,13 @@ export async function runGmailSync(
 
       if (holderOk) {
         account_id = matchedAccount.id;
-        // Apply this account's cutoff (most specific)
         const acctCutoff = matchedAccount.initial_balance_set_at;
-        if (acctCutoff && emailTs < acctCutoff) continue;
+        if (acctCutoff && beforeCutoff(emailTs, acctCutoff)) continue;
       } else {
-        // Holder mismatch: fall back to global cutoff (don't use matched account's cutoff)
-        if (globalCutoff && emailTs < globalCutoff) continue;
+        if (globalCutoff && beforeCutoff(emailTs, globalCutoff)) continue;
       }
     } else {
-      if (globalCutoff && emailTs < globalCutoff) continue;
+      if (globalCutoff && beforeCutoff(emailTs, globalCutoff)) continue;
     }
 
     parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
@@ -109,7 +118,7 @@ export async function runGmailSync(
     const { error } = await supabase.from('transactions').insert({
       user_id:          userId,
       transaction_type: txn.type,
-      amount:           txn.amount,
+      amount:           Math.min(txn.amount, 999_999_999_999),
       description:      txn.description,
       date:             txn.date.slice(0, 10),
       gmail_message_id: txn.messageId,
@@ -117,8 +126,12 @@ export async function runGmailSync(
       notes:            'Auto-importado',
       ...(txn.account_id ? { account_id: txn.account_id } : {}),
     });
-    // error code 23505 = duplicate key (already imported) — silently skip
-    if (!error) created++;
+    if (!error) {
+      created++;
+    } else if (error.code !== '23505') {
+      // 23505 = duplicate key (already imported) — silently skip; log the rest
+      console.error('gmailSync insert error:', error.code, error.message);
+    }
   }
 
   return { created, emailCount: emails.length };

@@ -51,7 +51,11 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
   useEffect(() => {
     supabase.from('accounts').select('id, name, institution, account_suffix')
       .eq('user_id', userId).eq('is_active', true)
-      .then(({ data }) => setAccounts((data as Account[]) ?? []));
+      .then(({ data }) => {
+        const accs = (data as Account[]) ?? [];
+        setAccounts(accs);
+        if (accs.length === 1) setAccountId(accs[0].id); // auto-select when only 1 account
+      });
   }, [userId]);
 
   const effectiveCat = cat === CUSTOM_MARKER ? (customCat.trim() || 'Personalizado') : cat;
@@ -59,6 +63,7 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
   async function handleSave() {
     const num = parseFloat(amount.replace(/[^0-9.]/g, ''));
     if (!num || num <= 0) { setError('Ingresa un monto válido'); return; }
+    if (num > 999_999_999_999) { setError('Monto demasiado alto'); return; }
     if (!desc.trim()) { setError('Ingresa una descripción'); return; }
     if (!accountId) { setError('Selecciona de dónde sale o entra el dinero'); return; }
     if (cat === CUSTOM_MARKER && !customCat.trim()) { setError('Escribe un nombre para la categoría personalizada'); return; }
@@ -128,7 +133,7 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
           {/* Amount */}
           <div>
             <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>MONTO</div>
-            <input style={inp} type="number" inputMode="decimal" placeholder="0"
+            <input style={inp} type="text" inputMode="decimal" placeholder="0"
               value={amount} onChange={e => setAmount(e.target.value)} />
           </div>
 
