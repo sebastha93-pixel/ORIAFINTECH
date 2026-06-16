@@ -11,6 +11,7 @@ export interface TxDetail {
   notes?: string | null;
   gmail_message_id?: string | null;
   category?: string | null;
+  metadata?: Record<string, string> | null;
 }
 
 interface Props {
@@ -85,8 +86,15 @@ export function txCategory(desc: string, type: 'income' | 'expense', stored?: st
 }
 
 function userNote(raw: string | null | undefined): string {
-  if (!raw || raw === 'Auto-importado' || raw === 'Ingresado manualmente') return '';
-  return raw;
+  if (!raw || raw === 'Ingresado manualmente') return '';
+  // Strip "Auto-importado" and all auto-generated structured tokens so the
+  // textarea only shows user-written content (time/recipient now shown as rows)
+  return raw
+    .replace(/^Auto-importado\s*·?\s*/i, '')
+    .replace(/Hora:\s*\d{1,2}:\d{2}\s*·?\s*/gi, '')
+    .replace(/Destinatario:\s*[^·\n]+\s*·?\s*/gi, '')
+    .replace(/Cuenta\s+destino:\s*\*\d+\s*·?\s*/gi, '')
+    .trim();
 }
 
 export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotesChanged }: Props) {
@@ -126,6 +134,13 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
   const dateFormatted = new Date(t.date + 'T12:00:00').toLocaleDateString('es-CO', {
     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
   });
+
+  // Structured metadata (new transactions) with fallback to parsing old notes
+  const meta = t.metadata ?? {};
+  const txTime        = meta.time        ?? t.notes?.match(/Hora:\s*(\d{1,2}:\d{2})/i)?.[1];
+  const txMerchant    = meta.merchant;
+  const txRecipient   = meta.recipient_name   ?? t.notes?.match(/Destinatario:\s*([^·\n]+)/i)?.[1]?.trim();
+  const txRecipientSuffix = meta.recipient_suffix ?? t.notes?.match(/Cuenta\s+destino:\s*\*(\d+)/i)?.[1];
 
   async function handleCategorySelect(cat: string) {
     setCatSaving(true);
@@ -253,6 +268,10 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
           </div>
 
           <Row label="Fecha"  value={dateFormatted} capitalize />
+          {txTime && <Row label="Hora" value={txTime} />}
+          {txMerchant && <Row label="Establecimiento" value={txMerchant} />}
+          {txRecipient && <Row label="Destinatario" value={txRecipient} />}
+          {txRecipientSuffix && <Row label="Cuenta destino" value={`*${txRecipientSuffix}`} />}
           <Row label="Origen" value={origin} />
 
           {/* Editable notes */}

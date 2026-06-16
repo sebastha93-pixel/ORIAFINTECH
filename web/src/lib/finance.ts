@@ -14,6 +14,7 @@ export interface Txn {
   notes: string | null;
   gmail_message_id?: string | null;
   category?: string | null;
+  metadata?: Record<string, string> | null;
 }
 
 export interface MonthlySummary {
