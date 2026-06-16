@@ -8,12 +8,13 @@ export interface ParsedEmail {
   merchant?: string;
   accountSuffix?: string;
   accountHolder?: string;
+  recipientName?: string;   // outgoing: name of who received the money
+  recipientSuffix?: string; // outgoing: last 4 digits of destination account
 }
 
 function parseAmount(raw: string): number {
   const s = raw.trim();
   if (s.includes(',') && s.includes('.')) {
-    // Colombian format: dot=thousands, comma=decimal (e.g. "163.300,00" → 163300)
     if (s.indexOf('.') < s.indexOf(',')) return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;
     return parseFloat(s.replace(/,/g, '')) || 0;
   }
@@ -81,8 +82,6 @@ function extractEmailHolder(text: string): string | undefined {
 }
 
 function extractBancolombiaAccountSuffix(text: string): string | undefined {
-  // Require ≥4 digits to avoid capturing dates (03) or reference numbers
-  // Handles "desde/de/con tu cuenta/tarjeta/T.Cred *XXXX"
   const fromMatch = text.match(/(?:desde|usando|de|con)\s+tu\s+(?:cuenta|producto|tarjeta|tc|t\.cr[eé]d)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
   if (fromMatch) return fromMatch[1].slice(-4);
   const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
@@ -91,6 +90,32 @@ function extractBancolombiaAccountSuffix(text: string): string | undefined {
   if (terminMatch) return terminMatch[1];
   const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta|t\.cr[eé]d)[^\n]*\*{1,}(\d{4})\b/i);
   if (starredMatch) return starredMatch[1];
+  return undefined;
+}
+
+// Extract destination account suffix from outgoing transfer emails
+function extractDestinationSuffix(text: string): string | undefined {
+  // "a la cuenta *XXXX" / "a cuenta *XXXX" / "a *XXXX"
+  const destMatch = text.match(/\ba\s+(?:la\s+)?(?:cuenta|tarjeta|producto)[^\n\d*]*\*+(\d{4})\b/i);
+  if (destMatch) return destMatch[1];
+  // "cuenta destino *XXXX" / "destino: *XXXX"
+  const destLabel = text.match(/(?:cuenta\s+)?destino[^\n\d*]*\*+(\d{4})\b/i);
+  if (destLabel) return destLabel[1];
+  return undefined;
+}
+
+// Extract recipient name from transfer emails (name after "a " before terminators)
+function extractRecipientName(text: string): string | undefined {
+  // "transferiste/enviaste $X a NOMBRE desde/el día/de tu"
+  const m = text.match(
+    /(?:transferiste|enviaste|transferencia\s+a)\s+(?:\$?\s*[\d.,]+\s+)?a\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+de\s+tu|\s+a\s+la|[.,\n\r]|$)/i
+  );
+  if (m) {
+    const name = m[1].trim();
+    // Skip if it looks like an account number pattern
+    if (/^\*|\bla\b|\btu\b|\bcuenta\b/i.test(name)) return undefined;
+    return cleanName(name) || undefined;
+  }
   return undefined;
 }
 
@@ -107,13 +132,31 @@ function extractDaviviendaAccountSuffix(text: string): string | undefined {
   return undefined;
 }
 
+// Build a rich transfer description that always includes available destination info
+function buildTransferDesc(
+  direction: 'out' | 'in',
+  bank: string,
+  name?: string,
+  destSuffix?: string,
+  srcSuffix?: string,
+): string {
+  const bankLabel = bank.charAt(0).toUpperCase() + bank.slice(1);
+  const dest = destSuffix ? ` · *${destSuffix}` : '';
+  if (direction === 'out') {
+    if (name) return `Transferencia a ${name}${dest} · ${bankLabel}`;
+    if (destSuffix) return `Transferencia a cuenta *${destSuffix} · ${bankLabel}`;
+    return `Transferencia enviada · ${bankLabel}`;
+  } else {
+    if (name) return `Transferencia de ${name} · ${bankLabel}`;
+    return `Transferencia recibida · ${bankLabel}`;
+  }
+}
+
 // ── Bancolombia ───────────────────────────────────────────────────────────────
 
 function parseBancolombia(body: string, subject: string): ParsedEmail | null {
-  // Bancolombia transaction emails: subject "Alertas y Notificaciones" + body "¡Listo! Todo salió bien"
-  // Accept these; only reject if neither the "¡Listo!" marker nor transaction keywords are present
   if (/alertas?\s+y\s+notificaciones/i.test(subject)) {
-    if (!/listo|pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg/i.test(body)) {
+    if (!/listo|pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg|realizaste|enviaste|bre-?b|llave/i.test(body)) {
       return null;
     }
   }
@@ -125,6 +168,8 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   const accountSuffix = extractBancolombiaAccountSuffix(text);
   const accountHolder = extractEmailHolder(text);
 
+  // ── Outgoing payments ─────────────────────────────────────────────────────
+
   const pagoMatch = text.match(/[Pp]agaste\s+\$?\s*([\d.,]+)\s+a\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s|\s+a\s+la\s)/);
   if (pagoMatch) {
     const amount = parseAmount(pagoMatch[1]);
@@ -132,7 +177,6 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
     return { amount, type: 'expense', description: `Pago a ${merchant} · Bancolombia`, category: inferCategory(merchant), merchant, accountSuffix, accountHolder };
   }
 
-  // "Pago QR por $X en COMERCIO" or "Pagaste $X por Pago QR" → explicit QR expense
   const pagoQrDirectMatch = text.match(/[Pp]ago\s+QR\s+(?:por\s+)?\$?\s*([\d.,]+)(?:\s+en\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s+d[ií]a|[.,\n\r]|$))?/i);
   if (pagoQrDirectMatch) {
     const amount = parseAmount(pagoQrDirectMatch[1]);
@@ -148,20 +192,55 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
     return { amount, type: 'expense', description: isQR ? `Pago QR · Bancolombia` : `Pago ${method} · Bancolombia`, category: 'Otros', accountSuffix, accountHolder };
   }
 
+  // ── Outgoing transfers (all formats) ─────────────────────────────────────
+
+  // "transferiste $X a NOMBRE desde tu cuenta *XXXX"
   const transferisteMatch = text.match(
     /transferiste\s+\$?\s*([\d.,]+)(?:\s+a\s+([\w\sáéíóúÁÉÍÓÚñÑ*\d\-]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+de\s+tu\s|[.,\n\r]|$))?/i,
   );
   if (transferisteMatch) {
     const amount = parseAmount(transferisteMatch[1]);
-    const recipient = transferisteMatch[2] ? cleanName(transferisteMatch[2]) : '';
-    return {
-      amount, type: 'expense',
-      description: recipient ? `Transferencia a ${recipient} · Bancolombia` : 'Transferencia enviada · Bancolombia',
-      category: 'Transferencias', merchant: recipient || undefined, accountSuffix, accountHolder,
-    };
+    const rawRecipient = transferisteMatch[2] ? transferisteMatch[2].trim() : '';
+    // If recipient looks like an account number (*XXXX), extract suffix separately
+    const isAccountNum = /^\*\d+$/.test(rawRecipient);
+    const recipientName = isAccountNum ? undefined : (rawRecipient ? cleanName(rawRecipient) : undefined);
+    const recipientSuffix = isAccountNum
+      ? rawRecipient.replace(/\*/g, '').slice(-4)
+      : extractDestinationSuffix(text);
+    const desc = buildTransferDesc('out', 'Bancolombia', recipientName, recipientSuffix);
+    return { amount, type: 'expense', description: desc, category: 'Transferencias', merchant: recipientName || undefined, accountSuffix, accountHolder, recipientName, recipientSuffix };
   }
 
-  // "Compraste COP163.300,00 en MERCHANT con tu T.Cred *4830"
+  // "Realizaste una transferencia de $X a NOMBRE" (Bancolombia app format)
+  const realizasteMatch = text.match(
+    /[Rr]ealizaste\s+una\s+transferencia\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+a\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+de\s+tu|[.,\n\r]|$))?/i,
+  );
+  if (realizasteMatch) {
+    const amount = parseAmount(realizasteMatch[1]);
+    const recipientName = realizasteMatch[2] ? cleanName(realizasteMatch[2]) : undefined;
+    const recipientSuffix = extractDestinationSuffix(text);
+    const desc = buildTransferDesc('out', 'Bancolombia', recipientName, recipientSuffix);
+    return { amount, type: 'expense', description: desc, category: 'Transferencias', merchant: recipientName || undefined, accountSuffix, accountHolder, recipientName, recipientSuffix };
+  }
+
+  // "Enviaste $X [a NOMBRE] [por Bre-B / por llave]" — Bre-B / interbank
+  const enviasteMatch = text.match(
+    /[Ee]nviaste\s+\$?\s*([\d.,]+)(?:\s+a\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?))?(?:\s+por\s+(Bre-?B|llave|pse|pago\s+m[oó]vil|[\w\s]+?))?(?:\s+desde|\s+el\s+d[ií]a|[.,\n\r]|$)/i,
+  );
+  if (enviasteMatch) {
+    const amount = parseAmount(enviasteMatch[1]);
+    const recipientName = enviasteMatch[2] ? cleanName(enviasteMatch[2]) : undefined;
+    const method = enviasteMatch[3] ? enviasteMatch[3].trim() : undefined;
+    const recipientSuffix = extractDestinationSuffix(text);
+    const methodLabel = method ? ` vía ${method}` : '';
+    const desc = recipientName
+      ? `Transferencia a ${recipientName}${methodLabel} · Bancolombia`
+      : buildTransferDesc('out', 'Bancolombia', undefined, recipientSuffix);
+    return { amount, type: 'expense', description: desc, category: 'Transferencias', merchant: recipientName || undefined, accountSuffix, accountHolder, recipientName, recipientSuffix };
+  }
+
+  // ── Purchases ─────────────────────────────────────────────────────────────
+
   const comprasteMatch = text.match(/[Cc]ompraste\s+(?:COP\s*)?([\d.,]+)\s+en\s+([^\n\r]+?)\s+con\s+tu/i);
   if (comprasteMatch) {
     const amount = parseAmount(comprasteMatch[1]);
@@ -176,13 +255,14 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
     return { amount, type: 'expense', description: `Compra en ${merchant} · Bancolombia`, category: inferCategory(merchant), merchant, accountSuffix, accountHolder };
   }
 
+  // ── Income ────────────────────────────────────────────────────────────────
+
   const nominaMatch = text.match(/[Pp]ago\s+de\s+n[oó]mina\s+(?:por\s+)?\$?\s*([\d.,]+)/);
   if (nominaMatch) {
     const amount = parseAmount(nominaMatch[1]);
     return { amount, type: 'income', description: 'Pago de nómina · Bancolombia', category: 'Salario', accountSuffix, accountHolder };
   }
 
-  // Consignación / Depósito → income
   const consignacionMatch = text.match(/[Cc]onsignaci[oó]n\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/);
   if (consignacionMatch) {
     const amount = parseAmount(consignacionMatch[1]);
@@ -196,7 +276,6 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
     return { amount, type: 'income', description: 'Depósito · Bancolombia', category: 'Transferencias', accountSuffix, accountHolder };
   }
 
-  // Avance en cajero → expense
   const avanceMatch = text.match(/[Aa]vance\s+(?:en\s+)?cajero\s+(?:por\s+)?\$?\s*([\d.,]+)/);
   if (avanceMatch) {
     const amount = parseAmount(avanceMatch[1]);
@@ -209,63 +288,43 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   if (transRecibidaMatch) {
     const amount = parseAmount(transRecibidaMatch[1]);
     const sender = transRecibidaMatch[2] ? cleanName(transRecibidaMatch[2]) : '';
-    return {
-      amount, type: 'income',
-      description: sender ? `Transferencia de ${sender} · Bancolombia` : 'Transferencia recibida · Bancolombia',
-      category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder,
-    };
+    return { amount, type: 'income', description: buildTransferDesc('in', 'Bancolombia', sender || undefined), category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
   }
 
-  // "Te llegó $X" — unambiguous income
   const teLlegoMatch = text.match(
     /[Tt]e\s+lleg[oó]\s+\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
   );
   if (teLlegoMatch) {
     const amount = parseAmount(teLlegoMatch[1]);
     const sender = teLlegoMatch[2] ? cleanName(teLlegoMatch[2]) : '';
-    return {
-      amount, type: 'income',
-      description: sender ? `Transferencia de ${sender} · Bancolombia` : 'Transferencia recibida · Bancolombia',
-      category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder,
-    };
+    return { amount, type: 'income', description: buildTransferDesc('in', 'Bancolombia', sender || undefined), category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
   }
-  // "Recibiste una transferencia de NOMBRE por $X" — Bancolombia Bre-B / llave format
+
   const recibisteDeNombrePorMatch = text.match(
     /[Rr]ecibiste\s+una\s+transferencia\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)\s+por\s+\$?\s*([\d.,]+)/i,
   );
   if (recibisteDeNombrePorMatch) {
     const amount = parseAmount(recibisteDeNombrePorMatch[2]);
     const sender = cleanName(recibisteDeNombrePorMatch[1]);
-    return { amount, type: 'income', description: sender ? `Transferencia de ${sender} · Bancolombia` : 'Transferencia recibida · Bancolombia', category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
+    return { amount, type: 'income', description: buildTransferDesc('in', 'Bancolombia', sender || undefined), category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
   }
 
-  // "Recibiste una transferencia de $X" — requires "una transferencia de" to avoid
-  // matching "¿Recibiste este movimiento?" security questions on expense emails
   const recibisteTransMatch = text.match(
     /[Rr]ecibiste\s+una\s+transferencia\s+de\s+\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
   );
   if (recibisteTransMatch) {
     const amount = parseAmount(recibisteTransMatch[1]);
     const sender = recibisteTransMatch[2] ? cleanName(recibisteTransMatch[2]) : '';
-    return {
-      amount, type: 'income',
-      description: sender ? `Transferencia de ${sender} · Bancolombia` : 'Transferencia recibida · Bancolombia',
-      category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder,
-    };
+    return { amount, type: 'income', description: buildTransferDesc('in', 'Bancolombia', sender || undefined), category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
   }
 
-  // "Recibiste un pago de $X de NOMBRE" → income (QR cobrado, PSE recibido, etc.)
   const recibistePagoMatch = text.match(
     /[Rr]ecibiste\s+un\s+pago\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+de\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+a\s|\s+en\s|[.,\n\r]|$))?/,
   );
   if (recibistePagoMatch) {
     const amount = parseAmount(recibistePagoMatch[1]);
     const sender = recibistePagoMatch[2] ? cleanName(recibistePagoMatch[2]) : '';
-    return {
-      amount, type: 'income',
-      description: sender ? `Pago recibido de ${sender} · Bancolombia` : 'Pago recibido · Bancolombia',
-      category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder,
-    };
+    return { amount, type: 'income', description: sender ? `Pago recibido de ${sender} · Bancolombia` : 'Pago recibido · Bancolombia', category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
   }
 
   const retiroMatch = text.match(/[Rr]etiro\s+en\s+cajero\s+por\s+\$?\s*([\d.,]+)/);
@@ -285,28 +344,22 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   return null;
 }
 
-// Direct Davivienda "Clase de Movimiento" classifier — more precise than full-text scan
+// ── Davivienda ────────────────────────────────────────────────────────────────
+
 function classifyDaviviendaClase(clase: string): 'income' | 'expense' | null {
   const c = clase.toLowerCase().trim();
   if (!c) return null;
-  // Income: anything starting with "abono", "consign", "depósi", "reintegro", "devoluci", "crédit"
   if (/^(abono|consign|dep[oó]sit|reintegro|devoluci[oó]n|cr[eé]dit)/.test(c)) return 'income';
-  // Expense: compra, débito/debito, retiro, pago, avance, cuota, cargo, transferencia débito
   if (/^(compra|d[eé]bito|retiro|pago|avance|cuota|cargo|transferencia\s+d[eé]bito|transferencia\s+enviad)/.test(c)) return 'expense';
   return null;
 }
 
-// ── Davivienda ────────────────────────────────────────────────────────────────
-
 function parseDavivienda(body: string, subject: string): ParsedEmail | null {
-  // Davivienda genuine transaction emails always contain this exact phrase
-  // (followed by the account number). Reject everything else.
   if (!/Le\s+informamos\s+que\s+se\s+ha\s+registrado\s+el\s+siguiente\s+movimiento/i.test(body)) {
     return null;
   }
 
   const text = body + ' ' + subject;
-  // Skip declined/rejected transactions — never import a charge that didn't go through
   if (/Respuesta:\s*Declinada|Fondos\s+Insuficientes|Rechazad|No\s+autorizada/i.test(text)) return null;
 
   const accountSuffix = extractDaviviendaAccountSuffix(text);
@@ -319,19 +372,35 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
     const lugarRaw = text.match(/Lugar\s+de\s+Transacci[oó]n[^:]*:\s*([^\n\r]+)/i);
     const merchant = lugarRaw ? cleanName(lugarRaw[1]) : '';
     const claseRaw = (claseMatch?.[1] ?? '').trim();
-    // Classify directly from Clase de Movimiento before falling back to full-text classifier
     const type = classifyDaviviendaClase(claseRaw) ?? classifyTransaction(text, claseRaw);
     const isIncome = type === 'income';
+    const isTransfer = /transferencia/i.test(claseRaw);
+
+    // For transfers, "Lugar de Transacción" is the recipient/sender name or bank
+    const recipientName = isTransfer && !isIncome && merchant ? merchant : undefined;
+    const recipientSuffix = isTransfer && !isIncome ? extractDestinationSuffix(text) : undefined;
     const suffixLabel = accountSuffix ? ` ****${accountSuffix}` : '';
+
     let description: string;
-    if (merchant) {
+    if (isTransfer && !isIncome) {
+      description = buildTransferDesc('out', 'Davivienda', recipientName, recipientSuffix);
+    } else if (isTransfer && isIncome) {
+      description = buildTransferDesc('in', 'Davivienda', merchant || undefined);
+    } else if (merchant) {
       description = isIncome ? `${claseRaw} - ${merchant} · Davivienda${suffixLabel}` : `Compra en ${merchant} · Davivienda${suffixLabel}`;
     } else if (claseRaw) {
       description = `${claseRaw} · Davivienda${suffixLabel}`;
     } else {
       description = isIncome ? `Ingreso · Davivienda${suffixLabel}` : `Gasto · Davivienda${suffixLabel}`;
     }
-    return { amount, type, description, category: inferCategory(merchant + ' ' + claseRaw), merchant: merchant || undefined, accountSuffix, accountHolder };
+
+    return {
+      amount, type, description,
+      category: inferCategory(merchant + ' ' + claseRaw),
+      merchant: merchant || undefined,
+      accountSuffix, accountHolder,
+      recipientName, recipientSuffix,
+    };
   }
 
   const compraMatch = text.match(/(?:[Cc]ompra|[Tt]ransacci[oó]n)\s+(?:aprobada\s+)?(?:por\s+)?\$?([\d.,]+)\s+en\s+([^\n\r.]+)/);
@@ -344,12 +413,10 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
   const transEnviadaMatch = text.match(/[Tt]ransferencia\s+enviada\s+(?:por\s+)?\$?([\d.,]+)(?:\s+a\s+([^\n\r.]+))?/);
   if (transEnviadaMatch) {
     const amount = parseAmount(transEnviadaMatch[1]);
-    const recipient = transEnviadaMatch[2] ? cleanName(transEnviadaMatch[2]) : '';
-    return {
-      amount, type: 'expense',
-      description: recipient ? `Transferencia a ${recipient} · Davivienda` : 'Transferencia enviada · Davivienda',
-      category: 'Transferencias', merchant: recipient || undefined, accountSuffix, accountHolder,
-    };
+    const recipientName = transEnviadaMatch[2] ? cleanName(transEnviadaMatch[2]) : undefined;
+    const recipientSuffix = extractDestinationSuffix(text);
+    const desc = buildTransferDesc('out', 'Davivienda', recipientName, recipientSuffix);
+    return { amount, type: 'expense', description: desc, category: 'Transferencias', merchant: recipientName || undefined, accountSuffix, accountHolder, recipientName, recipientSuffix };
   }
 
   const transRecibidaMatch = text.match(
@@ -358,11 +425,7 @@ function parseDavivienda(body: string, subject: string): ParsedEmail | null {
   if (transRecibidaMatch) {
     const amount = parseAmount(transRecibidaMatch[1]);
     const sender = transRecibidaMatch[2] ? cleanName(transRecibidaMatch[2]) : '';
-    return {
-      amount, type: 'income',
-      description: sender ? `Transferencia de ${sender} · Davivienda` : 'Transferencia recibida · Davivienda',
-      category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder,
-    };
+    return { amount, type: 'income', description: buildTransferDesc('in', 'Davivienda', sender || undefined), category: 'Transferencias', merchant: sender || undefined, accountSuffix, accountHolder };
   }
 
   const retiroMatch = text.match(/[Rr]etiro\s+(?:en\s+)?cajero\s+(?:por\s+)?\$?([\d.,]+)/);
@@ -394,15 +457,15 @@ function parseNequi(body: string, subject: string): ParsedEmail | null {
   const enviasteMatch = text.match(/[Ee]nviaste\s+\$?([\d.,]+)\s+a\s+([^\n\r.,]+)/);
   if (enviasteMatch) {
     const amount = parseAmount(enviasteMatch[1]);
-    const recipient = cleanName(enviasteMatch[2]);
-    return { amount, type: 'expense', description: `Enviaste a ${recipient} · Nequi`, category: 'Transferencias', merchant: recipient };
+    const recipientName = cleanName(enviasteMatch[2]);
+    return { amount, type: 'expense', description: `Transferencia a ${recipientName} · Nequi`, category: 'Transferencias', merchant: recipientName, recipientName };
   }
 
   const recibisteMatch = text.match(/[Rr]ecibiste\s+\$?([\d.,]+)\s+de\s+([^\n\r.,]+)/);
   if (recibisteMatch) {
     const amount = parseAmount(recibisteMatch[1]);
     const sender = cleanName(recibisteMatch[2]);
-    return { amount, type: 'income', description: `Recibiste de ${sender} · Nequi`, category: 'Transferencias', merchant: sender };
+    return { amount, type: 'income', description: `Transferencia de ${sender} · Nequi`, category: 'Transferencias', merchant: sender };
   }
 
   const llegaronMatch = text.match(/[Tt]e\s+llegaron\s+\$?([\d.,]+)/);

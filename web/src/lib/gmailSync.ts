@@ -123,7 +123,11 @@ export async function runGmailSync(
       date:             txn.date.slice(0, 10),
       gmail_message_id: txn.messageId,
       currency_code:    'COP',
-      notes:            'Auto-importado',
+      notes:            [
+        'Auto-importado',
+        txn.recipientName   ? `Destinatario: ${txn.recipientName}` : null,
+        txn.recipientSuffix ? `Cuenta destino: *${txn.recipientSuffix}` : null,
+      ].filter(Boolean).join(' · '),
       ...(txn.account_id ? { account_id: txn.account_id } : {}),
     });
     if (!error) {

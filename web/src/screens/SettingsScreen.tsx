@@ -568,12 +568,16 @@ export function SettingsScreen({ userId }: { userId: string }) {
         const { error } = await supabase.from('transactions').insert({
           user_id: userId,
           transaction_type: txn.type,
-          amount: txn.amount,
+          amount: Math.min(txn.amount, 999_999_999_999),
           description: txn.description,
           date: txn.date.slice(0, 10),
           gmail_message_id: txn.messageId,
           currency_code: 'COP',
-          notes: 'Auto-importado',
+          notes: [
+            'Auto-importado',
+            txn.recipientName   ? `Destinatario: ${txn.recipientName}` : null,
+            txn.recipientSuffix ? `Cuenta destino: *${txn.recipientSuffix}` : null,
+          ].filter(Boolean).join(' · '),
           ...(txn.account_id ? { account_id: txn.account_id } : {}),
         });
         if (!error) {
