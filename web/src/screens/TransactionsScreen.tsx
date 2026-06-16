@@ -11,6 +11,7 @@ import type { Txn } from '../lib/finance';
 
 const TABS = ['Todos', 'Ingresos', 'Gastos'];
 const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const VIRTUAL_ID_PREFIX = '__saldo_';
 
 function formatMonthLabel(year: number, month: number) {
   return `${MONTH_NAMES[month]} ${year}`;
@@ -44,8 +45,18 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
       const BASE = 'id, transaction_type, amount, description, date, notes, gmail_message_id';
 
       const q = (cols: string) => supabase.from('transactions')
-        .select(cols).eq('user_id', session.user.id).order('date', { ascending: false });
-      const full = await q(FULL);
+        .select(cols)
+        .eq('user_id', session.user.id)
+        .gte('date', `${new Date().getFullYear() - 2}-01-01`) // limit to last 2 years
+        .order('date', { ascending: false });
+
+      const [full, acctRes] = await Promise.all([
+        q(FULL),
+        supabase.from('accounts')
+          .select('id, name, account_type, initial_balance, initial_balance_set_at')
+          .eq('user_id', session.user.id)
+          .eq('is_active', true),
+      ]);
 
       let txnData: unknown[] | null = full.data;
       if (full.error) {
@@ -55,13 +66,10 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
       }
       setTransactions((txnData as Txn[]) ?? []);
 
-      // Load accounts for saldo inicial virtual entries
-      const { data: acctData } = await supabase
-        .from('accounts')
-        .select('id, name, account_type, initial_balance, initial_balance_set_at')
-        .eq('user_id', session.user.id)
-        .eq('is_active', true);
-      setAccounts(acctData ?? []);
+      if (acctRes.error) {
+        console.error('accounts fetch error:', acctRes.error.message);
+      }
+      setAccounts(acctRes.data ?? []);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('loadTransactions:', e);
@@ -112,7 +120,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
   const virtualSaldos: Txn[] = accounts
     .filter(a => a.account_type !== 'credit_card' && (a.initial_balance ?? 0) > 0 && a.initial_balance_set_at?.startsWith(monthPrefix))
     .map(a => ({
-      id: `__saldo_${a.id}`,
+      id: `${VIRTUAL_ID_PREFIX}${a.id}`,
       transaction_type: 'income' as const,
       amount: a.initial_balance!,
       description: `Saldo inicial · ${a.name}`,
@@ -254,8 +262,8 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
             <div style={{ fontSize: 28, marginBottom: 10 }}>⚠️</div>
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Error al cargar movimientos</div>
             <div style={{ fontSize: 11, color: '#94A3B8', background: '#0F172A', padding: '10px 14px',
-              borderRadius: 10, textAlign: 'left', wordBreak: 'break-all', maxWidth: 340, margin: '0 auto' }}>
-              {loadError}
+              borderRadius: 10, textAlign: 'center', maxWidth: 340, margin: '0 auto' }}>
+              Intenta cerrar y abrir la app. Si el error persiste, contacta soporte.
             </div>
           </div>
         ) : filtered.length === 0 ? (
@@ -300,7 +308,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
                   <div style={{ borderTop: `1px solid ${C.border}`, padding: '4px 16px 8px' }}>
                     {g.txns.map(t => (
                       <TxRow key={t.id} t={t}
-                        onClick={t.id.startsWith('__saldo_') ? undefined : () => setSelectedTx(t)}
+                        onClick={t.id.startsWith(VIRTUAL_ID_PREFIX) ? undefined : () => setSelectedTx(t)}
                         showDate />
                     ))}
                   </div>
@@ -318,7 +326,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
               <div style={{ ...card, paddingTop: 4, paddingBottom: 8 }}>
                 {txns.map(t => (
                   <TxRow key={t.id} t={t}
-                    onClick={t.id.startsWith('__saldo_') ? undefined : () => setSelectedTx(t)} />
+                    onClick={t.id.startsWith(VIRTUAL_ID_PREFIX) ? undefined : () => setSelectedTx(t)} />
                 ))}
               </div>
             </div>
@@ -337,7 +345,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
 }
 
 function TxRow({ t, onClick, showDate }: { t: Txn; onClick?: () => void; showDate?: boolean }) {
-  const isVirtual = t.id.startsWith('__saldo_');
+  const isVirtual = t.id.startsWith(VIRTUAL_ID_PREFIX);
   return (
     <div onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',

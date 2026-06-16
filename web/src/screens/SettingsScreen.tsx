@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
 import { parseEmail } from '../lib/emailParsers';
+import { computeGlobalCutoff, holderNamesMatch, getAuthHeaders } from '../lib/gmailSync';
 import { BankLogo } from '../components/BankLogo';
 
 const RAILWAY_API = import.meta.env.VITE_API_URL as string ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
@@ -169,22 +170,7 @@ const BANKS = [
 /** Compara nombres ignorando mayúsculas, tildes y palabras cortas.
  *  Devuelve true si algún apellido/nombre significativo del titular registrado
  *  aparece en el saludo del email (o viceversa). */
-function holderNamesMatch(registered: string, fromEmail: string): boolean {
-  const normalize = (s: string) =>
-    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-  const reg = normalize(registered);
-  const em  = normalize(fromEmail);
-  if (reg.includes(em) || em.includes(reg)) return true;
-  const regWords = reg.split(/\s+/).filter(w => w.length > 2);
-  return regWords.some(w => em.includes(w));
-}
-
-async function getAuthHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token
-    ? { Authorization: `Bearer ${session.access_token}` }
-    : {};
-}
+// holderNamesMatch and getAuthHeaders are imported from gmailSync (single source of truth)
 
 // ── NotificationCard ─────────────────────────────────────────────────────────
 
@@ -523,10 +509,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
       // Parse emails — try to link to registered accounts but import regardless
       const registeredAccounts = accounts.filter(a => a.account_suffix);
 
-      // Momento 0: timestamp exacto de creación de cada cuenta (fecha + hora).
-      // Emails con timestamp anterior al momento 0 no se importan.
-      const cutoffDates = accounts.filter(a => a.initial_balance_set_at).map(a => a.initial_balance_set_at!).sort();
-      const globalCutoff = cutoffDates.length ? cutoffDates[cutoffDates.length - 1] : null;
+      // Momento 0: single source of truth from gmailSync utility
+      const globalCutoff = computeGlobalCutoff(accounts);
 
       type ParsedTxn = ReturnType<typeof parseEmail> & { messageId: string; date: string; account_id?: string };
       const parsed: NonNullable<ParsedTxn>[] = [];
@@ -556,14 +540,14 @@ export function SettingsScreen({ userId }: { userId: string }) {
           if (holderOk) {
             account_id = matchedAccount.id; cLinked++;
             const acctCutoff = matchedAccount.initial_balance_set_at;
-            if (acctCutoff && emailTs < acctCutoff) { cBeforeCutoff++; continue; }
+            if (acctCutoff && new Date(emailTs) < new Date(acctCutoff)) { cBeforeCutoff++; continue; }
           } else {
             // Holder mismatch: use global cutoff, not matched account's
             cUnlinked++;
-            if (globalCutoff && emailTs < globalCutoff) { cBeforeCutoff++; continue; }
+            if (globalCutoff && new Date(emailTs) < new Date(globalCutoff)) { cBeforeCutoff++; continue; }
           }
         } else {
-          if (globalCutoff && emailTs < globalCutoff) { cBeforeCutoff++; continue; }
+          if (globalCutoff && new Date(emailTs) < new Date(globalCutoff)) { cBeforeCutoff++; continue; }
           cUnlinked++;
         }
 
