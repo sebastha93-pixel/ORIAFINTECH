@@ -82,13 +82,13 @@ function extractEmailHolder(text: string): string | undefined {
 }
 
 function extractBancolombiaAccountSuffix(text: string): string | undefined {
-  const fromMatch = text.match(/(?:desde|usando|de|con)\s+tu\s+(?:cuenta|producto|tarjeta|tc|t\.cr[eé]d)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
+  const fromMatch = text.match(/(?:desde|usando|de|con)\s+tu\s+(?:cuenta|producto|tarjeta|tc|t\.cr[eé]d|t\.deb)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
   if (fromMatch) return fromMatch[1].slice(-4);
   const toMatch = text.match(/(?:a|en)\s+tu\s+(?:cuenta|producto)[^\n\d*]*\*{0,6}(\d{4,})\b/i);
   if (toMatch) return toMatch[1].slice(-4);
   const terminMatch = text.match(/[Tt]erminaci[oó]n[^\n\d*]*\*{0,6}(\d{4})\b/);
   if (terminMatch) return terminMatch[1];
-  const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta|t\.cr[eé]d)[^\n]*\*{1,}(\d{4})\b/i);
+  const starredMatch = text.match(/tu\s+(?:cuenta|producto|tarjeta|t\.cr[eé]d|t\.deb)[^\n]*\*{1,}(\d{4})\b/i);
   if (starredMatch) return starredMatch[1];
   return undefined;
 }
@@ -288,7 +288,7 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
 
   // ── Purchases ─────────────────────────────────────────────────────────────
 
-  const comprasteMatch = text.match(/[Cc]ompraste\s+(?:COP\s*)?([\d.,]+)\s+en\s+([^\n\r]+?)\s+con\s+tu/i);
+  const comprasteMatch = text.match(/[Cc]ompraste\s+(?:COP\s*|\$\s*)?([\d.,]+)\s+en\s+([^\n\r]+?)\s+con\s+tu/i);
   if (comprasteMatch) {
     const amount = parseAmount(comprasteMatch[1]);
     const merchant = cleanName(comprasteMatch[2]);
