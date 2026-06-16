@@ -132,6 +132,21 @@ function extractDaviviendaAccountSuffix(text: string): string | undefined {
   return undefined;
 }
 
+// Last-resort merchant extractor for the generic fallback — looks for capitalized names
+// near the amount or common labels like "en EMPRESA", "a EMPRESA", "de EMPRESA"
+function extractMerchantFromBody(text: string): string | undefined {
+  // "en EMPRESA" / "a EMPRESA" / "de EMPRESA" patterns near a dollar amount
+  const nearAmount = text.match(
+    /\$[\d.,]+\s+(?:en|a|de|con|para)\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ0-9\s&\-\.]{2,50}?)(?:\s+con\s|\s+desde\s|\s+el\s+d[ií]a|[.,\n\r]|$)/
+  );
+  if (nearAmount) return cleanName(nearAmount[1]);
+  const beforeAmount = text.match(
+    /(?:en|a|de)\s+([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑa-záéíóúñ0-9\s&\-\.]{2,50}?)\s+(?:por\s+)?\$[\d.,]+/
+  );
+  if (beforeAmount) return cleanName(beforeAmount[1]);
+  return undefined;
+}
+
 // Build a rich transfer description that always includes available destination info
 function buildTransferDesc(
   direction: 'out' | 'in',
@@ -156,7 +171,7 @@ function buildTransferDesc(
 
 function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   if (/alertas?\s+y\s+notificaciones/i.test(subject)) {
-    if (!/listo|pagaste|transferiste|recibiste|compra\s+aprobada|retiro|te\s+lleg|realizaste|enviaste|bre-?b|llave/i.test(body)) {
+    if (!/listo|pagaste|transferiste|recibiste|compra|retiro|te\s+lleg|realizaste|enviaste|bre-?b|llave|d[eé]bito|pago\s+pse|pago\s+por\s+internet|cobro/i.test(body)) {
       return null;
     }
   }
@@ -190,6 +205,38 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
     const method = cleanName(pagoQRMatch[2]).slice(0, 30);
     const isQR = /qr/i.test(method);
     return { amount, type: 'expense', description: isQR ? `Pago QR · Bancolombia` : `Pago ${method} · Bancolombia`, category: 'Otros', accountSuffix, accountHolder };
+  }
+
+  // ── Outgoing payments (PSE, services, automatic debits) ──────────────────
+
+  // "Realizaste un pago de $X a/en/con EMPRESA" — PSE, servicios, débito automático
+  const realizastePagoMatch = text.match(
+    /[Rr]ealizaste\s+un\s+pago\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+(?:a|en|con|para)\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s+d[ií]a|\s+de\s+tu|[.,\n\r]|$))?/i,
+  );
+  if (realizastePagoMatch) {
+    const amount = parseAmount(realizastePagoMatch[1]);
+    const merchant = realizastePagoMatch[2] ? cleanName(realizastePagoMatch[2]) : '';
+    return { amount, type: 'expense', description: merchant ? `Pago a ${merchant} · Bancolombia` : 'Pago · Bancolombia', category: merchant ? inferCategory(merchant) : 'Otros', merchant: merchant || undefined, accountSuffix, accountHolder };
+  }
+
+  // "Pago PSE / pago por internet de $X a/en EMPRESA"
+  const pagoPseMatch = text.match(
+    /[Pp]ago\s+(?:pse|por\s+internet|en\s+l[ií]nea|online|autom[aá]tico)\s+(?:de\s+)?\$?\s*([\d.,]+)(?:\s+(?:a|en|para)\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s+d[ií]a|[.,\n\r]|$))?/i,
+  );
+  if (pagoPseMatch) {
+    const amount = parseAmount(pagoPseMatch[1]);
+    const merchant = pagoPseMatch[2] ? cleanName(pagoPseMatch[2]) : '';
+    return { amount, type: 'expense', description: merchant ? `Pago PSE a ${merchant} · Bancolombia` : 'Pago PSE · Bancolombia', category: merchant ? inferCategory(merchant) : 'Servicios', merchant: merchant || undefined, accountSuffix, accountHolder };
+  }
+
+  // "Débito automático / débito de $X de EMPRESA"
+  const debitoMatch = text.match(
+    /[Dd][eé]bito\s+(?:autom[aá]tico\s+)?(?:de\s+)?\$?\s*([\d.,]+)(?:\s+(?:de|a|en)\s+([\w\sáéíóúÁÉÍÓÚñÑ]+?)(?:\s+desde|\s+el\s+d[ií]a|[.,\n\r]|$))?/i,
+  );
+  if (debitoMatch) {
+    const amount = parseAmount(debitoMatch[1]);
+    const merchant = debitoMatch[2] ? cleanName(debitoMatch[2]) : '';
+    return { amount, type: 'expense', description: merchant ? `Débito de ${merchant} · Bancolombia` : 'Débito · Bancolombia', category: merchant ? inferCategory(merchant) : 'Servicios', merchant: merchant || undefined, accountSuffix, accountHolder };
   }
 
   // ── Outgoing transfers (all formats) ─────────────────────────────────────
@@ -337,7 +384,15 @@ function parseBancolombia(body: string, subject: string): ParsedEmail | null {
   if (genericMatch) {
     const amount = parseAmount(genericMatch[1]);
     if (amount > 1000) {
-      return { amount, type: classifyTransaction(text), description: subject.trim() || 'Transacción · Bancolombia', category: inferCategory(subject), accountSuffix, accountHolder };
+      const txType = classifyTransaction(text);
+      // Try to extract merchant/context from body — prefer over the useless "Alertas y Notificaciones" subject
+      const merchantCtx = extractMerchantFromBody(text);
+      const isUselessSubject = /alertas?\s+y\s+notificaciones/i.test(subject);
+      const label = merchantCtx
+        ? (txType === 'income' ? `Ingreso de ${merchantCtx}` : `${merchantCtx}`)
+        : (isUselessSubject ? (txType === 'income' ? 'Ingreso' : 'Gasto') : subject.trim());
+      const description = `${label} · Bancolombia`;
+      return { amount, type: txType, description, category: inferCategory(merchantCtx ?? text), merchant: merchantCtx ?? undefined, accountSuffix, accountHolder };
     }
   }
 
