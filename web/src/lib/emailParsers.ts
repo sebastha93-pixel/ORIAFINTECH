@@ -8,8 +8,9 @@ export interface ParsedEmail {
   merchant?: string;
   accountSuffix?: string;
   accountHolder?: string;
-  recipientName?: string;   // outgoing: name of who received the money
-  recipientSuffix?: string; // outgoing: last 4 digits of destination account
+  recipientName?: string;    // outgoing: name of who received the money
+  recipientSuffix?: string;  // outgoing: last 4 digits of destination account
+  transactionTime?: string;  // HH:MM extracted from email body (e.g. "16:11")
 }
 
 function parseAmount(raw: string): number {
@@ -554,11 +555,28 @@ function parseNequi(body: string, subject: string): ParsedEmail | null {
   return null;
 }
 
+// ── Time extraction ───────────────────────────────────────────────────────────
+
+function extractTransactionTime(text: string): string | undefined {
+  // Bancolombia: "a las 16:11" / "a las 9:05"
+  const aLas = text.match(/[Aa]\s+las\s+(\d{1,2}:\d{2})(?::\d{2})?/);
+  if (aLas) return aLas[1];
+  // Davivienda: "Hora: 16:11:32" / "Hora Transacción: 09:05"
+  const horaLabel = text.match(/[Hh]ora[^:]*:\s*(\d{1,2}:\d{2})(?::\d{2})?/);
+  if (horaLabel) return horaLabel[1];
+  return undefined;
+}
+
 // ── Entry point ───────────────────────────────────────────────────────────────
 
 export function parseEmail(bank: string, body: string, subject: string): ParsedEmail | null {
-  if (bank === 'bancolombia') return parseBancolombia(body, subject);
-  if (bank === 'davivienda')  return parseDavivienda(body, subject);
-  if (bank === 'nequi')       return parseNequi(body, subject);
-  return null;
+  let result: ParsedEmail | null = null;
+  if (bank === 'bancolombia') result = parseBancolombia(body, subject);
+  else if (bank === 'davivienda')  result = parseDavivienda(body, subject);
+  else if (bank === 'nequi')       result = parseNequi(body, subject);
+  if (result && !result.transactionTime) {
+    const time = extractTransactionTime(body + ' ' + subject);
+    if (time) result = { ...result, transactionTime: time };
+  }
+  return result;
 }

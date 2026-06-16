@@ -41,7 +41,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) { setLoading(false); return; }
 
-      const FULL = 'id, transaction_type, amount, description, date, notes, gmail_message_id, category';
+      const FULL = 'id, transaction_type, amount, description, date, notes, gmail_message_id, category, metadata';
       const BASE = 'id, transaction_type, amount, description, date, notes, gmail_message_id';
 
       const q = (cols: string) => supabase.from('transactions')

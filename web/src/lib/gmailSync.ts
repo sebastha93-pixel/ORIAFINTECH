@@ -115,19 +115,28 @@ export async function runGmailSync(
 
   let created = 0;
   for (const txn of parsed) {
+    const meta: Record<string, string> = {};
+    if (txn.merchant)        meta.merchant         = txn.merchant;
+    if (txn.recipientName)   meta.recipient_name   = txn.recipientName;
+    if (txn.recipientSuffix) meta.recipient_suffix = txn.recipientSuffix;
+    if (txn.transactionTime) meta.time             = txn.transactionTime;
+
     const { error } = await supabase.from('transactions').insert({
       user_id:          userId,
       transaction_type: txn.type,
       amount:           Math.min(txn.amount, 999_999_999_999),
       description:      txn.description,
+      category:         txn.category,
       date:             txn.date.slice(0, 10),
       gmail_message_id: txn.messageId,
       currency_code:    'COP',
       notes:            [
         'Auto-importado',
-        txn.recipientName   ? `Destinatario: ${txn.recipientName}` : null,
-        txn.recipientSuffix ? `Cuenta destino: *${txn.recipientSuffix}` : null,
+        txn.transactionTime   ? `Hora: ${txn.transactionTime}` : null,
+        txn.recipientName     ? `Destinatario: ${txn.recipientName}` : null,
+        txn.recipientSuffix   ? `Cuenta destino: *${txn.recipientSuffix}` : null,
       ].filter(Boolean).join(' · '),
+      ...(Object.keys(meta).length ? { metadata: meta } : {}),
       ...(txn.account_id ? { account_id: txn.account_id } : {}),
     });
     if (!error) {
