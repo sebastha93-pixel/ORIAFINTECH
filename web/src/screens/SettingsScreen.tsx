@@ -487,6 +487,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
   }
 
   async function syncNow() {
+    if (accounts.length === 0) {
+      setLastSync('⚠️ Registra al menos una cuenta bancaria antes de sincronizar');
+      return;
+    }
     setSyncing(true);
     try {
       // Step 1: Fetch raw emails from backend (authenticated)
@@ -776,15 +780,24 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     Última sync: {lastSync}
                   </div>
                 )}
-                <button onClick={syncNow} disabled={syncing}
-                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:'none', cursor: syncing ? 'default' : 'pointer',
-                    background: syncing ? C.surface : 'rgba(49,214,123,0.15)',
-                    color: C.accent, fontSize:14, fontWeight:700, opacity: syncing ? 0.7 : 1 }}>
+                {accounts.length === 0 && (
+                  <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:10, padding:'10px 14px', color:'#F59E0B', fontSize:12, textAlign:'center', marginTop:8 }}>
+                    Registra al menos una cuenta bancaria para activar la sincronización
+                  </div>
+                )}
+                <button onClick={syncNow} disabled={syncing || accounts.length === 0}
+                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:'none',
+                    cursor: (syncing || accounts.length === 0) ? 'default' : 'pointer',
+                    background: (syncing || accounts.length === 0) ? C.surface : 'rgba(49,214,123,0.15)',
+                    color: accounts.length === 0 ? C.textMuted : C.accent,
+                    fontSize:14, fontWeight:700, opacity: (syncing || accounts.length === 0) ? 0.5 : 1 }}>
                   {syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar ahora'}
                 </button>
-                <button onClick={cleanAndResync} disabled={syncing}
-                  style={{ width:'100%', marginTop:8, padding:'10px 0', borderRadius:12, border:`1px solid rgba(239,68,68,0.3)`, cursor: syncing ? 'default' : 'pointer',
-                    background: 'rgba(239,68,68,0.07)', color:'#f87171', fontSize:13, fontWeight:600, opacity: syncing ? 0.5 : 1 }}>
+                <button onClick={cleanAndResync} disabled={syncing || accounts.length === 0}
+                  style={{ width:'100%', marginTop:8, padding:'10px 0', borderRadius:12, border:`1px solid rgba(239,68,68,0.3)`,
+                    cursor: (syncing || accounts.length === 0) ? 'default' : 'pointer',
+                    background: 'rgba(239,68,68,0.07)', color:'#f87171', fontSize:13, fontWeight:600,
+                    opacity: (syncing || accounts.length === 0) ? 0.4 : 1 }}>
                   🗑 Limpiar y re-sincronizar desde cero
                 </button>
                 <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
