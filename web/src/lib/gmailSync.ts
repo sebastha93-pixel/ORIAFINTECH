@@ -52,6 +52,7 @@ export async function runGmailSync(
   userId: string,
   accounts: SyncAccount[],
 ): Promise<SyncResult> {
+  if (accounts.length === 0) throw new Error('NO_ACCOUNTS');
   const headers = await getAuthHeaders();
   const res = await fetch(`${API}/email-sync/fetch-emails`, { headers });
   if (!res.ok) {

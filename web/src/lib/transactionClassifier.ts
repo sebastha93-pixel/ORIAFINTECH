@@ -60,6 +60,10 @@ const INCOME_KEYWORDS = [
   'te llego',
   'transferencia recibida',
   'recibiste una transferencia',
+  'recibiste un pago',
+  'recibiste una consignación',
+  'recibiste una consignacion',
+  'recibiste',              // broad: "Recibiste $X de NOMBRE" / Bre-B recibidos
   // Davivienda — Clase de Movimiento (crédito / entrada)
   'abono pago de nomina',
   'abono pago de nómina',
