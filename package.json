@@ -16,6 +16,10 @@
       "**/@expo/metro-runtime/**"
     ]
   },
+  "resolutions": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
   "scripts": {
     "api": "yarn workspace @nexo/api start:dev",
     "mobile": "yarn workspace @nexo/mobile start",
