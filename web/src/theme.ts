@@ -1,15 +1,33 @@
 import React from 'react';
 
 export const C = {
-  bg: '#0A0C0F', surface: '#111419', surfaceEl: '#1A1E25', surfaceMid: '#222835',
+  // Core backgrounds
+  background: '#0A0C0F', bg: '#0A0C0F',
+  surface: '#111419',
+  surfaceElevated: '#1A1E25', surfaceEl: '#1A1E25',
+  surfaceMid: '#222835',
+
+  // Borders
   border: '#1E2530', borderLight: '#263040',
+
+  // Accent
   accent: '#00E5A0', accentBg: '#002A1F',
+
+  // Amber / goals
   amber: '#F5A623', amberBg: '#2A1D00',
-  text: '#E8E4DC', textSec: '#94A3B8', textMuted: '#6B7280', textInverse: '#0A0C0F',
+
+  // Text — both naming conventions
+  textPrimary: '#E8E4DC',   text: '#E8E4DC',
+  textSecondary: '#94A3B8', textSec: '#94A3B8',
+  textMuted: '#6B7280',
+  textInverse: '#0A0C0F',
+
+  // Semantic
   success: '#00E5A0', successBg: '#002A1F',
-  danger: '#EF4444', dangerBg: '#1F0808',
+  danger: '#EF4444',  dangerBg: '#1F0808',
   warning: '#F5A623', warningBg: '#2A1D00',
-  info: '#4A9EFF', infoBg: '#0C1A35',
+  info: '#4A9EFF',    infoBg: '#0C1A35',
+
   chart: ['#00E5A0','#4A9EFF','#F5A623','#8B5CF6','#EC4899','#06B6D4','#F97316','#64748B'],
 };
 
