@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { C, gradAccent, gradHero } from '../theme';
+import { C, gradAccent } from '../theme';
 import { supabase } from '../lib/supabase';
 import { OriaLogo } from '../components/OriaLogo';
 
@@ -90,15 +90,28 @@ export function AiChatScreen() {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100vh', paddingBottom:'calc(80px + env(safe-area-inset-bottom))' }}>
       {/* Header */}
-      <div style={{ background:gradHero, padding:'48px 20px 20px', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-          <OriaLogo size={44} showWordmark={false} />
-          <div>
-            <div style={{ color:C.text, fontSize:18, fontWeight:800 }}>ORIA · Tu asesora</div>
-            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background: error ? C.danger : C.accent }} />
-              <span style={{ color: error ? C.danger : C.accent, fontSize:12 }}>{error ? 'Error de conexión' : 'Analizando tus datos reales'}</span>
-            </div>
+      <div style={{ background: C.background, padding:'26px 18px 14px', flexShrink:0, display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{
+          width: 34, height: 34, borderRadius: 10,
+          background: C.accentBg,
+          border: `1px solid rgba(0,229,160,0.25)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="#00E5A0" strokeWidth="1.5">
+            <path d="M10 2l1.5 4H16l-3.5 2.5L13.7 13 10 10.5 6.3 13l1.2-4.5L4 6h4.5L10 2z" />
+          </svg>
+        </div>
+        <div>
+          <div style={{ color: C.textPrimary, fontSize:16, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>ORIA</div>
+          <div style={{ display:'flex', alignItems:'center', gap:4, marginTop:1 }}>
+            <div style={{
+              width:5, height:5, borderRadius:'50%',
+              background: error ? C.danger : C.accent,
+              animation: error ? 'none' : 'pulse 2s ease-in-out infinite',
+            }} />
+            <span style={{ color: error ? C.danger : C.accent, fontSize:10, fontFamily:"'DM Sans',sans-serif" }}>
+              {error ? 'Error de conexión' : 'Activa'}
+            </span>
           </div>
         </div>
       </div>
@@ -134,14 +147,16 @@ export function AiChatScreen() {
               </div>
             )}
             <div style={{
-              maxWidth:'80%',
-              background: m.role==='user' ? 'linear-gradient(135deg,#00E5A0,#00B87A)' : C.surface,
-              border: m.role==='ai' ? `1px solid ${C.border}` : 'none',
-              borderRadius: m.role==='user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
-              padding:'12px 14px',
-              color: C.text,
-              fontSize:14,
-              lineHeight:1.6,
+              maxWidth:'82%',
+              background: m.role==='user' ? C.accentBg : C.surfaceElevated,
+              border: m.role==='user'
+                ? `1px solid rgba(0,229,160,0.2)`
+                : `1px solid ${C.border}`,
+              borderRadius: m.role==='user' ? '12px 12px 3px 12px' : '12px 12px 12px 3px',
+              padding:'10px 12px',
+              color: m.role==='user' ? C.accent : C.textPrimary,
+              fontSize:12,
+              lineHeight:1.5,
               whiteSpace:'pre-line',
             }}>
               {renderMarkdown(m.text)}
