@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { NetWorthSnapshot } from '../../types';
-import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
+import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
 import { formatCurrency } from '../../utils/format';
 
 const { width } = Dimensions.get('window');
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
   },
   header: { marginBottom: Spacing.md },
-  currentValue: { color: Colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.bold },
+  currentValue: { ...NumberTextStyles.kpi, color: Colors.textPrimary, fontSize: Typography.xl },
   change: { fontSize: Typography.xs, marginTop: 2 },
   chart: { position: 'relative', marginBottom: Spacing.xs },
   lastDot: { position: 'absolute', width: 8, height: 8, borderRadius: 4 },

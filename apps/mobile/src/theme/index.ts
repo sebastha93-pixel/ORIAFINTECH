@@ -108,12 +108,64 @@ export const Typography = {
   bold: '700' as const,
   extrabold: '800' as const,
 
-  // Familias (se cargan con expo-font)
-  fontHeader: 'Poppins-Bold',
-  fontHeaderSemi: 'Poppins-SemiBold',
-  fontBody: 'Inter-Regular',
-  fontBodyMedium: 'Inter-Medium',
-  fontBodyBold: 'Inter-Bold',
+  // ── DM Fonts (cargadas via @expo-google-fonts) ──
+  fontMono: 'DMMono_300Light' as string,           // números hero/focales
+  fontMonoRegular: 'DMMono_400Regular' as string,  // mono secundario
+  fontSans: 'DMSans_400Regular' as string,         // cuerpo
+  fontSansMedium: 'DMSans_500Medium' as string,    // montos secundarios
+  fontSansSemibold: 'DMSans_600SemiBold' as string,// KPIs y porcentajes
+  fontSansBold: 'DMSans_700Bold' as string,        // énfasis
+
+  // Legacy — para componentes aún no migrados
+  fontHeader: 'DMSans_700Bold',
+  fontHeaderSemi: 'DMSans_600SemiBold',
+  fontBody: 'DMSans_400Regular',
+  fontBodyMedium: 'DMSans_500Medium',
+  fontBodyBold: 'DMSans_700Bold',
+} as const;
+
+// ─── Estilos reutilizables para números ────────────────
+// Usar como: StyleSheet.create({ myNum: { ...NumberTextStyles.amount, color: ... } })
+export const NumberTextStyles = {
+  // Monto hero (patrimonio neto, score grande)
+  hero: {
+    fontFamily: 'DMMono_300Light',
+    fontWeight: '300' as const,
+    letterSpacing: 1,
+  },
+  // KPI grande (análisis, stat cards)
+  kpi: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontWeight: '600' as const,
+    letterSpacing: -0.3,
+    fontVariant: ['tabular-nums'] as const,
+  },
+  // Monto estándar (fila transacción, saldo cuenta)
+  amount: {
+    fontFamily: 'DMSans_500Medium',
+    fontWeight: '500' as const,
+    fontVariant: ['tabular-nums'] as const,
+  },
+  // Monto pequeño (metas: actual / objetivo)
+  amountSm: {
+    fontFamily: 'DMSans_500Medium',
+    fontWeight: '500' as const,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'] as const,
+  },
+  // Porcentaje grande (progreso de meta)
+  percentageLg: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontWeight: '600' as const,
+    fontVariant: ['tabular-nums'] as const,
+  },
+  // Porcentaje inline (cambio vs mes anterior)
+  percentageSm: {
+    fontFamily: 'DMSans_600SemiBold',
+    fontWeight: '600' as const,
+    fontSize: 11,
+    fontVariant: ['tabular-nums'] as const,
+  },
 } as const;
 
 export const Shadows = {

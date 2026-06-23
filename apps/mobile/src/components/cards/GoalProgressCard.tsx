@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Goal } from '../../types';
-import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
+import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
 import { formatCurrency } from '../../utils/format';
 
 export function GoalProgressCard({
@@ -121,7 +121,7 @@ const styles = StyleSheet.create({
   name: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: Typography.semibold },
   type: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
   pctBlock: {},
-  pct: { fontSize: Typography.lg, fontWeight: Typography.bold },
+  pct: { ...NumberTextStyles.percentageLg, fontSize: Typography.lg },
 
   barBg: {
     height: 8, backgroundColor: Colors.surfaceMid,
@@ -131,9 +131,9 @@ const styles = StyleSheet.create({
   barFill: { height: '100%', borderRadius: BorderRadius.full },
 
   footer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  current: { color: Colors.textPrimary, fontSize: Typography.xs, fontWeight: Typography.semibold },
+  current: { ...NumberTextStyles.amountSm, color: Colors.textPrimary },
   separator: { color: Colors.textMuted, fontSize: Typography.xs },
-  target: { color: Colors.textMuted, fontSize: Typography.xs, flex: 1 },
+  target: { ...NumberTextStyles.amountSm, color: Colors.textMuted, flex: 1 },
   timeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
     backgroundColor: Colors.surfaceMid, borderRadius: BorderRadius.full,

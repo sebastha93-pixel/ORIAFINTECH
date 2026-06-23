@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from '../../types';
-import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
+import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
 import { formatCurrency } from '../../utils/format';
 
 const ACCOUNT_ICONS: Record<string, string> = {
@@ -102,5 +102,5 @@ const styles = StyleSheet.create({
   type: { color: 'rgba(255,255,255,0.8)', fontSize: Typography.xs },
   institution: { color: 'rgba(255,255,255,0.6)', fontSize: Typography.xs },
   name: { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.semibold },
-  balance: { color: '#fff', fontSize: Typography.md, fontWeight: Typography.bold, marginTop: 4 },
+  balance: { ...NumberTextStyles.amount, color: '#fff', fontSize: Typography.md, marginTop: 4 },
 });

@@ -12,6 +12,8 @@
     "test": "jest"
   },
   "dependencies": {
+    "@expo-google-fonts/dm-mono": "^0.2.3",
+    "@expo-google-fonts/dm-sans": "^0.2.3",
     "@expo/metro-runtime": "~3.2.3",
     "@expo/vector-icons": "^14.0.2",
     "@react-navigation/bottom-tabs": "^6.6.1",

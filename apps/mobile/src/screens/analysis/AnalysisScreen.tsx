@@ -408,8 +408,9 @@ const s = StyleSheet.create({
     marginBottom: 4,
   },
   kpiValue: {
+    fontFamily: 'DMSans_600SemiBold',
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: '600',
     fontVariant: ['tabular-nums'],
     letterSpacing: -0.3,
   },
@@ -468,8 +469,9 @@ const s = StyleSheet.create({
     color: '#E8E4DC',
   },
   catAmt: {
+    fontFamily: 'DMSans_500Medium',
     fontSize: 13,
-    fontWeight: '400',
+    fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },
   barTrack: {

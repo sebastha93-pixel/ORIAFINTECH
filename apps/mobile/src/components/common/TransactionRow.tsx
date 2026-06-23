@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Transaction } from '../../types';
-import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
+import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
 import { formatCurrency, formatDate } from '../../utils/format';
 
 function TransactionRowBase({
@@ -91,6 +91,6 @@ const styles = StyleSheet.create({
   desc: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: Typography.medium },
   meta: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
   right: { alignItems: 'flex-end' },
-  amount: { fontSize: Typography.sm, fontWeight: Typography.bold },
+  amount: { ...NumberTextStyles.amount, fontSize: Typography.sm },
   category: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 1 },
 });

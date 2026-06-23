@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchDashboard } from '../../store/slices/dashboardSlice';
-import { Colors, Spacing, Typography, BorderRadius, Shadows } from '../../theme';
+import { Colors, Spacing, Typography, BorderRadius, Shadows, NumberTextStyles } from '../../theme';
 import {
   formatCurrency,
   formatPercentage,
@@ -474,8 +474,8 @@ const styles = StyleSheet.create({
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs },
   heroLabel: { color: Colors.textSecondary, fontSize: Typography.sm },
   heroAmount: {
+    ...NumberTextStyles.hero,
     color: Colors.textPrimary, fontSize: Typography.display,
-    fontWeight: Typography.extrabold, letterSpacing: -1,
     marginBottom: Spacing.sm,
   },
   heroChange: { marginBottom: Spacing.sm },
@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start', borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.sm, paddingVertical: 4,
   },
-  changePillText: { fontSize: Typography.xs, fontWeight: Typography.semibold },
+  changePillText: { ...NumberTextStyles.percentageSm, fontSize: Typography.xs },
   sparklineWrap: { marginTop: Spacing.sm },
 
   // Stats row
@@ -495,10 +495,10 @@ const styles = StyleSheet.create({
   statCard: { flex: 1, borderRadius: BorderRadius.lg, overflow: 'hidden', borderWidth: 1, borderColor: Colors.border },
   statGradient: { padding: Spacing.sm, gap: 4 },
   statIcon: { width: 28, height: 28, borderRadius: BorderRadius.xs, justifyContent: 'center', alignItems: 'center' },
-  statValue: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: Typography.bold, marginTop: 2 },
+  statValue: { ...NumberTextStyles.kpi, color: Colors.textPrimary, fontSize: Typography.sm, marginTop: 2 },
   statLabel: { color: Colors.textMuted, fontSize: 10 },
   statPctRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 2 },
-  statPct: { fontSize: 10, fontWeight: Typography.semibold },
+  statPct: { ...NumberTextStyles.percentageSm, fontSize: 10 },
 
   // Section
   section: { paddingHorizontal: Spacing.lg, marginTop: Spacing.xl },
