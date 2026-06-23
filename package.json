@@ -6,14 +6,8 @@
   "workspaces": {
     "packages": ["apps/*", "packages/*"],
     "nohoist": [
-      "**/metro",
-      "**/metro/**",
-      "**/@expo/cli",
-      "**/@expo/cli/**",
-      "**/@expo/metro-config",
-      "**/@expo/metro-config/**",
-      "**/@expo/metro-runtime",
-      "**/@expo/metro-runtime/**"
+      "**",
+      "**/**"
     ]
   },
   "resolutions": {
