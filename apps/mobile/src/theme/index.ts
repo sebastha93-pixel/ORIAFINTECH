@@ -1,70 +1,73 @@
 // ============================================================
-// NEXO FINANZAS — Design System (v2 — Brand Oficial)
-// Paleta: #0F172A · #1E3A8A · #22C55E · #F8FAFC · #64748B
-// Tipografía: Poppins (headers) / Inter (body)
+// ORIA — Design System (v3 — ORIA Brand)
+// Paleta: #0A0C0F · #00E5A0 · #F5A623 · #EF4444 · #E8E4DC
+// Tipografía: DM Mono (hero) / DM Sans (body)
 // ============================================================
 
 export const Colors = {
-  // ── Brand ──────────────────────────────────────────────
-  primary: '#1E3A8A',       // Azul profundo — confianza
-  primaryLight: '#2563EB',  // Azul medio
-  primaryGlow: '#3B82F6',   // Azul brillante (botones)
-  accent: '#22C55E',        // Verde — crecimiento / positivo
-  accentLight: '#4ADE80',
-  accentDark: '#16A34A',
+  // ── Backgrounds ────────────────────────────────────────
+  background: '#0A0C0F',      // main background
+  surface: '#111419',          // cards, sheets
+  surfaceElevated: '#1A1E25',  // elevated surfaces
+  surfaceMid: '#222835',       // inputs, chips
 
-  // ── Fondos ─────────────────────────────────────────────
-  background: '#070B14',    // Negro azulado profundo
-  surface: '#0F172A',       // Superficie de cards
-  surfaceElevated: '#162033',
-  surfaceMid: '#1E2A3E',
-  border: '#1E2D45',
-  borderLight: '#243553',
+  // ── Borders ────────────────────────────────────────────
+  border: '#1E2530',
+  borderLight: '#263040',
 
-  // ── Texto ──────────────────────────────────────────────
-  textPrimary: '#F8FAFC',
+  // ── Text ───────────────────────────────────────────────
+  textPrimary: '#E8E4DC',
   textSecondary: '#94A3B8',
-  textMuted: '#64748B',
-  textInverse: '#0F172A',
+  textMuted: '#6B7280',
+  textInverse: '#0A0C0F',
 
-  // ── Semánticos ─────────────────────────────────────────
-  success: '#22C55E',
-  successBg: '#052E16',
-  warning: '#F59E0B',
-  warningBg: '#1C1003',
+  // ── Accent (green — primary action, income) ────────────
+  accent: '#00E5A0',
+  accentBg: '#002A1F',
+
+  // ── Amber (goals, savings, warnings) ───────────────────
+  amber: '#F5A623',
+  amberBg: '#2A1D00',
+
+  // ── Danger (expenses, errors) ──────────────────────────
   danger: '#EF4444',
   dangerBg: '#1F0808',
-  info: '#3B82F6',
+
+  // ── Semantic aliases (mapped to ORIA palette) ──────────
+  success: '#00E5A0',          // = accent
+  successBg: '#002A1F',        // = accentBg
+  warning: '#F5A623',          // = amber
+  warningBg: '#2A1D00',        // = amberBg
+  info: '#4A9EFF',
   infoBg: '#0C1A35',
 
-  // ── Gradientes (arrays para LinearGradient) ────────────
-  gradientBrand: ['#1E3A8A', '#0F2563'] as [string, string],
-  gradientAccent: ['#22C55E', '#16A34A'] as [string, string],
-  gradientCard: ['#162033', '#0F172A'] as [string, string],
-  gradientHero: ['#0F2563', '#070B14'] as [string, string],
+  // ── Gradient aliases (kept for migration compat) ───────
+  gradientAccent: ['#00E5A0', '#00B87A'] as [string, string],
+  gradientCard: ['#1A1E25', '#111419'] as [string, string],
+  gradientHero: ['#0E1620', '#0A0C0F'] as [string, string],
 
-  // ── Gráficas ───────────────────────────────────────────
+  // ── Charts ─────────────────────────────────────────────
   chart: [
-    '#22C55E', // Vivienda — verde
-    '#3B82F6', // Alimentación — azul
-    '#F59E0B', // Transporte — amarillo
-    '#8B5CF6', // Entretenimiento — violeta
-    '#EC4899', // Salud — rosa
-    '#06B6D4', // Educación — cyan
-    '#F97316', // Ropa — naranja
-    '#64748B', // Otros — gris
+    '#00E5A0', // accent green
+    '#4A9EFF', // blue
+    '#F5A623', // amber
+    '#8B5CF6', // violet
+    '#EC4899', // pink
+    '#06B6D4', // cyan
+    '#F97316', // orange
+    '#6B7280', // muted gray
   ],
 
-  // ── Tipos de cuenta ────────────────────────────────────
+  // ── Account type colors ────────────────────────────────
   accounts: {
-    checking: '#3B82F6',
-    savings: '#22C55E',
+    checking: '#4A9EFF',
+    savings: '#00E5A0',
     credit_card: '#EF4444',
     investment: '#8B5CF6',
-    crypto: '#F59E0B',
-    cash: '#64748B',
+    crypto: '#F5A623',
+    cash: '#6B7280',
     loan: '#DC2626',
-    other: '#1E3A8A',
+    other: '#00E5A0',
   },
 } as const;
 
@@ -177,14 +180,14 @@ export const Shadows = {
     elevation: 6,
   },
   glow: {
-    shadowColor: '#22C55E',
+    shadowColor: '#00E5A0',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.35,
     shadowRadius: 16,
     elevation: 8,
   },
   glowBlue: {
-    shadowColor: '#2563EB',
+    shadowColor: '#4A9EFF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 16,

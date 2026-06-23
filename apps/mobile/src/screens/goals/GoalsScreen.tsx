@@ -2,14 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
   Modal, TextInput, ActivityIndicator, Alert, RefreshControl,
-  Platform, ScrollView, KeyboardAvoidingView,
+  Platform, ScrollView, KeyboardAvoidingView, Pressable,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
+import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
 import { api } from '../../services/api';
 import { Goal, GoalType } from '../../types';
-import { EmptyState } from '../../components/common/EmptyState';
 
 // ─── helpers ───────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -35,7 +33,7 @@ export function GoalsScreen() {
   const [isLoading, setIsLoading]   = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd]       = useState(false);
-  const [addGoal, setAddGoal]       = useState<string | null>(null); // goalId for contribution
+  const [addGoal, setAddGoal]       = useState<string | null>(null);
 
   const load = useCallback(async (refresh = false) => {
     try {
@@ -53,24 +51,28 @@ export function GoalsScreen() {
 
   const onRefresh = () => { setRefreshing(true); load(true); };
 
-  const totalTarget  = goals.reduce((s, g) => s + g.target_amount, 0);
-  const totalSaved   = goals.reduce((s, g) => s + g.current_amount, 0);
-  const activeGoals  = goals.filter((g) => g.status === 'active').length;
+  const totalTarget    = goals.reduce((s, g) => s + g.target_amount, 0);
+  const totalSaved     = goals.reduce((s, g) => s + g.current_amount, 0);
+  const activeGoals    = goals.filter((g) => g.status === 'active').length;
   const completedGoals = goals.filter((g) => g.status === 'completed').length;
-
-  const overallPct = totalTarget > 0 ? clamp((totalSaved / totalTarget) * 100) : 0;
+  const overallPct     = totalTarget > 0 ? clamp((totalSaved / totalTarget) * 100) : 0;
 
   const renderGoal = ({ item }: { item: Goal }) => {
     const pct = item.progress_percentage ?? clamp((item.current_amount / item.target_amount) * 100);
     const remaining = item.target_amount - item.current_amount;
     const icon = GOAL_ICONS[item.goal_type] || 'flag';
+    // Goal icon color: use item.color or cycle accent/amber
     const color = item.color || Colors.accent;
     const isComplete = item.status === 'completed';
+
+    // Progress bar color: completed → accent, otherwise use color
+    const barColor = isComplete ? Colors.accent : color;
 
     return (
       <View style={s.goalCard}>
         {/* Icon + title row */}
         <View style={s.goalHeader}>
+          {/* Goal icon in color+20 opacity bg */}
           <View style={[s.goalIcon, { backgroundColor: color + '20' }]}>
             <Ionicons name={icon as 'home'} size={22} color={color} />
           </View>
@@ -84,21 +86,27 @@ export function GoalsScreen() {
               <Text style={s.completeBadgeText}>Lograda</Text>
             </View>
           ) : (
-            <TouchableOpacity
-              style={s.addBtn}
+            <Pressable
+              style={({ pressed }) => [
+                s.addBtn,
+                pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
+              ]}
               onPress={() => setAddGoal(item.id)}
             >
               <Ionicons name="add" size={18} color={Colors.accent} />
-            </TouchableOpacity>
+            </Pressable>
           )}
         </View>
 
-        {/* Progress bar */}
+        {/* Progress bar — accent or goal color */}
         <View style={s.progressWrap}>
           <View style={[s.progressTrack, { backgroundColor: Colors.border }]}>
-            <View style={[s.progressFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+            <View style={[s.progressFill, { width: `${pct}%` as any, backgroundColor: barColor }]} />
           </View>
-          <Text style={[s.pctLabel, { color }]}>{Math.round(pct)}%</Text>
+          {/* Percentage in DM Sans 600 amber or accent */}
+          <Text style={[s.pctLabel, { color: color === Colors.accent ? Colors.accent : Colors.amber }]}>
+            {Math.round(pct)}%
+          </Text>
         </View>
 
         {/* Amounts row */}
@@ -141,15 +149,20 @@ export function GoalsScreen() {
 
   return (
     <View style={s.root}>
-      {/* Header */}
-      <LinearGradient colors={['#0D1B3E', Colors.background]} style={s.header}>
+      {/* ── HEADER — flat bg, no gradient ── */}
+      <View style={s.header}>
         <View style={s.headerRow}>
           <Text style={s.headerTitle}>Mis Metas</Text>
-          <TouchableOpacity style={s.newGoalBtn} onPress={() => setShowAdd(true)}>
-            <LinearGradient colors={Colors.gradientAccent} style={s.newGoalGrad}>
-              <Ionicons name="add" size={20} color="#fff" />
-            </LinearGradient>
-          </TouchableOpacity>
+          {/* New goal button — accent bg */}
+          <Pressable
+            style={({ pressed }) => [
+              s.newGoalBtn,
+              pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
+            ]}
+            onPress={() => setShowAdd(true)}
+          >
+            <Ionicons name="add" size={20} color={Colors.background} />
+          </Pressable>
         </View>
 
         {/* Summary card */}
@@ -165,34 +178,24 @@ export function GoalsScreen() {
               <Text style={s.statLabel}>{activeGoals} activa{activeGoals !== 1 ? 's' : ''}</Text>
             </View>
             <View style={s.summaryStatRow}>
-              <View style={[s.statDot, { backgroundColor: Colors.primaryGlow }]} />
+              <View style={[s.statDot, { backgroundColor: Colors.amber }]} />
               <Text style={s.statLabel}>{completedGoals} lograda{completedGoals !== 1 ? 's' : ''}</Text>
             </View>
             <Text style={s.overallPct}>{Math.round(overallPct)}%</Text>
           </View>
         </View>
 
-        {/* Overall progress bar */}
+        {/* Overall progress bar — accent color */}
         <View style={s.overallTrack}>
-          <LinearGradient
-            colors={Colors.gradientAccent}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={[s.overallFill, { width: `${overallPct}%` as any }]}
-          />
+          <View style={[s.overallFill, { width: `${overallPct}%` as any, backgroundColor: Colors.accent }]} />
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* List */}
+      {/* ── LIST ── */}
       {isLoading ? (
         <ActivityIndicator color={Colors.accent} style={{ flex: 1 }} />
       ) : goals.length === 0 ? (
-        <EmptyState
-          icon={<Ionicons name="flag-outline" size={28} color={Colors.accent} />}
-          title="Sin metas aún"
-          subtitle="Define una meta financiera y conecta tus ahorros automáticamente."
-          ctaLabel="Crear primera meta"
-          onCta={() => setShowAdd(true)}
-        />
+        <EmptyGoals onAdd={() => setShowAdd(true)} />
       ) : (
         <FlatList
           data={goals}
@@ -227,7 +230,24 @@ export function GoalsScreen() {
   );
 }
 
-// EmptyGoals replaced by shared EmptyState component
+// ─── Empty state — ORIA pattern ───────────────────────────
+function EmptyGoals({ onAdd }: { onAdd: () => void }) {
+  return (
+    <View style={s.empty}>
+      <View style={s.emptyIcon}>
+        <Ionicons name="flag-outline" size={32} color={Colors.amber} />
+      </View>
+      <Text style={s.emptyTitle}>Sin metas aún</Text>
+      <Text style={s.emptySub}>Define una meta financiera y conecta tus ahorros automáticamente.</Text>
+      <Pressable
+        style={({ pressed }) => [s.emptyBtn, pressed && { opacity: 0.72 }]}
+        onPress={onAdd}
+      >
+        <Text style={s.emptyBtnText}>Crear primera meta</Text>
+      </Pressable>
+    </View>
+  );
+}
 
 // ─── Contribution modal ────────────────────────────────────
 function ContributionModal({ goalId, goalName, onClose, onSaved }: {
@@ -283,13 +303,17 @@ function ContributionModal({ goalId, goalName, onClose, onSaved }: {
             />
           </View>
 
-          <TouchableOpacity style={cm.saveWrap} onPress={save} disabled={saving}>
-            <LinearGradient colors={Colors.gradientAccent} style={cm.saveBtn}>
+          <Pressable
+            style={({ pressed }) => [cm.saveWrap, pressed && { opacity: 0.85 }]}
+            onPress={save}
+            disabled={saving}
+          >
+            <View style={cm.saveBtn}>
               {saving
-                ? <ActivityIndicator color="#fff" />
+                ? <ActivityIndicator color={Colors.background} />
                 : <Text style={cm.saveBtnText}>Confirmar aporte</Text>}
-            </LinearGradient>
-          </TouchableOpacity>
+            </View>
+          </Pressable>
 
           <TouchableOpacity style={cm.cancelBtn} onPress={onClose}>
             <Text style={cm.cancelText}>Cancelar</Text>
@@ -344,7 +368,6 @@ function NewGoalModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
           <Text style={cm.title}>Nueva meta financiera</Text>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Goal type selector */}
             <Text style={ng.sectionLabel}>Tipo de meta</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={ng.typeScroll}>
               {GOAL_TYPES.map((t) => (
@@ -356,7 +379,7 @@ function NewGoalModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
                   <Ionicons
                     name={(GOAL_ICONS[t] || 'flag') as 'home'}
                     size={14}
-                    color={goalType === t ? '#fff' : Colors.textMuted}
+                    color={goalType === t ? Colors.background : Colors.textMuted}
                   />
                   <Text style={[ng.typeChipText, goalType === t && ng.typeChipTextActive]}>
                     {GOAL_LABELS[t]}
@@ -412,13 +435,17 @@ function NewGoalModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
             </View>
           </ScrollView>
 
-          <TouchableOpacity style={cm.saveWrap} onPress={save} disabled={saving}>
-            <LinearGradient colors={Colors.gradientAccent} style={cm.saveBtn}>
+          <Pressable
+            style={({ pressed }) => [cm.saveWrap, pressed && { opacity: 0.85 }]}
+            onPress={save}
+            disabled={saving}
+          >
+            <View style={cm.saveBtn}>
               {saving
-                ? <ActivityIndicator color="#fff" />
+                ? <ActivityIndicator color={Colors.background} />
                 : <Text style={cm.saveBtnText}>Crear meta</Text>}
-            </LinearGradient>
-          </TouchableOpacity>
+            </View>
+          </Pressable>
 
           <TouchableOpacity style={cm.cancelBtn} onPress={onClose}>
             <Text style={cm.cancelText}>Cancelar</Text>
@@ -433,15 +460,28 @@ function NewGoalModal({ onClose, onSaved }: { onClose: () => void; onSaved: () =
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
+  // Header — flat bg, no gradient
   header: {
     paddingTop: Platform.OS === 'ios' ? 56 : 40,
     paddingBottom: Spacing.lg,
     paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
-  headerTitle: { color: Colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.bold },
-  newGoalBtn: { borderRadius: BorderRadius.full, overflow: 'hidden' },
-  newGoalGrad: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  headerTitle: {
+    color: Colors.textPrimary, fontSize: Typography.xl,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold,
+  },
+  // New goal button — flat accent circle
+  newGoalBtn: {
+    width: 38, height: 38, borderRadius: 10,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center', alignItems: 'center',
+  },
 
   summaryCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
@@ -449,13 +489,20 @@ const s = StyleSheet.create({
   },
   summaryLeft: {},
   summaryLabel: { color: Colors.textMuted, fontSize: Typography.xs, marginBottom: 2 },
-  summaryValue: { color: Colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.extrabold },
+  summaryValue: {
+    ...NumberTextStyles.kpi,
+    color: Colors.textPrimary, fontSize: Typography.xl,
+  },
   summaryMeta: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
   summaryRight: { alignItems: 'flex-end', gap: 4 },
   summaryStatRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   statDot: { width: 7, height: 7, borderRadius: 4 },
   statLabel: { color: Colors.textSecondary, fontSize: Typography.xs },
-  overallPct: { color: Colors.accent, fontSize: Typography.lg, fontWeight: Typography.extrabold },
+  // Overall percentage in accent
+  overallPct: {
+    ...NumberTextStyles.percentageLg,
+    color: Colors.accent, fontSize: Typography.lg,
+  },
 
   overallTrack: {
     height: 4, backgroundColor: Colors.border,
@@ -465,38 +512,45 @@ const s = StyleSheet.create({
 
   list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 120 },
 
+  // Goal card — surface bg, 8px radius
   goalCard: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
+    borderRadius: 8,
     padding: Spacing.md,
     borderWidth: 1, borderColor: Colors.border,
     gap: Spacing.sm,
   },
   goalHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  goalIcon: { width: 44, height: 44, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-  goalName: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: Typography.semibold },
+  goalIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  goalName: {
+    color: Colors.textPrimary, fontSize: Typography.base,
+    fontWeight: Typography.semibold, fontFamily: Typography.fontSansSemibold,
+  },
   goalType: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 1 },
   completeBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.successBg, borderRadius: BorderRadius.full,
+    backgroundColor: Colors.accentBg, borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.sm, paddingVertical: 3,
   },
   completeBadgeText: { color: Colors.accent, fontSize: Typography.xs },
   addBtn: {
-    width: 32, height: 32, borderRadius: 10,
-    backgroundColor: Colors.accent + '20',
+    width: 32, height: 32, borderRadius: 8,
+    backgroundColor: Colors.accentBg,
     justifyContent: 'center', alignItems: 'center',
   },
 
   progressWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   progressTrack: { flex: 1, height: 6, borderRadius: 3, overflow: 'hidden' },
   progressFill: { height: 6, borderRadius: 3 },
-  pctLabel: { fontSize: Typography.xs, fontWeight: Typography.bold, width: 34, textAlign: 'right' },
+  pctLabel: {
+    ...NumberTextStyles.percentageSm,
+    width: 34, textAlign: 'right',
+  },
 
   amtRow: { flexDirection: 'row', justifyContent: 'space-between' },
   amtLabel: { color: Colors.textMuted, fontSize: Typography.xs, marginBottom: 1 },
-  amtValue: { fontSize: Typography.sm, fontWeight: Typography.bold },
-  amtValueMuted: { color: Colors.textSecondary, fontSize: Typography.sm, fontWeight: Typography.semibold },
+  amtValue: { ...NumberTextStyles.amount, fontSize: Typography.sm },
+  amtValueMuted: { ...NumberTextStyles.amount, color: Colors.textSecondary, fontSize: Typography.sm },
 
   goalFooter: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   footerChip: {
@@ -507,41 +561,68 @@ const s = StyleSheet.create({
   footerChipText: { color: Colors.textMuted, fontSize: Typography.xs },
   remainText: { color: Colors.textMuted, fontSize: Typography.xs, marginLeft: 'auto' },
 
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  emptyIcon: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
-  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold, marginBottom: Spacing.xs },
-  emptySub: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl },
-  emptyBtn: { borderRadius: BorderRadius.lg, overflow: 'hidden' },
-  emptyBtnGrad: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
-  emptyBtnText: { color: '#fff', fontSize: Typography.base, fontWeight: Typography.bold },
+  // Empty state — ORIA pattern
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: Colors.amberBg,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  emptyTitle: {
+    color: Colors.textPrimary, fontSize: Typography.lg,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold,
+  },
+  emptySub: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center', lineHeight: 22 },
+  emptyBtn: {
+    backgroundColor: Colors.accent,
+    borderRadius: 10,
+    paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
+    marginTop: Spacing.xs,
+  },
+  emptyBtnText: {
+    color: Colors.background, fontSize: Typography.base,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold,
+  },
 });
 
 const cm = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: '#00000080', justifyContent: 'flex-end' },
   sheet: {
     backgroundColor: Colors.surfaceElevated,
-    borderTopLeftRadius: BorderRadius.xxl, borderTopRightRadius: BorderRadius.xxl,
+    // modal 16px top radius
+    borderTopLeftRadius: 16, borderTopRightRadius: 16,
     padding: Spacing.lg,
     paddingBottom: Platform.OS === 'ios' ? 44 : Spacing.lg,
   },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Spacing.md },
-  title: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold, marginBottom: 4 },
+  handle: {
+    width: 40, height: 4, borderRadius: 2,
+    backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Spacing.md,
+  },
+  title: {
+    color: Colors.textPrimary, fontSize: Typography.lg,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold, marginBottom: 4,
+  },
   sub: { color: Colors.textMuted, fontSize: Typography.sm, marginBottom: Spacing.lg },
   field: { marginBottom: Spacing.md },
   fieldLabel: { color: Colors.textSecondary, fontSize: Typography.sm, marginBottom: Spacing.xs },
+  // Input fields: surface2 bg, borderLight border
   input: {
-    backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surfaceMid, borderRadius: 8,
+    borderWidth: 1, borderColor: Colors.borderLight,
     paddingHorizontal: Spacing.md, height: 50,
     color: Colors.textPrimary, fontSize: Typography.base,
   },
-  saveWrap: { borderRadius: BorderRadius.lg, overflow: 'hidden', marginTop: Spacing.md },
-  saveBtn: { height: 52, justifyContent: 'center', alignItems: 'center' },
-  saveBtnText: { color: '#fff', fontSize: Typography.base, fontWeight: Typography.bold },
-  cancelBtn: {
-    marginTop: Spacing.sm, paddingVertical: Spacing.sm,
-    alignItems: 'center',
+  // Save button — flat accent bg
+  saveWrap: { borderRadius: 10, overflow: 'hidden', marginTop: Spacing.md },
+  saveBtn: {
+    height: 52, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: Colors.accent, borderRadius: 10,
   },
+  saveBtnText: {
+    color: Colors.background, fontSize: Typography.base,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold,
+  },
+  cancelBtn: { marginTop: Spacing.sm, paddingVertical: Spacing.sm, alignItems: 'center' },
   cancelText: { color: Colors.textMuted, fontSize: Typography.base },
 });
 
@@ -551,17 +632,17 @@ const ng = StyleSheet.create({
   typeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 6,
+    backgroundColor: Colors.surfaceMid, borderWidth: 1, borderColor: Colors.border,
     marginRight: Spacing.xs,
   },
   typeChipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   typeChipText: { color: Colors.textMuted, fontSize: Typography.xs },
-  typeChipTextActive: { color: '#fff', fontWeight: Typography.semibold },
+  typeChipTextActive: { color: Colors.background, fontWeight: Typography.semibold },
   field: { marginBottom: Spacing.md },
   input: {
-    backgroundColor: Colors.surface, borderRadius: BorderRadius.lg,
-    borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.surfaceMid, borderRadius: 8,
+    borderWidth: 1, borderColor: Colors.borderLight,
     paddingHorizontal: Spacing.md, height: 50,
     color: Colors.textPrimary, fontSize: Typography.base,
   },

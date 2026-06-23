@@ -4,7 +4,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAppSelector } from '../store';
 import { Colors, Typography, BorderRadius } from '../theme';
 
@@ -22,91 +21,60 @@ const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
 // ─────────────────────────────────────────────
-// CUSTOM TAB BAR
+// CUSTOM TAB BAR — ORIA Design
 // ─────────────────────────────────────────────
-function NexoTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const [showAdd, setShowAdd] = useState(false);
-
+function OriaTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   return (
-    <>
-      <View style={tb.wrapper}>
-        <LinearGradient colors={['#0D1628', '#070B14']} style={tb.container}>
-          {state.routes.map((route, index) => {
-            const focused = state.index === index;
-            const { options } = descriptors[route.key];
-            const isFab = route.name === 'AddTransaction';
+    <View style={tb.wrapper}>
+      <View style={tb.container}>
+        {state.routes.map((route, index) => {
+          const focused = state.index === index;
+          const { options } = descriptors[route.key];
 
-            const onPress = () => {
-              if (isFab) { setShowAdd(true); return; }
-              const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-              if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
-            };
+          const onPress = () => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+          };
 
-            if (isFab) {
-              return (
-                <Pressable
-                  key={route.key}
-                  style={tb.fabWrap}
-                  onPress={onPress}
-                  hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
-                >
-                  {({ pressed }) => (
-                    <LinearGradient
-                      colors={[Colors.accent, Colors.accentDark]}
-                      style={[tb.fab, { opacity: pressed ? 0.85 : 1 }]}
-                    >
-                      <Ionicons name="add" size={28} color="#fff" />
-                    </LinearGradient>
-                  )}
-                </Pressable>
-              );
-            }
+          const label = (options.tabBarLabel as string) || route.name;
+          const iconBase = TAB_ICONS[route.name] || 'ellipsis-horizontal';
+          const iconName = focused ? iconBase : `${iconBase}-outline`;
 
-            const label = (options.tabBarLabel as string) || route.name;
-            const icon  = TAB_ICONS[route.name] || 'ellipsis-horizontal';
+          return (
+            <Pressable
+              key={route.key}
+              style={({ pressed }) => [
+                tb.tab,
+                pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
+              ]}
+              onPress={onPress}
+              hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+            >
+              {/* Active indicator line */}
+              <View style={[tb.indicator, focused && tb.indicatorActive]} />
 
-            return (
-              <Pressable
-                key={route.key}
-                style={tb.tab}
-                onPress={onPress}
-                hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
-              >
-                {({ pressed }) => (
-                  <>
-                    <View style={[tb.iconWrap, focused && tb.iconActive, pressed && { opacity: 0.72 }]}>
-                      <Ionicons
-                        name={(focused ? icon : `${icon}-outline`) as 'home'}
-                        size={22}
-                        color={focused ? Colors.accent : Colors.textMuted}
-                      />
-                    </View>
-                    <Text style={[tb.label, focused && tb.labelActive]}>{label}</Text>
-                  </>
-                )}
-              </Pressable>
-            );
-          })}
-        </LinearGradient>
+              <View style={[tb.iconWrap, focused && tb.iconActive]}>
+                <Ionicons
+                  name={iconName as 'home'}
+                  size={22}
+                  color={focused ? Colors.accent : Colors.textMuted}
+                />
+              </View>
+              <Text style={[tb.label, focused && tb.labelActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
-
-      {/* Add Transaction modal — lives outside tab bar so it can be full screen */}
-      <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
-        <AddTransactionScreen
-          onClose={() => setShowAdd(false)}
-          onSaved={() => setShowAdd(false)}
-        />
-      </Modal>
-    </>
+    </View>
   );
 }
 
 const TAB_ICONS: Record<string, string> = {
   Dashboard:    'home',
-  Transactions: 'swap-horizontal',
+  Transactions: 'list',
   Analysis:     'bar-chart',
-  Goals:        'flag',
   AI:           'sparkles',
+  Profile:      'person',
 };
 
 // ─────────────────────────────────────────────
@@ -115,21 +83,16 @@ const TAB_ICONS: Record<string, string> = {
 function MainTabs() {
   return (
     <Tab.Navigator
-      tabBar={(props) => <NexoTabBar {...props} />}
+      tabBar={(props) => <OriaTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
       <Tab.Screen name="Dashboard"    component={DashboardScreen}    options={{ tabBarLabel: 'Inicio' }} />
       <Tab.Screen name="Transactions" component={TransactionsScreen} options={{ tabBarLabel: 'Movimientos' }} />
-      <Tab.Screen name="AddTransaction" component={EmptyScreen}      options={{ tabBarLabel: '' }} />
       <Tab.Screen name="Analysis"     component={AnalysisScreen}     options={{ tabBarLabel: 'Análisis' }} />
+      <Tab.Screen name="AI"           component={AiChatScreen}       options={{ tabBarLabel: 'IA' }} />
       <Tab.Screen name="Goals"        component={GoalsScreen}        options={{ tabBarLabel: 'Metas' }} />
-      <Tab.Screen name="AI"           component={AiChatScreen}       options={{ tabBarLabel: 'Nexo IA' }} />
     </Tab.Navigator>
   );
-}
-
-function EmptyScreen() {
-  return <View style={{ flex: 1, backgroundColor: Colors.background }} />;
 }
 
 // ─────────────────────────────────────────────
@@ -155,31 +118,48 @@ export function AppNavigator() {
 }
 
 // ─────────────────────────────────────────────
-// TAB BAR STYLES
+// TAB BAR STYLES — ORIA
 // ─────────────────────────────────────────────
+const TAB_HEIGHT = 58;
+
 const tb = StyleSheet.create({
   wrapper: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     borderTopWidth: 1, borderTopColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
   container: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-    paddingTop: 10, paddingHorizontal: 8,
+    flexDirection: 'row', alignItems: 'stretch',
+    height: TAB_HEIGHT + (Platform.OS === 'ios' ? 20 : 0),
+    paddingBottom: Platform.OS === 'ios' ? 20 : 0,
+    paddingHorizontal: 4,
   },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  tab: {
+    flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3,
+    paddingTop: 4,
+  },
+  // 2px top indicator line for active tab
+  indicator: {
+    position: 'absolute', top: 0, left: 12, right: 12,
+    height: 2, borderRadius: 1,
+    backgroundColor: 'transparent',
+  },
+  indicatorActive: {
+    backgroundColor: Colors.accent,
+  },
   iconWrap: {
-    width: 40, height: 30, justifyContent: 'center', alignItems: 'center',
+    width: 40, height: 28, justifyContent: 'center', alignItems: 'center',
     borderRadius: BorderRadius.full,
   },
   iconActive: { backgroundColor: Colors.accent + '18' },
-  label: { fontSize: 10, color: Colors.textMuted, fontWeight: Typography.medium },
-  labelActive: { color: Colors.accent, fontWeight: Typography.semibold },
-
-  fabWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: -20 },
-  fab: {
-    width: 56, height: 56, borderRadius: 28,
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 3, borderColor: Colors.background,
+  label: {
+    fontSize: 10,
+    color: Colors.textMuted,
+    fontFamily: Typography.fontSansMedium,
+    fontWeight: Typography.medium,
+  },
+  labelActive: {
+    color: Colors.accent,
+    fontWeight: Typography.semibold,
   },
 });

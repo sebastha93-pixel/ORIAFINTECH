@@ -17,6 +17,7 @@ import Svg, {
   Text as SvgText,
   Circle,
 } from 'react-native-svg';
+import { Colors, Spacing, Typography, NumberTextStyles } from '../../theme';
 
 const W = Dimensions.get('window').width;
 const CHART_W = W - 32;
@@ -56,10 +57,10 @@ const DATA: Record<Period, { label: string; income: number; expense: number }[]>
 };
 
 const TOP_CATEGORIES = [
-  { name: 'Comida', emoji: '🍽️', amount: 1250000, color: '#00E5A0', pct: 0.78 },
-  { name: 'Transporte', emoji: '🚗', amount: 480000, color: '#F5A623', pct: 0.30 },
+  { name: 'Comida', emoji: '🍽️', amount: 1250000, color: Colors.accent, pct: 0.78 },
+  { name: 'Transporte', emoji: '🚗', amount: 480000, color: Colors.amber, pct: 0.30 },
   { name: 'Entretenimiento', emoji: '🎮', amount: 380000, color: '#8B5CF6', pct: 0.24 },
-  { name: 'Salud', emoji: '🏥', amount: 210000, color: '#4A9EFF', pct: 0.13 },
+  { name: 'Salud', emoji: '🏥', amount: 210000, color: Colors.info, pct: 0.13 },
 ];
 
 // ─── Helpers ──────────────────────────────────────
@@ -127,12 +128,12 @@ function AreaChart({ data }: { data: { label: string; income: number; expense: n
     <Svg width={CHART_W} height={CHART_H}>
       <Defs>
         <LinearGradient id="incomeGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#00E5A0" stopOpacity="0.35" />
-          <Stop offset="1" stopColor="#00E5A0" stopOpacity="0" />
+          <Stop offset="0" stopColor={Colors.accent} stopOpacity="0.35" />
+          <Stop offset="1" stopColor={Colors.accent} stopOpacity="0" />
         </LinearGradient>
         <LinearGradient id="expenseGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor="#EF4444" stopOpacity="0.25" />
-          <Stop offset="1" stopColor="#EF4444" stopOpacity="0" />
+          <Stop offset="0" stopColor={Colors.danger} stopOpacity="0.25" />
+          <Stop offset="1" stopColor={Colors.danger} stopOpacity="0" />
         </LinearGradient>
       </Defs>
 
@@ -144,14 +145,14 @@ function AreaChart({ data }: { data: { label: string; income: number; expense: n
             y1={gl.y}
             x2={PAD_LEFT + cW}
             y2={gl.y}
-            stroke="#1E2530"
+            stroke={Colors.border}
             strokeWidth={1}
           />
           <SvgText
             x={PAD_LEFT - 6}
             y={gl.y + 4}
             textAnchor="end"
-            fill="#6B7280"
+            fill={Colors.textMuted}
             fontSize={9}
           >
             {gl.label}
@@ -174,17 +175,17 @@ function AreaChart({ data }: { data: { label: string; income: number; expense: n
       <Path
         d={buildPath(incomePoints)}
         fill="none"
-        stroke="#00E5A0"
+        stroke={Colors.accent}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
 
-      {/* Expense line (dashed simulation — using strokeDasharray) */}
+      {/* Expense line (dashed) */}
       <Path
         d={buildPath(expensePoints)}
         fill="none"
-        stroke="#EF4444"
+        stroke={Colors.danger}
         strokeWidth={2}
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -198,7 +199,7 @@ function AreaChart({ data }: { data: { label: string; income: number; expense: n
           x={toX(i)}
           y={bottomY + 18}
           textAnchor="middle"
-          fill="#6B7280"
+          fill={Colors.textMuted}
           fontSize={9}
         >
           {d.label}
@@ -208,26 +209,9 @@ function AreaChart({ data }: { data: { label: string; income: number; expense: n
       {/* Glowing dot on peak income */}
       {peakPt && peakVal > 0 && (
         <>
-          {/* Outer glow ring */}
-          <Circle
-            cx={peakPt.x}
-            cy={peakPt.y}
-            r={8}
-            fill="#00E5A0"
-            opacity={0.25}
-          />
-          <Circle
-            cx={peakPt.x}
-            cy={peakPt.y}
-            r={4}
-            fill="#00E5A0"
-          />
-          <Circle
-            cx={peakPt.x}
-            cy={peakPt.y}
-            r={2}
-            fill="#fff"
-          />
+          <Circle cx={peakPt.x} cy={peakPt.y} r={8} fill={Colors.accent} opacity={0.25} />
+          <Circle cx={peakPt.x} cy={peakPt.y} r={4} fill={Colors.accent} />
+          <Circle cx={peakPt.x} cy={peakPt.y} r={2} fill="#fff" />
         </>
       )}
     </Svg>
@@ -246,7 +230,7 @@ export function AnalysisScreen() {
   return (
     <View style={s.root}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
+        {/* ── HEADER — flat bg #0A0C0F ── */}
         <View style={s.header}>
           <Text style={s.headerTitle}>Análisis</Text>
 
@@ -270,25 +254,25 @@ export function AnalysisScreen() {
           </View>
         </View>
 
-        {/* KPI row */}
+        {/* ── KPI ROW — #111419 background ── */}
         <View style={s.kpiRow}>
-          <KpiCell label="Ingresos" value={totalIncome} color="#00E5A0" />
+          <KpiCell label="Ingresos" value={totalIncome} color={Colors.accent} />
           <View style={s.kpiDivider} />
-          <KpiCell label="Gastos" value={totalExpense} color="#EF4444" />
+          <KpiCell label="Gastos" value={totalExpense} color={Colors.danger} />
           <View style={s.kpiDivider} />
-          <KpiCell label="Neto" value={totalNet} color={totalNet >= 0 ? '#00E5A0' : '#EF4444'} />
+          <KpiCell label="Neto" value={totalNet} color={totalNet >= 0 ? Colors.accent : Colors.danger} />
         </View>
 
-        {/* Chart */}
+        {/* ── AREA CHART ── */}
         <View style={s.chartCard}>
           {/* Legend */}
           <View style={s.legend}>
             <View style={s.legendItem}>
-              <View style={[s.legendDot, { backgroundColor: '#00E5A0' }]} />
+              <View style={[s.legendDot, { backgroundColor: Colors.accent }]} />
               <Text style={s.legendLabel}>Ingresos</Text>
             </View>
             <View style={s.legendItem}>
-              <View style={[s.legendDash, { borderColor: '#EF4444' }]} />
+              <View style={[s.legendDash, { borderColor: Colors.danger }]} />
               <Text style={s.legendLabel}>Gastos</Text>
             </View>
           </View>
@@ -296,7 +280,7 @@ export function AnalysisScreen() {
           <AreaChart data={data} />
         </View>
 
-        {/* Top categories */}
+        {/* ── TOP CATEGORIES ── */}
         <View style={s.section}>
           <Text style={s.sectionTitle}>Top categorías de gasto</Text>
           {TOP_CATEGORIES.map((cat) => (
@@ -337,8 +321,9 @@ function KpiCell({ label, value, color }: { label: string; value: number; color:
 
 // ─── Styles ───────────────────────────────────────
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0A0C0F' },
+  root: { flex: 1, backgroundColor: Colors.background },
 
+  // Header — flat #0A0C0F
   header: {
     paddingTop: Platform.OS === 'ios' ? 56 : 40,
     paddingBottom: 16,
@@ -346,19 +331,22 @@ const s = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    backgroundColor: Colors.background,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#E8E4DC',
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    fontFamily: Typography.fontSansBold,
+    color: Colors.textPrimary,
   },
 
+  // Period toggle
   toggleRow: {
     flexDirection: 'row',
-    backgroundColor: '#111419',
+    backgroundColor: Colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#1E2530',
+    borderColor: Colors.border,
     padding: 3,
   },
   toggleBtn: {
@@ -367,26 +355,26 @@ const s = StyleSheet.create({
     borderRadius: 6,
   },
   toggleBtnActive: {
-    backgroundColor: '#00E5A0',
+    backgroundColor: Colors.accent,
   },
   toggleText: {
     fontSize: 12,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontWeight: Typography.medium,
+    color: Colors.textMuted,
   },
   toggleTextActive: {
-    color: '#0A0C0F',
-    fontWeight: '600',
+    color: Colors.background,
+    fontWeight: Typography.semibold,
   },
 
-  // KPI row
+  // KPI row — #111419
   kpiRow: {
     flexDirection: 'row',
     marginHorizontal: 16,
-    backgroundColor: '#111419',
+    backgroundColor: Colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#1E2530',
+    borderColor: Colors.border,
     marginBottom: 12,
   },
   kpiCell: {
@@ -396,32 +384,29 @@ const s = StyleSheet.create({
   },
   kpiDivider: {
     width: 1,
-    backgroundColor: '#1E2530',
+    backgroundColor: Colors.border,
     marginVertical: 10,
   },
   kpiLabel: {
     fontSize: 10,
-    fontWeight: '500',
-    color: '#6B7280',
+    fontWeight: Typography.medium,
+    color: Colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 4,
   },
   kpiValue: {
-    fontFamily: 'DMSans_600SemiBold',
+    ...NumberTextStyles.kpi,
     fontSize: 16,
-    fontWeight: '600',
-    fontVariant: ['tabular-nums'],
-    letterSpacing: -0.3,
   },
 
-  // Chart
+  // Chart card
   chartCard: {
     marginHorizontal: 16,
-    backgroundColor: '#111419',
+    backgroundColor: Colors.surface,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#1E2530',
+    borderColor: Colors.border,
     paddingTop: 16,
     paddingBottom: 8,
     marginBottom: 20,
@@ -440,14 +425,15 @@ const s = StyleSheet.create({
     borderTopWidth: 2,
     borderStyle: 'dashed',
   },
-  legendLabel: { fontSize: 11, color: '#94A3B8', fontWeight: '500' },
+  legendLabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: Typography.medium },
 
   // Top categories
   section: { paddingHorizontal: 16 },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#E8E4DC',
+    fontSize: Typography.md,
+    fontWeight: Typography.bold,
+    fontFamily: Typography.fontSansBold,
+    color: Colors.textPrimary,
     marginBottom: 14,
   },
   catRow: {
@@ -465,18 +451,16 @@ const s = StyleSheet.create({
   },
   catName: {
     fontSize: 13,
-    fontWeight: '500',
-    color: '#E8E4DC',
+    fontWeight: Typography.medium,
+    color: Colors.textPrimary,
   },
   catAmt: {
-    fontFamily: 'DMSans_500Medium',
+    ...NumberTextStyles.amount,
     fontSize: 13,
-    fontWeight: '500',
-    fontVariant: ['tabular-nums'],
   },
   barTrack: {
     height: 4,
-    backgroundColor: '#1A1E25',
+    backgroundColor: Colors.surfaceElevated,
     borderRadius: 2,
     overflow: 'hidden',
   },

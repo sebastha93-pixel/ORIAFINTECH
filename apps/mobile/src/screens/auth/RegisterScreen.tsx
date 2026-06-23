@@ -10,8 +10,8 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Pressable,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { register, clearError } from '../../store/slices/authSlice';
@@ -20,9 +20,9 @@ import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 export function RegisterScreen({ navigation }: { navigation: { navigate: (screen: string) => void; goBack: () => void } }) {
   const dispatch = useAppDispatch();
   const { isLoading, error } = useAppSelector((s) => s.auth);
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [fullName, setFullName]   = useState('');
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleRegister = async () => {
@@ -40,16 +40,16 @@ export function RegisterScreen({ navigation }: { navigation: { navigate: (screen
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-      <LinearGradient colors={['#0A0A1F', '#0A0A0F']} style={StyleSheet.absoluteFillObject} />
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={navigation.goBack}>
             <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
           </TouchableOpacity>
-          <LinearGradient colors={[Colors.primary, Colors.primaryDark]} style={styles.logoGradient}>
-            <Text style={styles.logoText}>N</Text>
-          </LinearGradient>
+          {/* ORIA logo — accent sparkles icon */}
+          <View style={styles.logoIconBg}>
+            <Ionicons name="sparkles" size={28} color={Colors.accent} />
+          </View>
           <Text style={styles.title}>Crea tu cuenta</Text>
           <Text style={styles.subtitle}>Empieza a construir tu futuro financiero hoy</Text>
         </View>
@@ -62,6 +62,7 @@ export function RegisterScreen({ navigation }: { navigation: { navigate: (screen
             </View>
           )}
 
+          {/* Input fields: surface2 bg, borderLight border */}
           <View style={styles.inputWrapper}>
             <Ionicons name="person-outline" size={20} color={Colors.textMuted} style={styles.inputIcon} />
             <TextInput
@@ -103,15 +104,21 @@ export function RegisterScreen({ navigation }: { navigation: { navigate: (screen
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity onPress={handleRegister} disabled={isLoading} style={styles.btnWrapper}>
-            <LinearGradient colors={[Colors.primary, Colors.primaryDark]} style={styles.btn}>
-              {isLoading ? (
-                <ActivityIndicator color={Colors.textPrimary} />
-              ) : (
-                <Text style={styles.btnText}>Crear cuenta gratuita</Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
+          {/* Primary button — flat accent bg */}
+          <Pressable
+            onPress={handleRegister}
+            disabled={isLoading}
+            style={({ pressed }) => [
+              styles.btn,
+              pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
+            ]}
+          >
+            {isLoading ? (
+              <ActivityIndicator color={Colors.background} />
+            ) : (
+              <Text style={styles.btnText}>Crear cuenta gratuita</Text>
+            )}
+          </Pressable>
 
           <Text style={styles.terms}>
             Al registrarte, aceptas nuestros{' '}
@@ -136,23 +143,47 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.xl, paddingTop: 60, paddingBottom: 40 },
   header: { alignItems: 'center', marginBottom: Spacing.xl },
   backBtn: { position: 'absolute', left: 0, top: 0, padding: Spacing.xs },
-  logoGradient: { width: 64, height: 64, borderRadius: BorderRadius.xl, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.md },
-  logoText: { color: Colors.textPrimary, fontSize: 28, fontWeight: Typography.bold },
-  title: { color: Colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.bold, marginBottom: Spacing.xs },
+  // ORIA logo — accentBg circle with sparkle icon
+  logoIconBg: {
+    width: 68, height: 68, borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.accentBg,
+    justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.md,
+  },
+  title: {
+    color: Colors.textPrimary, fontSize: Typography.xl,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold, marginBottom: Spacing.xs,
+  },
   subtitle: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center' },
   form: { gap: Spacing.md },
-  errorBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, backgroundColor: Colors.danger + '20', borderRadius: BorderRadius.md, padding: Spacing.sm, borderWidth: 1, borderColor: Colors.danger + '40' },
+  errorBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: Colors.dangerBg, borderRadius: 8,
+    padding: Spacing.sm, borderWidth: 1, borderColor: Colors.danger + '40',
+  },
   errorText: { color: Colors.danger, fontSize: Typography.sm, flex: 1 },
-  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md },
+  // Input fields: surface2 bg, borderLight border
+  inputWrapper: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: Colors.surfaceMid, borderRadius: 8,
+    borderWidth: 1, borderColor: Colors.borderLight,
+    paddingHorizontal: Spacing.md,
+  },
   inputIcon: { marginRight: Spacing.sm },
   input: { flex: 1, height: 52, color: Colors.textPrimary, fontSize: Typography.base },
   eyeBtn: { padding: Spacing.xs },
-  btnWrapper: {},
-  btn: { height: 52, borderRadius: BorderRadius.lg, justifyContent: 'center', alignItems: 'center' },
-  btnText: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: Typography.bold },
+  // Primary button — flat accent bg, 10px radius
+  btn: {
+    height: 52, borderRadius: 10,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  btnText: {
+    color: Colors.background, fontSize: Typography.base,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold,
+  },
   terms: { color: Colors.textMuted, fontSize: Typography.xs, textAlign: 'center', lineHeight: 18 },
-  link: { color: Colors.primary },
+  link: { color: Colors.accent },
   loginRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   loginText: { color: Colors.textSecondary, fontSize: Typography.sm },
-  loginLink: { color: Colors.primary, fontSize: Typography.sm, fontWeight: Typography.semibold },
+  loginLink: { color: Colors.accent, fontSize: Typography.sm, fontWeight: Typography.semibold },
 });

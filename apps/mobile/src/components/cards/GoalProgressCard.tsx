@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Goal } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
@@ -18,19 +17,17 @@ export function GoalProgressCard({
   const progress = Math.min(goal.progress_percentage || 0, 100);
   const color    = goal.color || Colors.accent;
   const icon     = goal.icon  || 'flag';
+  const remaining = Number(goal.target_amount) - Number(goal.current_amount);
 
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        {
-          opacity: pressed ? 0.72 : 1,
-          transform: [{ scale: pressed ? 0.97 : 1 }],
-        },
+        pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
       ]}
       onPress={onPress}
     >
-      <LinearGradient colors={Colors.gradientCard} style={styles.inner}>
+      <View style={styles.inner}>
         {/* Header */}
         <View style={styles.header}>
           <View style={[styles.iconBg, { backgroundColor: color + '20' }]}>
@@ -42,12 +39,10 @@ export function GoalProgressCard({
             <Text style={styles.type}>{typeLabel(goal.goal_type)}</Text>
           </View>
 
-          <View style={styles.pctBlock}>
-            <Text style={[styles.pct, { color }]}>{progress.toFixed(0)}%</Text>
-          </View>
+          <Text style={[styles.pct, { color }]}>{progress.toFixed(0)}%</Text>
         </View>
 
-        {/* Progress bar */}
+        {/* Progress bar — accent or goal color */}
         <View style={styles.barBg}>
           <View
             style={[
@@ -76,13 +71,13 @@ export function GoalProgressCard({
             </View>
           )}
           {goal.months_to_goal === 0 && (
-            <View style={[styles.timeChip, { backgroundColor: Colors.successBg }]}>
-              <Ionicons name="checkmark-circle" size={11} color={Colors.success} />
-              <Text style={[styles.timeText, { color: Colors.success }]}>Meta alcanzada</Text>
+            <View style={[styles.timeChip, { backgroundColor: Colors.accentBg }]}>
+              <Ionicons name="checkmark-circle" size={11} color={Colors.accent} />
+              <Text style={[styles.timeText, { color: Colors.accent }]}>Meta alcanzada</Text>
             </View>
           )}
         </View>
-      </LinearGradient>
+      </View>
     </Pressable>
   );
 }
@@ -104,31 +99,35 @@ function typeLabel(type: string): string {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: BorderRadius.xl,
+    borderRadius: 8,
     overflow: 'hidden',
     marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: Colors.border,
+    backgroundColor: Colors.surface,
   },
   inner: { padding: Spacing.md },
 
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
   iconBg: {
-    width: 40, height: 40, borderRadius: BorderRadius.md,
+    width: 40, height: 40, borderRadius: 10,
     justifyContent: 'center', alignItems: 'center',
   },
   titleBlock: { flex: 1 },
-  name: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: Typography.semibold },
+  name: {
+    color: Colors.textPrimary, fontSize: Typography.base,
+    fontWeight: Typography.semibold, fontFamily: Typography.fontSansSemibold,
+  },
   type: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
-  pctBlock: {},
+  // Percentage in DM Sans 600
   pct: { ...NumberTextStyles.percentageLg, fontSize: Typography.lg },
 
   barBg: {
-    height: 8, backgroundColor: Colors.surfaceMid,
-    borderRadius: BorderRadius.full, overflow: 'hidden',
+    height: 6, backgroundColor: Colors.border,
+    borderRadius: 3, overflow: 'hidden',
     marginBottom: Spacing.sm,
   },
-  barFill: { height: '100%', borderRadius: BorderRadius.full },
+  barFill: { height: '100%', borderRadius: 3 },
 
   footer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   current: { ...NumberTextStyles.amountSm, color: Colors.textPrimary },
@@ -136,7 +135,7 @@ const styles = StyleSheet.create({
   target: { ...NumberTextStyles.amountSm, color: Colors.textMuted, flex: 1 },
   timeChip: {
     flexDirection: 'row', alignItems: 'center', gap: 3,
-    backgroundColor: Colors.surfaceMid, borderRadius: BorderRadius.full,
+    backgroundColor: Colors.surfaceElevated, borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.sm, paddingVertical: 3,
   },
   timeText: { color: Colors.textMuted, fontSize: 10 },

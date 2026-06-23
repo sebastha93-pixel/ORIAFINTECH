@@ -4,7 +4,6 @@ import {
   ScrollView, Platform, ActivityIndicator, Alert, Modal,
   KeyboardAvoidingView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { api } from '../../services/api';
@@ -87,13 +86,13 @@ export function AddTransactionScreen({ onClose, onSaved }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Header */}
-      <LinearGradient colors={['#0D1B3E', Colors.background]} style={s.header}>
+      <View style={s.header}>
         <TouchableOpacity style={s.closeBtn} onPress={onClose}>
           <Ionicons name="close" size={22} color={Colors.textSecondary} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Nuevo movimiento</Text>
         <View style={{ width: 34 }} />
-      </LinearGradient>
+      </View>
 
       <ScrollView style={s.scroll} contentContainerStyle={s.content} keyboardShouldPersistTaps="handled">
         {/* Type toggle */}
@@ -176,20 +175,19 @@ export function AddTransactionScreen({ onClose, onSaved }: Props) {
           </View>
         </View>
 
-        {/* Save button */}
-        <TouchableOpacity style={s.saveWrap} onPress={handleSave} disabled={isSaving}>
-          <LinearGradient
-            colors={isIncome ? Colors.gradientAccent : [Colors.primaryGlow, Colors.primary] as [string,string]}
-            style={s.saveBtn}
-          >
-            {isSaving
-              ? <ActivityIndicator color="#fff" />
-              : <>
-                  <Ionicons name="checkmark" size={20} color="#fff" />
-                  <Text style={s.saveBtnText}>Guardar movimiento</Text>
-                </>
-            }
-          </LinearGradient>
+        {/* Save button — flat accent bg */}
+        <TouchableOpacity
+          style={[s.saveWrap, { backgroundColor: Colors.accent }]}
+          onPress={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving
+            ? <ActivityIndicator color={Colors.background} />
+            : <>
+                <Ionicons name="checkmark" size={20} color={Colors.background} />
+                <Text style={[s.saveBtnText, { color: Colors.background }]}>Guardar movimiento</Text>
+              </>
+          }
         </TouchableOpacity>
       </ScrollView>
 
@@ -203,7 +201,7 @@ export function AddTransactionScreen({ onClose, onSaved }: Props) {
           label: a.name,
           sub: a.institution || a.account_type,
           icon: 'card' as const,
-          color: (Colors.accounts as Record<string, string>)[a.account_type] || Colors.primary,
+          color: (Colors.accounts as Record<string, string>)[a.account_type] || Colors.accent,
         }))}
         selected={accountId}
         onSelect={(id) => { setAccountId(id); setShowAccPicker(false); }}
@@ -282,6 +280,8 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingTop: Platform.OS === 'ios' ? 56 : 40,
     paddingBottom: Spacing.md, paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.background,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
   closeBtn: { padding: 4 },
   headerTitle: { color: Colors.textPrimary, fontSize: Typography.md, fontWeight: Typography.bold },
@@ -300,7 +300,7 @@ const s = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   typeBtnIncome: { backgroundColor: Colors.accent },
-  typeBtnExpense: { backgroundColor: Colors.primaryGlow },
+  typeBtnExpense: { backgroundColor: Colors.danger },
   typeBtnText: { color: Colors.textMuted, fontSize: Typography.base, fontWeight: Typography.medium },
   typeBtnTextActive: { color: '#fff', fontWeight: Typography.semibold },
 
@@ -326,12 +326,17 @@ const s = StyleSheet.create({
   fieldValue: { flex: 1, color: Colors.textPrimary, fontSize: Typography.base },
   fieldPlaceholder: { flex: 1, color: Colors.textMuted, fontSize: Typography.base },
 
-  saveWrap: { borderRadius: BorderRadius.lg, overflow: 'hidden', marginTop: Spacing.md },
+  // Save button — flat accent, 10px radius
+  saveWrap: {
+    borderRadius: 10, marginTop: Spacing.md,
+    height: 56, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'center', gap: Spacing.sm,
+  },
   saveBtn: {
     height: 56, flexDirection: 'row', alignItems: 'center',
     justifyContent: 'center', gap: Spacing.sm,
   },
-  saveBtnText: { color: '#fff', fontSize: Typography.base, fontWeight: Typography.bold },
+  saveBtnText: { color: Colors.background, fontSize: Typography.base, fontWeight: Typography.bold },
 });
 
 const pm = StyleSheet.create({

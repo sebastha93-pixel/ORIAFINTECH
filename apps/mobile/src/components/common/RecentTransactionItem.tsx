@@ -16,11 +16,11 @@ export function RecentTransactionItem({ transaction, currency }: { transaction: 
 
   return (
     <View style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: (cat?.color || Colors.primary) + '20' }]}>
+      <View style={[styles.icon, { backgroundColor: (cat?.color || Colors.textMuted) + '20' }]}>
         <Ionicons
           name={((cat?.icon || 'swap-horizontal') as 'swap-horizontal')}
           size={18}
-          color={cat?.color || Colors.primary}
+          color={cat?.color || Colors.textMuted}
         />
       </View>
       <View style={styles.info}>

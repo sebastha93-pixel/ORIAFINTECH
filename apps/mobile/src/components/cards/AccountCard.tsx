@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
@@ -38,69 +37,76 @@ export function AccountCard({
   onPress?: () => void;
 }) {
   const isNegative = Number(account.current_balance) < 0;
-  const cardColor = account.color || Colors.accounts[account.account_type] || Colors.primary;
+  // Use ORIA account colors from theme, fallback to accent
+  const cardColor = account.color || (Colors.accounts as Record<string, string>)[account.account_type] || Colors.accent;
   const iconName = ACCOUNT_ICONS[account.account_type] || 'card';
 
   return (
     <Pressable
       style={({ pressed }) => [
         styles.wrapper,
-        {
-          opacity: pressed ? 0.72 : 1,
-          transform: [{ scale: pressed ? 0.97 : 1 }],
-        },
+        pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
       ]}
       onPress={onPress}
     >
-      <LinearGradient
-        colors={[cardColor + 'CC', cardColor + '88']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.card}
-      >
-        {/* Top row */}
-        <View style={styles.top}>
-          <View style={styles.iconWrap}>
-            <Ionicons name={iconName as 'card'} size={18} color="#fff" />
+      {/* Flat surface card with colored left accent */}
+      <View style={styles.card}>
+        {/* Left color accent strip */}
+        <View style={[styles.accentBar, { backgroundColor: cardColor }]} />
+
+        <View style={styles.content}>
+          {/* Bank logo circle + type */}
+          <View style={styles.top}>
+            <View style={[styles.logoCircle, { backgroundColor: cardColor + '20' }]}>
+              <Ionicons name={iconName as 'card'} size={16} color={cardColor} />
+            </View>
+            <View>
+              <Text style={styles.type}>{ACCOUNT_LABELS[account.account_type]}</Text>
+              {account.institution && (
+                <Text style={styles.institution} numberOfLines={1}>{account.institution}</Text>
+              )}
+            </View>
           </View>
-          <Text style={styles.type}>{ACCOUNT_LABELS[account.account_type]}</Text>
-        </View>
 
-        {/* Institution */}
-        {account.institution && (
-          <Text style={styles.institution} numberOfLines={1}>
-            {account.institution}
+          {/* Account name */}
+          <Text style={styles.name} numberOfLines={1}>{account.name}</Text>
+
+          {/* Balance — DM Sans 500 tabular */}
+          <Text style={[styles.balance, isNegative && { color: Colors.danger }]}>
+            {formatCurrency(Number(account.current_balance), currency, true)}
           </Text>
-        )}
-
-        {/* Name */}
-        <Text style={styles.name} numberOfLines={1}>{account.name}</Text>
-
-        {/* Balance */}
-        <Text style={[styles.balance, isNegative && { color: '#FDA4AF' }]}>
-          {formatCurrency(Number(account.current_balance), currency, true)}
-        </Text>
-      </LinearGradient>
+        </View>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  wrapper: { borderRadius: BorderRadius.lg, overflow: 'hidden' },
+  wrapper: { borderRadius: 8, overflow: 'hidden' },
   card: {
     width: 140,
-    padding: Spacing.md,
-    gap: 4,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 8,
+    backgroundColor: Colors.surface,
+    borderWidth: 1, borderColor: Colors.border,
+    flexDirection: 'row',
+    overflow: 'hidden',
   },
-  top: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginBottom: Spacing.xs },
-  iconWrap: {
-    width: 28, height: 28, borderRadius: BorderRadius.xs,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  // Left accent strip
+  accentBar: { width: 3 },
+  content: { flex: 1, padding: Spacing.md, gap: 4 },
+  top: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: 4 },
+  logoCircle: {
+    width: 30, height: 30, borderRadius: 15,
     justifyContent: 'center', alignItems: 'center',
   },
-  type: { color: 'rgba(255,255,255,0.8)', fontSize: Typography.xs },
-  institution: { color: 'rgba(255,255,255,0.6)', fontSize: Typography.xs },
-  name: { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.semibold },
-  balance: { ...NumberTextStyles.amount, color: '#fff', fontSize: Typography.md, marginTop: 4 },
+  type: { color: Colors.textSecondary, fontSize: Typography.xs },
+  institution: { color: Colors.textMuted, fontSize: 10 },
+  name: {
+    color: Colors.textPrimary, fontSize: Typography.sm,
+    fontWeight: Typography.semibold, fontFamily: Typography.fontSansSemibold,
+  },
+  balance: {
+    ...NumberTextStyles.amount,
+    color: Colors.textPrimary, fontSize: Typography.sm, marginTop: 4,
+  },
 });

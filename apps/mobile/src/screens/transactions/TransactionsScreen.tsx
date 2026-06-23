@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Pressable,
-  TextInput, RefreshControl, Platform,
+  TextInput, ActivityIndicator, RefreshControl, Platform, Modal,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
+import { Colors, Spacing, Typography, BorderRadius, NumberTextStyles } from '../../theme';
 import { api } from '../../services/api';
 import { Transaction } from '../../types';
-import { TransactionRow } from '../../components/common/TransactionRow';
-import { TransactionDetailSheet } from '../../components/common/TransactionDetailSheet';
-import { SkeletonTransactionList } from '../../components/skeleton';
-import { EmptyState } from '../../components/common/EmptyState';
+import { AddTransactionScreen } from './AddTransactionScreen';
 
 // ─── helpers ───────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -22,14 +18,27 @@ const fmtDate = (iso: string) => {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 };
 
-// Flat list item for getItemLayout — each transaction row is 56px
-// Date headers are approximated at 32px
-type FlatItem =
-  | { kind: 'header'; date: string; label: string }
-  | { kind: 'row'; transaction: Transaction };
+const groupByDate = (txns: Transaction[]) => {
+  const map: Record<string, Transaction[]> = {};
+  txns.forEach((t) => {
+    const key = t.date.slice(0, 10);
+    if (!map[key]) map[key] = [];
+    map[key].push(t);
+  });
+  return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
+};
 
+const CATEGORY_ICONS: Record<string, string> = {
+  Salario: 'briefcase', Freelance: 'laptop', Inversiones: 'trending-up',
+  Vivienda: 'home', Alimentación: 'restaurant', Transporte: 'car',
+  Entretenimiento: 'game-controller', Salud: 'medkit', Educación: 'school',
+  Ropa: 'shirt', Tecnología: 'phone-portrait', Viajes: 'airplane',
+  Deporte: 'fitness', Mascotas: 'paw', Regalos: 'gift',
+  Suscripciones: 'repeat', Impuestos: 'document-text',
+};
+
+// Row height constant for FlatList
 const ROW_HEIGHT = 56;
-const HEADER_HEIGHT = 32;
 
 // ─── Component ─────────────────────────────────────────────
 type FilterType = 'all' | 'income' | 'expense';
@@ -44,10 +53,7 @@ export function TransactionsScreen() {
   const [hasMore, setHasMore]           = useState(true);
   const [income, setIncome]             = useState(0);
   const [expense, setExpense]           = useState(0);
-
-  // Detail sheet state
-  const [selectedTx, setSelectedTx]   = useState<Transaction | null>(null);
-  const [sheetVisible, setSheetVisible] = useState(false);
+  const [showAdd, setShowAdd]           = useState(false);
 
   const load = useCallback(async (reset = false) => {
     try {
@@ -95,77 +101,75 @@ export function TransactionsScreen() {
     load(true);
   }, [load]);
 
-  // Build flat items array for FlatList with getItemLayout support
-  const flatItems = useCallback((): FlatItem[] => {
-    const result: FlatItem[] = [];
-    const grouped: Record<string, Transaction[]> = {};
-    transactions.forEach((t) => {
-      const key = t.date.slice(0, 10);
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(t);
-    });
-    Object.entries(grouped)
-      .sort(([a], [b]) => b.localeCompare(a))
-      .forEach(([date, items]) => {
-        const d = new Date(date + 'T12:00:00');
-        const label = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'long' });
-        result.push({ kind: 'header', date, label });
-        items.forEach((t) => result.push({ kind: 'row', transaction: t }));
-      });
-    return result;
-  }, [transactions]);
+  // ── Render helpers ────────────────────────────────────────
+  const renderTxn = (item: Transaction) => {
+    const isIncome   = item.transaction_type === 'income';
+    const isTransfer = item.transaction_type === 'transfer';
+    const catName    = item.category?.name || '';
+    const iconName   = CATEGORY_ICONS[catName] || (isIncome ? 'arrow-down-circle' : 'arrow-up-circle');
+    const iconColor  = item.category?.color || (isIncome ? Colors.accent : Colors.textMuted);
 
-  const items = flatItems();
+    // Amount color: income = accent, expense = textPrimary, transfer = textSecondary
+    const amtColor = isIncome ? Colors.accent : isTransfer ? Colors.textSecondary : Colors.textPrimary;
+    const amtPrefix = isIncome ? '+' : isTransfer ? '' : '-';
 
-  const getItemLayout = useCallback(
-    (_: any, index: number) => {
-      let offset = 0;
-      let length = ROW_HEIGHT;
-      for (let i = 0; i < index; i++) {
-        const item = items[i];
-        offset += item?.kind === 'header' ? HEADER_HEIGHT : ROW_HEIGHT;
-      }
-      if (items[index]?.kind === 'header') length = HEADER_HEIGHT;
-      return { length, offset, index };
-    },
-    [items]
-  );
-
-  const openDetail = useCallback((tx: Transaction) => {
-    setSelectedTx(tx);
-    setSheetVisible(true);
-  }, []);
-
-  const closeDetail = useCallback(() => {
-    setSheetVisible(false);
-  }, []);
-
-  const renderItem = useCallback(({ item }: { item: FlatItem }) => {
-    if (item.kind === 'header') {
-      return <Text style={s.dateLabel}>{item.label}</Text>;
-    }
     return (
-      <TransactionRow
-        transaction={item.transaction}
-        currency="COP"
-        onPress={() => openDetail(item.transaction)}
-      />
+      <Pressable
+        key={item.id}
+        style={({ pressed }) => [
+          s.txnRow,
+          pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
+        ]}
+      >
+        <View style={[s.txnIcon, { backgroundColor: (item.category?.color || iconColor) + '20' }]}>
+          <Ionicons name={iconName as 'home'} size={18} color={iconColor} />
+        </View>
+        <View style={s.txnMeta}>
+          <Text style={s.txnDesc} numberOfLines={1}>
+            {item.description || catName || 'Transacción'}
+          </Text>
+          <Text style={s.txnSub}>
+            {item.account?.name || '—'}  ·  {fmtDate(item.date)}
+          </Text>
+        </View>
+        <Text style={[s.txnAmt, { color: amtColor }]}>
+          {amtPrefix}{fmt(item.amount)}
+        </Text>
+      </Pressable>
     );
-  }, [openDetail]);
+  };
 
-  const keyExtractor = useCallback((item: FlatItem) => {
-    return item.kind === 'header' ? `h-${item.date}` : `r-${item.transaction.id}`;
-  }, []);
+  const groups = groupByDate(transactions);
+
+  const renderSection = ({ item: [date, items] }: { item: [string, Transaction[]] }) => {
+    const d = new Date(date + 'T12:00:00');
+    const label = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'long' });
+    return (
+      <View>
+        {/* Month section header: DM Mono 9px uppercase muted */}
+        <Text style={s.dateLabel}>{label}</Text>
+        <View style={s.dayGroup}>
+          {items.map((t, i) => (
+            <View key={t.id}>
+              {renderTxn(t)}
+              {/* Flat divider between rows */}
+              {i < items.length - 1 && <View style={s.rowDivider} />}
+            </View>
+          ))}
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={s.root}>
-      {/* Header */}
-      <LinearGradient colors={['#0D1B3E', Colors.background]} style={s.header}>
+      {/* ── HEADER — flat bg, no gradient ── */}
+      <View style={s.header}>
         <Text style={s.headerTitle}>Movimientos</Text>
 
         {/* Summary pills */}
         <View style={s.summaryRow}>
-          <View style={[s.summaryPill, { backgroundColor: Colors.successBg }]}>
+          <View style={[s.summaryPill, { backgroundColor: Colors.accentBg }]}>
             <Ionicons name="arrow-down" size={12} color={Colors.accent} />
             <Text style={[s.summaryVal, { color: Colors.accent }]}>{fmt(income)}</Text>
           </View>
@@ -174,9 +178,9 @@ export function TransactionsScreen() {
             <Text style={[s.summaryVal, { color: Colors.danger }]}>{fmt(expense)}</Text>
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
-      {/* Search */}
+      {/* ── SEARCH ── */}
       <View style={s.searchWrap}>
         <Ionicons name="search-outline" size={16} color={Colors.textMuted} style={s.searchIcon} />
         <TextInput
@@ -194,7 +198,7 @@ export function TransactionsScreen() {
         )}
       </View>
 
-      {/* Filter tabs */}
+      {/* ── FILTER CHIPS ── */}
       <View style={s.filterRow}>
         {(['all', 'income', 'expense'] as FilterType[]).map((f) => (
           <Pressable
@@ -213,43 +217,63 @@ export function TransactionsScreen() {
         ))}
       </View>
 
-      {/* List */}
+      {/* ── LIST ── */}
       {isLoading ? (
-        <SkeletonTransactionList rows={7} />
+        <ActivityIndicator color={Colors.accent} style={{ flex: 1 }} />
       ) : transactions.length === 0 ? (
-        <EmptyState
-          icon={<Ionicons name="swap-horizontal" size={28} color={Colors.accent} />}
-          title={filter === 'income' ? 'Sin ingresos' : filter === 'expense' ? 'Sin gastos' : 'Sin movimientos'}
-          subtitle={
-            filter === 'income' ? 'No tienes ingresos registrados este período.'
-            : filter === 'expense' ? 'No tienes gastos registrados este período.'
-            : 'Usa el botón + para registrar tu primer movimiento.'
-          }
-          ctaLabel={filter === 'all' ? 'Agregar movimiento' : undefined}
-        />
+        <View style={s.empty}>
+          <View style={s.emptyIcon}>
+            <Ionicons name="list-outline" size={32} color={Colors.textMuted} />
+          </View>
+          <Text style={s.emptyTitle}>
+            {filter === 'income' ? 'Sin ingresos'
+              : filter === 'expense' ? 'Sin gastos'
+              : 'Sin movimientos'}
+          </Text>
+          <Text style={s.emptySub}>
+            {filter === 'income' ? 'No tienes ingresos registrados este período.'
+              : filter === 'expense' ? 'No tienes gastos registrados este período.'
+              : 'Usa el botón + para registrar tu primer movimiento.'}
+          </Text>
+        </View>
       ) : (
         <FlatList
-          data={items}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
+          data={groups}
+          keyExtractor={([date]) => date}
+          renderItem={renderSection}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
-          getItemLayout={getItemLayout}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />
           }
           onEndReached={() => hasMore && load()}
           onEndReachedThreshold={0.4}
-          removeClippedSubviews
+          ListFooterComponent={
+            hasMore
+              ? <ActivityIndicator color={Colors.accent} style={{ marginVertical: 16 }} />
+              : null
+          }
         />
       )}
 
-      {/* Transaction Detail Sheet */}
-      <TransactionDetailSheet
-        transaction={selectedTx}
-        visible={sheetVisible}
-        onClose={closeDetail}
-      />
+      {/* ── FAB + button (bottom-right, above nav) ── */}
+      <Pressable
+        style={({ pressed }) => [
+          s.fab,
+          pressed && { opacity: 0.72, transform: [{ scale: 0.97 }] },
+        ]}
+        onPress={() => setShowAdd(true)}
+      >
+        <Ionicons name="add" size={26} color={Colors.background} />
+      </Pressable>
+
+      {/* Add Transaction modal */}
+      <Modal visible={showAdd} animationType="slide" presentationStyle="pageSheet">
+        <AddTransactionScreen
+          onClose={() => setShowAdd(false)}
+          onSaved={() => { setShowAdd(false); load(true); }}
+        />
+      </Modal>
     </View>
   );
 }
@@ -258,59 +282,118 @@ export function TransactionsScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
+  // Header — flat, no gradient
   header: {
     paddingTop: Platform.OS === 'ios' ? 56 : 40,
     paddingBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.background,
     gap: Spacing.sm,
   },
-  headerTitle: { color: Colors.textPrimary, fontSize: Typography.xl, fontWeight: Typography.bold },
+  headerTitle: {
+    color: Colors.textPrimary, fontSize: Typography.xl,
+    fontWeight: Typography.bold, fontFamily: Typography.fontSansBold,
+  },
   summaryRow: { flexDirection: 'row', gap: Spacing.sm },
   summaryPill: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: Spacing.sm, paddingVertical: 4,
     borderRadius: BorderRadius.full,
   },
-  summaryVal: { fontSize: Typography.xs, fontWeight: Typography.semibold },
+  summaryVal: {
+    ...NumberTextStyles.percentageSm,
+    fontSize: Typography.xs,
+  },
 
+  // Search — surface2 bg
   searchWrap: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.surface,
+    backgroundColor: Colors.surfaceMid,
     marginHorizontal: Spacing.lg, marginBottom: Spacing.sm,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 8,
     paddingHorizontal: Spacing.md,
-    borderWidth: 1, borderColor: Colors.border,
+    borderWidth: 1, borderColor: Colors.borderLight,
     height: 44,
   },
   searchIcon: { marginRight: Spacing.xs },
   searchInput: { flex: 1, color: Colors.textPrimary, fontSize: Typography.base },
 
+  // Filter chips
   filterRow: {
     flexDirection: 'row',
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 8,
     padding: 3,
     borderWidth: 1, borderColor: Colors.border,
   },
   filterTab: {
     flex: 1, paddingVertical: Spacing.xs + 2,
-    borderRadius: BorderRadius.md,
+    borderRadius: 6,
     alignItems: 'center',
   },
   filterTabActive: { backgroundColor: Colors.accent },
   filterTabText: { color: Colors.textMuted, fontSize: Typography.sm, fontWeight: Typography.medium },
-  filterTabTextActive: { color: '#fff', fontWeight: Typography.semibold },
+  filterTabTextActive: { color: Colors.background, fontWeight: Typography.semibold },
 
   list: { paddingHorizontal: Spacing.lg, paddingBottom: 120 },
 
+  // Month section header: DM Mono 9px uppercase muted
   dateLabel: {
-    color: Colors.textMuted, fontSize: Typography.xs,
-    fontWeight: Typography.semibold, textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    height: HEADER_HEIGHT,
-    lineHeight: HEADER_HEIGHT,
-    paddingTop: 8,
+    color: Colors.textMuted, fontSize: 9,
+    fontFamily: Typography.fontMono,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginTop: Spacing.md, marginBottom: 4,
+  },
+
+  // Day group container with rounded corners
+  dayGroup: {
+    backgroundColor: Colors.surface,
+    borderRadius: 8,
+    borderWidth: 1, borderColor: Colors.border,
+    overflow: 'hidden',
+    marginBottom: Spacing.xs,
+  },
+
+  // Transaction row — exactly 56px, flat
+  txnRow: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    height: ROW_HEIGHT,
+    paddingHorizontal: Spacing.md,
+  },
+  // Divider between rows (no divider after last row)
+  rowDivider: {
+    height: 1, backgroundColor: Colors.border,
+    marginHorizontal: Spacing.md,
+  },
+  txnIcon: { width: 36, height: 36, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  txnMeta: { flex: 1 },
+  txnDesc: { color: Colors.textPrimary, fontSize: Typography.sm, fontWeight: Typography.medium },
+  txnSub: { color: Colors.textMuted, fontSize: 10, marginTop: 1 },
+  txnAmt: {
+    ...NumberTextStyles.amount,
+    fontSize: Typography.sm,
+  },
+
+  // Empty state
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
+  emptyIcon: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: Colors.surfaceElevated,
+    justifyContent: 'center', alignItems: 'center',
+  },
+  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold },
+  emptySub: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center', lineHeight: 22 },
+
+  // FAB — accent bg, bottom-right above nav
+  fab: {
+    position: 'absolute',
+    bottom: 80,
+    right: Spacing.lg,
+    width: 52, height: 52, borderRadius: 10,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center', alignItems: 'center',
   },
 });
