@@ -15,11 +15,11 @@ interface Goal {
 }
 
 const TYPE_META: Record<string, { label: string; icon: string; color: string }> = {
-  savings:        { label: 'Ahorro',           icon: '💰', color: '#31D67B' },
+  savings:        { label: 'Ahorro',           icon: '💰', color: '#00E5A0' },
   debt_payoff:    { label: 'Pago deuda',        icon: '💳', color: '#EF4444' },
   investment:     { label: 'Inversión',         icon: '📈', color: '#8B5CF6' },
   emergency_fund: { label: 'Fondo emergencia',  icon: '🛡️', color: '#F59E0B' },
-  purchase:       { label: 'Compra',            icon: '🛍️', color: '#3B82F6' },
+  purchase:       { label: 'Compra',            icon: '🛍️', color: '#4A9EFF' },
   retirement:     { label: 'Retiro',            icon: '🌅', color: '#F97316' },
   travel:         { label: 'Viaje',             icon: '✈️', color: '#06B6D4' },
   education:      { label: 'Educación',         icon: '🎓', color: '#EC4899' },
@@ -61,7 +61,7 @@ export function GoalsScreen({ userId }: { userId: string }) {
 
   return (
     <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
-      <div style={{ background: 'linear-gradient(160deg,#102040,#081426)', padding: '48px 20px 24px' }}>
+      <div style={{ background: 'linear-gradient(160deg,#0E1620,#0A0C0F)', padding: '48px 20px 24px' }}>
         <div style={{ color: C.text, fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Metas financieras</div>
         <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>Tu progreso hacia la libertad</div>
 
@@ -77,7 +77,7 @@ export function GoalsScreen({ userId }: { userId: string }) {
             </div>
           </div>
           <div style={{ height: 8, background: C.border, borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ width: `${overallPct}%`, height: '100%', background: `linear-gradient(90deg,${C.accent},${C.primaryGlow})`, borderRadius: 4, transition: 'width 0.8s ease' }} />
+            <div style={{ width: `${overallPct}%`, height: '100%', background: `linear-gradient(90deg,${C.accent},#00B87A)`, borderRadius: 4, transition: 'width 0.8s ease' }} />
           </div>
         </div>
       </div>
@@ -292,7 +292,7 @@ function NewGoalModal({ userId, onClose, onSaved }: { userId: string; onClose: (
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,20,38,0.92)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,12,15,0.92)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: C.border, margin: '0 auto 20px' }} />
@@ -347,7 +347,7 @@ function NewGoalModal({ userId, onClose, onSaved }: { userId: string; onClose: (
         <button onClick={handleSave} disabled={saving || !name.trim() || !target}
           style={{
             width: '100%', padding: '15px 0', borderRadius: 16, border: 'none',
-            background: !name.trim() || !target ? C.border : 'linear-gradient(135deg,#31D67B,#22A85A)',
+            background: !name.trim() || !target ? C.border : 'linear-gradient(135deg,#00E5A0,#00B87A)',
             color: '#fff', fontSize: 16, fontWeight: 800,
             cursor: !name.trim() || !target ? 'not-allowed' : 'pointer',
           }}>
@@ -385,7 +385,7 @@ function EditGoalModal({ goal, userId, onClose, onSaved }: { goal: Goal; userId:
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,20,38,0.92)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,12,15,0.92)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', padding: 24 }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: C.border, margin: '0 auto 20px' }} />
@@ -440,7 +440,7 @@ function EditGoalModal({ goal, userId, onClose, onSaved }: { goal: Goal; userId:
         <button onClick={handleSave} disabled={saving || !name.trim() || !target}
           style={{
             width: '100%', padding: '15px 0', borderRadius: 16, border: 'none',
-            background: !name.trim() || !target ? C.border : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+            background: !name.trim() || !target ? C.border : 'linear-gradient(135deg,#00E5A0,#00B87A)',
             color: '#fff', fontSize: 16, fontWeight: 800,
             cursor: !name.trim() || !target ? 'not-allowed' : 'pointer',
           }}>
@@ -487,7 +487,7 @@ function AddContribModal({ goal, userId, onClose, onSaved }: { goal: Goal; userI
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(8,20,38,0.92)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,12,15,0.92)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 200 }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div style={{ background: C.surface, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 480, padding: 24 }}>
         <div style={{ width: 40, height: 4, borderRadius: 2, background: C.border, margin: '0 auto 20px' }} />

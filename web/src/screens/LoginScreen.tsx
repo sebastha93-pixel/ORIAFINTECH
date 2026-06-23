@@ -79,9 +79,9 @@ export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (user
   };
 
   return (
-    <div style={{ minHeight:'100vh', background:'linear-gradient(160deg,#060F20,#081426)', display:'flex', alignItems:'center', justifyContent:'center', padding:24, position:'relative', overflow:'hidden' }}>
-      <div style={{ position:'absolute', width:320, height:320, borderRadius:'50%', background:'#1E3A8A', opacity:.1, top:-100, left:-100, filter:'blur(50px)' }} />
-      <div style={{ position:'absolute', width:240, height:240, borderRadius:'50%', background:'#31D67B', opacity:.07, bottom:80, right:-60, filter:'blur(50px)' }} />
+    <div style={{ minHeight:'100vh', background:'linear-gradient(160deg,#0E1620,#0A0C0F)', display:'flex', alignItems:'center', justifyContent:'center', padding:24, position:'relative', overflow:'hidden' }}>
+      <div style={{ position:'absolute', width:320, height:320, borderRadius:'50%', background:'#002A1F', opacity:.3, top:-100, left:-100, filter:'blur(50px)' }} />
+      <div style={{ position:'absolute', width:240, height:240, borderRadius:'50%', background:'#00E5A0', opacity:.07, bottom:80, right:-60, filter:'blur(50px)' }} />
 
       <div style={{ width:'100%', maxWidth:400 }}>
         <div style={{ textAlign:'center', marginBottom:40 }}>
@@ -102,7 +102,7 @@ export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (user
             </div>
           )}
           {info && (
-            <div style={{ background:'rgba(49,214,123,0.1)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:12, padding:'10px 14px', marginBottom:16, color:C.accent, fontSize:13 }}>
+            <div style={{ background:'rgba(0,229,160,0.1)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:12, padding:'10px 14px', marginBottom:16, color:C.accent, fontSize:13 }}>
               {info}
             </div>
           )}
@@ -129,7 +129,7 @@ export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (user
           {mode === 'login' && (
             <div style={{ textAlign:'right', marginBottom:20 }}>
               <button type="button" onClick={()=>{setMode('reset');setError('');setInfo('');}}
-                style={{ background:'none', border:'none', color:C.primaryGlow, fontSize:13, cursor:'pointer', padding:0 }}>
+                style={{ background:'none', border:'none', color:C.info, fontSize:13, cursor:'pointer', padding:0 }}>
                 ¿Olvidaste tu contraseña?
               </button>
             </div>
@@ -168,10 +168,10 @@ export function LoginScreen({ onLogin, initialMode = 'login' }: { onLogin: (user
 
 const inputWrap: React.CSSProperties = {
   display:'flex', alignItems:'center',
-  background:'#112035', borderRadius:14,
+  background:'#1A1E25', borderRadius:14,
   border:`1px solid ${C.border}`, padding:'0 14px', height:52,
 };
 const inputStyle: React.CSSProperties = {
   flex:1, background:'none', border:'none', outline:'none',
-  color:'#F7F9FC', fontSize:15,
+  color:'#E8E4DC', fontSize:15,
 };

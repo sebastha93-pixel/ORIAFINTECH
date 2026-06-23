@@ -24,7 +24,7 @@ export function ScoreRing({ score, color, size = 92 }: { score: number; color: s
         x={size / 2} y={size / 2}
         textAnchor="middle" dominantBaseline="central"
         transform={`rotate(90 ${size / 2} ${size / 2})`}
-        fill="#F7F9FC" fontSize={size * 0.3} fontWeight={800} fontFamily="Inter, sans-serif"
+        fill="#E8E4DC" fontSize={size * 0.3} fontWeight={800} fontFamily="DM Sans, sans-serif"
       >
         {score}
       </text>
@@ -34,7 +34,7 @@ export function ScoreRing({ score, color, size = 92 }: { score: number; color: s
 
 // Smooth area sparkline for net-worth evolution.
 export function Sparkline({
-  points, width = 320, height = 110, color = '#31D67B',
+  points, width = 320, height = 110, color = '#00E5A0',
 }: { points: number[]; width?: number; height?: number; color?: string }) {
   if (points.length < 2) {
     return (

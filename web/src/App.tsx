@@ -75,7 +75,7 @@ export default function App() {
 
   if (loading) {
     return (
-    <div style={{ minHeight:'100vh', background:'#060D1A', display:'flex', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ minHeight:'100vh', background:'#0A0C0F', display:'flex', alignItems:'center', justifyContent:'center' }}>
       <OriaLogo size={52} />
     </div>
     );
@@ -91,7 +91,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#070B14' }}>
+    <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#0A0C0F' }}>
       {screen === 'dashboard'    && <DashboardScreen onNavigate={handleTab} />}
       {screen === 'patrimony'    && <PatrimonyScreen />}
       {screen === 'transactions' && <TransactionsScreen reloadKey={txReloadKey} />}
@@ -109,10 +109,10 @@ export default function App() {
           style={{
             position:'fixed', bottom:'calc(90px + env(safe-area-inset-bottom))', right:20,
             width:52, height:52, borderRadius:16, border:'none',
-            background:'linear-gradient(135deg,#31D67B,#22A85A)',
+            background:'linear-gradient(135deg,#00E5A0,#00B87A)',
             color:'#fff', fontSize:26, cursor:'pointer', zIndex:200,
             display:'flex', alignItems:'center', justifyContent:'center',
-            boxShadow:'0 4px 20px rgba(49,214,123,0.45)',
+            boxShadow:'0 4px 20px rgba(0,229,160,0.35)',
           }}>
           ＋
         </button>

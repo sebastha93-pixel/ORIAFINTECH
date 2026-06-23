@@ -197,7 +197,7 @@ function NotificationCard() {
   return (
     <div style={{ ...card }}>
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:perm !== 'granted' ? 14 : 0 }}>
-        <div style={{ width:40, height:40, borderRadius:12, background:'rgba(59,130,246,0.12)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>🔔</div>
+        <div style={{ width:40, height:40, borderRadius:12, background:'rgba(0,229,160,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>🔔</div>
         <div style={{ flex:1 }}>
           <div style={{ color:C.text, fontSize:14, fontWeight:700 }}>Notificaciones</div>
           <div style={{ color, fontSize:12, marginTop:2 }}>{label}</div>
@@ -206,8 +206,8 @@ function NotificationCard() {
       {perm !== 'granted' && (
         <button onClick={requestPerm} disabled={perm === 'denied'}
           style={{ width:'100%', padding:'12px 0', borderRadius:12, border:'none',
-            background: perm === 'denied' ? C.surfaceEl : 'rgba(59,130,246,0.15)',
-            color: perm === 'denied' ? C.textMuted : C.primaryGlow,
+            background: perm === 'denied' ? C.surfaceEl : 'rgba(0,229,160,0.1)',
+            color: perm === 'denied' ? C.textMuted : C.accent,
             fontSize:13, fontWeight:700, cursor: perm === 'denied' ? 'default' : 'pointer' }}>
           {perm === 'denied'
             ? 'Actívalas en Ajustes del navegador'
@@ -710,7 +710,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   return (
     <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
       {/* Header */}
-      <div style={{ background:'linear-gradient(160deg,#102040,#081426)', padding:'48px 20px 24px' }}>
+      <div style={{ background:'linear-gradient(160deg,#0E1620,#0A0C0F)', padding:'48px 20px 24px' }}>
         <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Perfil</div>
         <div style={{ color:C.textMuted, fontSize:13 }}>Cuentas vinculadas, sincronización y seguridad</div>
       </div>
@@ -724,7 +724,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
         ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ flex:1, padding:'11px 0', border:'none', cursor:'pointer', fontWeight:700, fontSize:12,
-              background: tab===t ? 'linear-gradient(135deg,#1d4ed8,#7c3aed)' : C.surface,
+              background: tab===t ? 'linear-gradient(135deg,#00E5A0,#00B87A)' : C.surface,
               color: tab===t ? '#fff' : C.textMuted }}>
             {label}
           </button>
@@ -751,8 +751,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
                 <button onClick={connectGmail} disabled={gmailLoading}
                   style={{ width:'100%', padding:'15px 0', borderRadius:14, border:'none', cursor: gmailLoading ? 'default' : 'pointer',
-                    background: gmailLoading ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
-                    color:'#fff', fontSize:15, fontWeight:700, opacity: gmailLoading ? 0.7 : 1 }}>
+                    background: gmailLoading ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
+                    color:'#0A0C0F', fontSize:15, fontWeight:700, opacity: gmailLoading ? 0.7 : 1 }}>
                   {gmailLoading ? '⏳ Esperando autorización…' : '🔗 Conectar Gmail'}
                 </button>
 
@@ -764,15 +764,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 </div>
               </div>
             ) : (
-              <div style={{ ...card, border:`1px solid rgba(49,214,123,0.3)`, background:'rgba(49,214,123,0.05)' }}>
+              <div style={{ ...card, border:`1px solid rgba(0,229,160,0.3)`, background:'rgba(0,229,160,0.05)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-                  <div style={{ width:44, height:44, borderRadius:14, background:'rgba(49,214,123,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✅</div>
+                  <div style={{ width:44, height:44, borderRadius:14, background:'rgba(0,229,160,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✅</div>
                   <div>
                     <div style={{ color:C.text, fontSize:15, fontWeight:700 }}>Gmail conectado</div>
                     <div style={{ color:C.textMuted, fontSize:12 }}>{gmailEmail}</div>
                   </div>
                 </div>
-                <div style={{ background:'rgba(49,214,123,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
+                <div style={{ background:'rgba(0,229,160,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
                   {gmailCount} movimiento{gmailCount !== 1 ? 's' : ''} importado{gmailCount !== 1 ? 's' : ''} automáticamente
                 </div>
                 {lastSync && (
@@ -781,14 +781,14 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   </div>
                 )}
                 {accounts.length === 0 && (
-                  <div style={{ background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:10, padding:'10px 14px', color:'#F59E0B', fontSize:12, textAlign:'center', marginTop:8 }}>
+                  <div style={{ background:'rgba(245,166,35,0.1)', border:'1px solid rgba(245,166,35,0.3)', borderRadius:10, padding:'10px 14px', color:'#F5A623', fontSize:12, textAlign:'center', marginTop:8 }}>
                     Registra al menos una cuenta bancaria para activar la sincronización
                   </div>
                 )}
                 <button onClick={syncNow} disabled={syncing || accounts.length === 0}
                   style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:'none',
                     cursor: (syncing || accounts.length === 0) ? 'default' : 'pointer',
-                    background: (syncing || accounts.length === 0) ? C.surface : 'rgba(49,214,123,0.15)',
+                    background: (syncing || accounts.length === 0) ? C.surface : 'rgba(0,229,160,0.1)',
                     color: accounts.length === 0 ? C.textMuted : C.accent,
                     fontSize:14, fontWeight:700, opacity: (syncing || accounts.length === 0) ? 0.5 : 1 }}>
                   {syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar ahora'}
@@ -840,7 +840,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 ['4','Los movimientos aparecen en tu historial automáticamente'],
               ].map(([n, text]) => (
                 <div key={n} style={{ display:'flex', gap:10, marginBottom:10, alignItems:'flex-start' }}>
-                  <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(59,130,246,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:C.primaryGlow, fontWeight:800, flexShrink:0 }}>{n}</div>
+                  <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(0,229,160,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:C.accent, fontWeight:800, flexShrink:0 }}>{n}</div>
                   <div style={{ color:C.textSec, fontSize:13, lineHeight:1.5 }}>{text}</div>
                 </div>
               ))}
@@ -908,10 +908,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             if (acc.payment_status === 'overdue')
                               return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
                             if (acc.payment_status === 'current')
-                              return <span style={{ background:'rgba(49,214,123,0.15)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
+                              return <span style={{ background:'rgba(0,229,160,0.15)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
                             // Sin estado manual: auto-derivar por fecha vs. día de pago
                             const hasDebt = (acc.initial_balance ?? 0) > 0 || (acc.initial_balance_usd ?? 0) > 0;
-                            if (!hasDebt) return <span style={{ background:'rgba(49,214,123,0.15)', border:'1px solid rgba(49,214,123,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
+                            if (!hasDebt) return <span style={{ background:'rgba(0,229,160,0.15)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
                             const dueDay = acc.payment_due_day;
                             if (!dueDay) return <span style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f59e0b', flexShrink:0 }}>⚠️ Pendiente</span>;
                             const today = new Date().getDate();
@@ -984,7 +984,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                           </div>
                           <button onClick={() => saveInitialBalance(acc)} disabled={isSaving}
                             style={{ padding:'8px 14px', borderRadius:10, border:'none',
-                              background: isSaving ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
+                              background: isSaving ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
                               color:'#fff', fontSize:12, fontWeight:700, cursor: isSaving ? 'default' : 'pointer',
                               flexShrink:0, opacity: isSaving ? 0.7 : 1 }}>
                             {isSaving ? '…' : 'Guardar'}
@@ -1005,7 +1005,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                           {canUnlockToday(acc) && (
                             <button
                               onClick={() => setEditingBalance(prev => ({ ...prev, [acc.id]: true }))}
-                              style={{ background:'none', border:'none', color:C.primaryGlow, fontSize:11,
+                              style={{ background:'none', border:'none', color:C.info, fontSize:11,
                                 cursor:'pointer', padding:0, fontWeight:600 }}>
                               Editar
                             </button>
@@ -1020,7 +1020,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>ESTADO DEL PAGO</div>
                         <div style={{ display:'flex', gap:8 }}>
                           {([
-                            { val: 'current' as const, label: '✅ Al día',  bg:'rgba(49,214,123,0.12)', border:'rgba(49,214,123,0.35)', color:'#31D67B' },
+                            { val: 'current' as const, label: '✅ Al día',  bg:'rgba(0,229,160,0.12)', border:'rgba(0,229,160,0.35)', color:'#00E5A0' },
                             { val: 'overdue' as const, label: '🔴 En mora', bg:'rgba(239,68,68,0.12)',  border:'rgba(239,68,68,0.35)',  color:'#EF4444' },
                           ]).map(opt => (
                             <button key={opt.val} type="button"
@@ -1056,7 +1056,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             <span style={{ color: newInstitution===inst.id ? inst.color : C.textMuted,
                               fontSize:12, fontWeight:600 }}>{inst.name}</span>
                             {inst.gmailSync && (
-                              <span style={{ fontSize:9, color:'#31D67B', fontWeight:700, letterSpacing:0.3 }}>✉ Gmail sync</span>
+                              <span style={{ fontSize:9, color:'#00E5A0', fontWeight:700, letterSpacing:0.3 }}>✉ Gmail sync</span>
                             )}
                           </div>
                         </button>
@@ -1069,9 +1069,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                       {(INSTITUTIONS.find(i => i.id === newInstitution)?.types ?? ['savings']).map(t => (
                         <button key={t} onClick={() => setNewAccountType(t)}
-                          style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newAccountType===t ? C.primaryGlow : C.border}`,
-                            background: newAccountType===t ? 'rgba(59,130,246,0.15)' : C.surface,
-                            color: newAccountType===t ? C.primaryGlow : C.textMuted,
+                          style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newAccountType===t ? C.accent : C.border}`,
+                            background: newAccountType===t ? 'rgba(0,229,160,0.1)' : C.surface,
+                            color: newAccountType===t ? C.accent : C.textMuted,
                             fontSize:12, fontWeight:600, cursor:'pointer' }}>
                           {ACCOUNT_TYPE_LABELS[t]}
                         </button>
@@ -1192,7 +1192,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Estado actual del pago</div>
                         <div style={{ display:'flex', gap:8 }}>
                           {([
-                            { val: 'current', label: '✅ Al día',  bg: 'rgba(49,214,123,0.12)', border: 'rgba(49,214,123,0.35)', active: '#31D67B' },
+                            { val: 'current', label: '✅ Al día',  bg: 'rgba(0,229,160,0.12)', border: 'rgba(0,229,160,0.35)', active: '#00E5A0' },
                             { val: 'overdue', label: '🔴 En mora', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)',  active: '#EF4444' },
                           ] as const).map(opt => (
                             <button key={opt.val} type="button"
@@ -1293,8 +1293,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
                         </button>
                         <button onClick={addAccount} disabled={disabled}
                           style={{ flex:2, padding:'12px 0', borderRadius:12, border:'none',
-                            background: disabled ? C.surface : 'linear-gradient(135deg,#1d4ed8,#7c3aed)',
-                            color: disabled ? C.textMuted : '#fff',
+                            background: disabled ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
+                            color: disabled ? C.textMuted : '#0A0C0F',
                             fontSize:13, fontWeight:700, cursor: disabled ? 'default' : 'pointer' }}>
                           {savingAccount ? 'Guardando…' : 'Guardar cuenta'}
                         </button>
@@ -1305,15 +1305,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
               ) : (
                 <button onClick={() => setShowAddAccount(true)}
                   style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:`1px dashed ${C.border}`,
-                    background:'transparent', color:C.primaryGlow, fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                    background:'transparent', color:C.accent, fontSize:13, fontWeight:600, cursor:'pointer' }}>
                   + Agregar cuenta
                 </button>
               )}
             </div>
 
             {accounts.length > 0 && (
-              <div style={{ background:'rgba(59,130,246,0.07)', border:`1px solid rgba(59,130,246,0.2)`, borderRadius:12, padding:'12px 16px' }}>
-                <div style={{ color:C.primaryGlow, fontSize:12, fontWeight:600, marginBottom:4 }}>
+              <div style={{ background:'rgba(0,229,160,0.05)', border:`1px solid rgba(0,229,160,0.2)`, borderRadius:12, padding:'12px 16px' }}>
+                <div style={{ color:C.accent, fontSize:12, fontWeight:600, marginBottom:4 }}>
                   Filtro activo
                 </div>
                 <div style={{ color:C.textSec, fontSize:12, lineHeight:1.6 }}>
@@ -1350,8 +1350,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   <button
                     onClick={() => { localStorage.setItem('nexo_trm', trm); }}
                     style={{ padding:'9px 14px', borderRadius:10, border:'none',
-                      background:'linear-gradient(135deg,#1d4ed8,#7c3aed)',
-                      color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
+                      background:'linear-gradient(135deg,#00E5A0,#00B87A)',
+                      color:'#0A0C0F', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
                     Guardar
                   </button>
                 </div>
@@ -1451,7 +1451,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Movimientos</div>
                   </div>
                   <div style={{ ...card, textAlign:'center' }}>
-                    <div style={{ color:C.primaryGlow, fontSize:24, fontWeight:800 }}>
+                    <div style={{ color:C.accent, fontSize:24, fontWeight:800 }}>
                       {[...new Set(imported.map(t => t.category))].length}
                     </div>
                     <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Categorías</div>
@@ -1466,7 +1466,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       marginBottom:  i < Math.min(imported.length,10)-1 ? 12:0,
                       borderBottom:  i < Math.min(imported.length,10)-1 ? `1px solid ${C.border}` : 'none' }}>
                       <div style={{ width:38, height:38, borderRadius:11,
-                        background:t.type==='income'?'rgba(49,214,123,0.15)':'rgba(59,130,246,0.15)',
+                        background:t.type==='income'?'rgba(0,229,160,0.12)':'rgba(239,68,68,0.1)',
                         display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
                         {t.type==='income'?'💰':'💳'}
                       </div>
@@ -1570,8 +1570,8 @@ function UpdateButton() {
       onClick={checkNow}
       disabled={status !== 'idle'}
       style={{ width:'100%', padding:'14px 0', borderRadius:14,
-        border:'1px solid rgba(59,130,246,0.25)', background:'rgba(59,130,246,0.07)',
-        color: status === 'latest' ? C.accent : C.primaryGlow,
+        border:'1px solid rgba(0,229,160,0.25)', background:'rgba(0,229,160,0.05)',
+        color: status === 'latest' ? C.accent : C.info,
         fontSize:14, fontWeight:600, cursor: status === 'idle' ? 'pointer' : 'default' }}>
       {label}
     </button>

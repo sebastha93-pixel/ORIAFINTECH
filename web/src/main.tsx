@@ -114,8 +114,8 @@ function showUpdateBanner() {
   banner.id = 'oria-update-banner';
   banner.style.cssText = [
     'position:fixed','top:0','left:0','right:0','z-index:99999',
-    'background:linear-gradient(90deg,#0D2137,#112035)',
-    'border-bottom:2px solid rgba(49,214,123,0.5)',
+    'background:linear-gradient(90deg,#111419,#0A0C0F)',
+    'border-bottom:2px solid rgba(0,229,160,0.5)',
     'padding:14px 20px',
     'padding-top:calc(14px + env(safe-area-inset-top))',
     'display:flex','align-items:center','gap:12px',
@@ -124,11 +124,11 @@ function showUpdateBanner() {
   banner.innerHTML = `
     <span style="font-size:20px">✨</span>
     <div style="flex:1">
-      <div style="color:#31D67B;font-size:13px;font-weight:700">Nueva versión disponible</div>
+      <div style="color:#00E5A0;font-size:13px;font-weight:700">Nueva versión disponible</div>
       <div style="color:#94A3B8;font-size:11px;margin-top:1px">Toca Actualizar para obtener las últimas mejoras</div>
     </div>
     <button id="oria-update-btn"
-      style="background:linear-gradient(135deg,#31D67B,#22A85A);border:none;border-radius:10px;
+      style="background:linear-gradient(135deg,#00E5A0,#00B87A);border:none;border-radius:10px;
              padding:8px 16px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
       Actualizar
     </button>

@@ -135,7 +135,7 @@ export function AiChatScreen() {
             )}
             <div style={{
               maxWidth:'80%',
-              background: m.role==='user' ? 'linear-gradient(135deg,#22C55E,#16A34A)' : C.surface,
+              background: m.role==='user' ? 'linear-gradient(135deg,#00E5A0,#00B87A)' : C.surface,
               border: m.role==='ai' ? `1px solid ${C.border}` : 'none',
               borderRadius: m.role==='user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
               padding:'12px 14px',

@@ -15,8 +15,8 @@ export function OriaLogo({ size = 40, showWordmark = true, mono = false }: Props
       <svg width={size} height={size} viewBox="0 0 40 40" fill="none" aria-label="ORIA logo">
         <defs>
           <linearGradient id={uid} x1="28" y1="6" x2="12" y2="6" gradientUnits="userSpaceOnUse">
-            <stop offset="0%"   stopColor={mono ? '#ffffff' : '#31D67B'} />
-            <stop offset="100%" stopColor={mono ? '#ffffff' : '#60A5FA'} />
+            <stop offset="0%"   stopColor={mono ? '#ffffff' : '#00E5A0'} />
+            <stop offset="100%" stopColor={mono ? '#ffffff' : '#00B87A'} />
           </linearGradient>
         </defs>
         <path
@@ -33,9 +33,9 @@ export function OriaLogo({ size = 40, showWordmark = true, mono = false }: Props
           fontSize: Math.round(size * 0.42),
           fontWeight: 800,
           letterSpacing: Math.round(size * 0.18) + 'px',
-          color: '#F7F9FC',
+          color: '#E8E4DC',
           lineHeight: 1,
-          fontFamily: 'Inter, system-ui, sans-serif',
+          fontFamily: 'DM Sans, system-ui, sans-serif',
           userSelect: 'none',
         }}>
           ORIA

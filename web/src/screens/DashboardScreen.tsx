@@ -125,8 +125,8 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
         <div
           onClick={() => onNavigate?.('ai')}
           style={{
-            background: 'linear-gradient(135deg, rgba(49,214,123,0.10), rgba(59,130,246,0.08))',
-            border: '1px solid rgba(49,214,123,0.25)', borderRadius: 18, padding: 16, cursor: 'pointer',
+            background: 'linear-gradient(135deg, rgba(0,229,160,0.10), rgba(74,158,255,0.06))',
+            border: '1px solid rgba(0,229,160,0.25)', borderRadius: 18, padding: 16, cursor: 'pointer',
           }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 16 }}>🤖</span>
@@ -165,7 +165,7 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
           );
         })() : (
           <div onClick={() => onNavigate?.('goals')} style={{ ...card, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 13, background: 'rgba(49,214,123,0.12)',
+            <div style={{ width: 44, height: 44, borderRadius: 13, background: 'rgba(0,229,160,0.12)',
               display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🎯</div>
             <div style={{ flex: 1 }}>
               <div style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>Crea tu primera meta</div>
@@ -189,7 +189,7 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
             <MonthStat
               label={savingsRate !== null ? `Ahorro · ${savingsRate}%` : 'Ahorro'}
               value={fmt(m.curNet)}
-              color={m.curNet >= 0 ? C.primaryGlow : C.danger}
+              color={m.curNet >= 0 ? C.accent : C.danger}
             />
           </div>
         </div>
@@ -233,7 +233,7 @@ function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
 
       {/* Subtotal efectivo */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: 'rgba(49,214,123,0.08)', border: '1px solid rgba(49,214,123,0.18)',
+        background: 'rgba(0,229,160,0.08)', border: '1px solid rgba(0,229,160,0.18)',
         borderRadius: 10, padding: '8px 12px', margin: '4px 0 12px' }}>
         <span style={{ color: C.accent, fontSize: 12, fontWeight: 700 }}>Efectivo total</span>
         <span style={{ color: C.accent, fontSize: 15, fontWeight: 800 }}>{fmt(m.totalAssets)}</span>
@@ -253,7 +253,7 @@ function LiquidezCard({ snap, m }: { snap: FinanceSnapshot; m: Metrics }) {
                   <div style={{ color: C.text, fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
                   <div style={{ color: C.textMuted, fontSize: 10 }}>Cupo disponible</div>
                 </div>
-                <div style={{ color: C.primaryGlow, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
+                <div style={{ color: C.info, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>
                   {fmt(Math.max(0, cupo))}
                 </div>
               </div>

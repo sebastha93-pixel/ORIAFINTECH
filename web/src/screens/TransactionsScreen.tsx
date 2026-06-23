@@ -157,7 +157,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
     <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
 
       {/* ── HEADER: resumen del mes ── */}
-      <div style={{ background: 'linear-gradient(160deg,#102040,#081426)', padding: '48px 20px 20px' }}>
+      <div style={{ background: 'linear-gradient(160deg,#0E1620,#0A0C0F)', padding: '48px 20px 20px' }}>
         <div style={{ color: C.text, fontSize: 22, fontWeight: 800, marginBottom: 2 }}>Movimientos</div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 16 }}>
@@ -185,17 +185,17 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <SummaryCell label="Ingresos" value={fmt(totalIncome)} color={C.accent}     bg="rgba(49,214,123" />
+          <SummaryCell label="Ingresos" value={fmt(totalIncome)} color={C.accent}     bg="rgba(0,229,160" />
           <SummaryCell label="Gastos"   value={fmt(totalExpense)} color={C.danger}    bg="rgba(239,68,68" />
-          <SummaryCell label="Ahorro"   value={fmt(savings)} color={savings >= 0 ? C.primaryGlow : C.danger} bg="rgba(59,130,246" />
+          <SummaryCell label="Ahorro"   value={fmt(savings)} color={savings >= 0 ? C.accent : C.danger} bg="rgba(0,229,160" />
         </div>
 
         {monthTxns.length > 0 && (
           <button
             onClick={() => downloadMonthlyReport(monthTxns, selYear, selMonth)}
             style={{ marginTop: 14, width: '100%', padding: '10px 0', borderRadius: 12,
-              border: '1px solid rgba(59,130,246,0.35)', background: 'rgba(59,130,246,0.1)',
-              color: C.primaryGlow, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              border: '1px solid rgba(0,229,160,0.35)', background: 'rgba(0,229,160,0.08)',
+              color: C.accent, fontSize: 13, fontWeight: 600, cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
             📥 Descargar informe Excel
           </button>
@@ -210,8 +210,8 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
             {insights.map((ins, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 14,
-                background: ins.tone === 'good' ? 'rgba(49,214,123,0.08)' : ins.tone === 'bad' ? 'rgba(239,68,68,0.07)' : 'rgba(59,130,246,0.07)',
-                border: `1px solid ${ins.tone === 'good' ? 'rgba(49,214,123,0.2)' : ins.tone === 'bad' ? 'rgba(239,68,68,0.18)' : 'rgba(59,130,246,0.18)'}`,
+                background: ins.tone === 'good' ? 'rgba(0,229,160,0.08)' : ins.tone === 'bad' ? 'rgba(239,68,68,0.07)' : 'rgba(74,158,255,0.07)',
+                border: `1px solid ${ins.tone === 'good' ? 'rgba(0,229,160,0.2)' : ins.tone === 'bad' ? 'rgba(239,68,68,0.18)' : 'rgba(74,158,255,0.18)'}`,
               }}>
                 <span style={{ fontSize: 16, flexShrink: 0 }}>{ins.emoji}</span>
                 <span style={{ color: C.textSec, fontSize: 12.5, lineHeight: 1.45 }}>{ins.text}</span>
@@ -286,7 +286,7 @@ export function TransactionsScreen({ reloadKey }: { reloadKey?: number }) {
                   onClick={() => toggleGroup(g.name)}
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer' }}>
                   <div style={{ width: 40, height: 40, borderRadius: 12,
-                    background: `${isIncomeGroup ? C.accent : C.primaryGlow}18`,
+                    background: `${isIncomeGroup ? C.accent : C.danger}18`,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>
                     {g.icon}
                   </div>
@@ -352,7 +352,7 @@ function TxRow({ t, onClick, showDate }: { t: Txn; onClick?: () => void; showDat
         borderBottom: `1px solid ${C.border}`, cursor: onClick ? 'pointer' : 'default',
         opacity: isVirtual ? 0.85 : 1 }}>
       <div style={{ width: 36, height: 36, borderRadius: 11,
-        background: isVirtual ? 'rgba(49,214,123,0.12)' : `${t.transaction_type === 'income' ? C.accent : C.primaryGlow}15`,
+        background: isVirtual ? 'rgba(0,229,160,0.12)' : `${t.transaction_type === 'income' ? C.accent : C.danger}15`,
         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
         {isVirtual ? '🏦' : txIcon(t.description ?? '', t.transaction_type, t.category)}
       </div>

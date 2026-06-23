@@ -267,7 +267,7 @@ export function computeOriaScore(s: FinanceSnapshot, m: Metrics): OriaScore {
 
   const total = factors.reduce((t, f) => t + f.points, 0);
   const label = total >= 80 ? 'Excelente' : total >= 60 ? 'Sólida' : total >= 40 ? 'En construcción' : 'Frágil';
-  const color = total >= 80 ? '#31D67B' : total >= 60 ? '#5DE89A' : total >= 40 ? '#F59E0B' : '#EF4444';
+  const color = total >= 80 ? '#00E5A0' : total >= 60 ? '#4DFFC0' : total >= 40 ? '#F5A623' : '#EF4444';
 
   // Recommendation: target the weakest factor (by % of max)
   const weakest = [...factors].sort((a, b) => a.points / a.max - b.points / b.max)[0];

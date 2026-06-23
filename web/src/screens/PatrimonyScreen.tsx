@@ -60,7 +60,7 @@ export function PatrimonyScreen() {
           {m.history.length >= 2 && Math.abs(growthPct) >= 0.1 && (
             <span style={{
               color: growthPct >= 0 ? C.accent : C.danger, fontSize: 13, fontWeight: 700,
-              background: growthPct >= 0 ? 'rgba(49,214,123,0.12)' : 'rgba(239,68,68,0.12)',
+              background: growthPct >= 0 ? 'rgba(0,229,160,0.12)' : 'rgba(239,68,68,0.12)',
               borderRadius: 8, padding: '3px 8px',
             }}>
               {growthPct >= 0 ? '↑' : '↓'} {Math.abs(growthPct).toFixed(1)}%
@@ -141,8 +141,8 @@ export function PatrimonyScreen() {
 
         {/* ── Recomendación ORIA ── */}
         <div style={{
-          background: 'linear-gradient(135deg, rgba(49,214,123,0.10), rgba(59,130,246,0.08))',
-          border: '1px solid rgba(49,214,123,0.25)', borderRadius: 18, padding: 16,
+          background: 'linear-gradient(135deg, rgba(0,229,160,0.10), rgba(74,158,255,0.06))',
+          border: '1px solid rgba(0,229,160,0.25)', borderRadius: 18, padding: 16,
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 16 }}>🤖</span>

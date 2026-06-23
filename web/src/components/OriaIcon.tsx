@@ -9,10 +9,10 @@ export function OriaIcon({ size = 24, active = false }: Props) {
   const bgId   = `oria-bg-${size}`;
   const glowId = `oria-glow-${size}`;
 
-  const nodeColor  = active ? '#60A5FA' : '#94A3B8';
+  const nodeColor  = active ? '#00E5A0' : '#94A3B8';
   const lineOpacity = active ? 0.45 : 0.25;
-  const bgFrom     = active ? '#0F2A5C' : '#111827';
-  const bgTo       = active ? '#1D4ED8' : '#1F2937';
+  const bgFrom     = active ? '#002A1F' : '#111419';
+  const bgTo       = active ? '#00B87A' : '#1A1E25';
 
   return (
     <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -22,8 +22,8 @@ export function OriaIcon({ size = 24, active = false }: Props) {
           <stop offset="100%" stopColor={bgTo} />
         </linearGradient>
         <radialGradient id={glowId} cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor={active ? '#3B82F6' : '#6B7280'} stopOpacity="0.5" />
-          <stop offset="100%" stopColor={active ? '#3B82F6' : '#6B7280'} stopOpacity="0" />
+          <stop offset="0%" stopColor={active ? '#00E5A0' : '#6B7280'} stopOpacity="0.5" />
+          <stop offset="100%" stopColor={active ? '#00E5A0' : '#6B7280'} stopOpacity="0" />
         </radialGradient>
       </defs>
 
@@ -54,8 +54,8 @@ export function OriaIcon({ size = 24, active = false }: Props) {
       <circle cx="10" cy="27" r="2.2" fill={nodeColor} />
 
       {/* Center hub — bright white core */}
-      <circle cx="20" cy="21" r="4.5" fill={active ? 'rgba(59,130,246,0.25)' : 'rgba(100,116,139,0.2)'} />
-      <circle cx="20" cy="21" r="3"   fill={active ? '#3B82F6' : '#475569'} />
+      <circle cx="20" cy="21" r="4.5" fill={active ? 'rgba(0,229,160,0.25)' : 'rgba(100,116,139,0.2)'} />
+      <circle cx="20" cy="21" r="3"   fill={active ? '#00E5A0' : '#475569'} />
       <circle cx="20" cy="21" r="1.6" fill="white" />
     </svg>
   );

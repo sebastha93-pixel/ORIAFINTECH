@@ -2,13 +2,13 @@
 
 html {
   min-height: 100%;
-  background: #081426;
+  background: #0A0C0F;
 }
 
 body {
   min-height: 100%;
-  background: #081426;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: #0A0C0F;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   /* iOS Safari momentum scroll */
@@ -20,7 +20,7 @@ body {
   display: flex;
   justify-content: center;
   min-height: 100%;
-  background: #081426;
+  background: #0A0C0F;
 }
 
 button { font-family: inherit; }
@@ -28,6 +28,12 @@ input  { font-family: inherit; }
 
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1A2D44; border-radius: 2px; }
+::-webkit-scrollbar-thumb { background: #1E2530; border-radius: 2px; }
 
-* { scrollbar-width: thin; scrollbar-color: #1A2D44 transparent; }
+* { scrollbar-width: thin; scrollbar-color: #1E2530 transparent; }
+
+/* ── Number typography classes ── */
+.num-hero   { font-family: 'DM Mono', monospace; font-weight: 300; letter-spacing: 1px; }
+.num-amount { font-family: 'DM Sans', sans-serif; font-weight: 500; font-feature-settings: "tnum"; }
+.num-kpi    { font-family: 'DM Sans', sans-serif; font-weight: 600; letter-spacing: -0.3px; font-feature-settings: "tnum"; }
+.num-pct    { font-family: 'DM Sans', sans-serif; font-weight: 600; font-feature-settings: "tnum"; }

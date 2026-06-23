@@ -166,7 +166,7 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
 
   return (
     <div
-      style={{ position:'fixed', inset:0, background:'rgba(8,20,38,0.85)', zIndex:300, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
+      style={{ position:'fixed', inset:0, background:'rgba(10,12,15,0.85)', zIndex:300, display:'flex', alignItems:'flex-end', justifyContent:'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ background:C.surface, borderRadius:'24px 24px 0 0', width:'100%', maxWidth:480, border:`1px solid ${C.border}`, paddingBottom:32, maxHeight:'92vh', overflowY:'auto', WebkitOverflowScrolling:'touch' as never, overscrollBehavior:'contain' }}>
@@ -200,10 +200,10 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
               <span style={{ color:C.textMuted, fontSize:13 }}>Categoría</span>
               <button
                 onClick={() => { setShowCatPicker(p => !p); setCustomCat(''); }}
-                style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(59,130,246,0.12)',
-                  border:`1px solid rgba(59,130,246,0.3)`, borderRadius:20,
+                style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(0,229,160,0.1)',
+                  border:`1px solid rgba(0,229,160,0.3)`, borderRadius:20,
                   padding:'5px 12px', cursor:'pointer' }}>
-                <span style={{ color:C.primaryGlow, fontSize:13, fontWeight:600 }}>{category}</span>
+                <span style={{ color:C.accent, fontSize:13, fontWeight:600 }}>{category}</span>
                 <span style={{ fontSize:11 }}>{showCatPicker ? '▲' : '✏️'}</span>
               </button>
             </div>
@@ -227,12 +227,12 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
                           void handleCategorySelect(c.label);
                         }}
                         style={{ padding:'10px 4px', borderRadius:12,
-                          border:`1px solid ${isSel ? C.primaryGlow : C.border}`,
-                          background: isSel ? 'rgba(59,130,246,0.15)' : C.bg,
+                          border:`1px solid ${isSel ? C.accent : C.border}`,
+                          background: isSel ? 'rgba(0,229,160,0.1)' : C.bg,
                           cursor: catSaving ? 'default' : 'pointer', textAlign:'center',
                           opacity: catSaving ? 0.6 : 1 }}>
                         <div style={{ fontSize:18, marginBottom:2 }}>{c.icon}</div>
-                        <div style={{ color: isSel ? C.primaryGlow : C.textMuted, fontSize:9, fontWeight:600, lineHeight:1.2 }}>
+                        <div style={{ color: isSel ? C.accent : C.textMuted, fontSize:9, fontWeight:600, lineHeight:1.2 }}>
                           {isCustom ? 'Personalizada' : c.label}
                         </div>
                       </button>
@@ -256,7 +256,7 @@ export function TransactionDetailSheet({ tx, onClose, onCategoryChanged, onNotes
                     disabled={catSaving || !customCat.trim()}
                     onClick={() => void handleCategorySelect(customCat.trim())}
                     style={{ padding:'9px 14px', borderRadius:10, border:'none',
-                      background: customCat.trim() ? C.primaryGlow : C.border,
+                      background: customCat.trim() ? C.accent : C.border,
                       color:'#fff', fontSize:13, fontWeight:700,
                       cursor: customCat.trim() ? 'pointer' : 'default',
                       opacity: catSaving ? 0.6 : 1 }}>
