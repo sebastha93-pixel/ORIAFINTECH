@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Goal } from '../../types';
@@ -18,13 +18,17 @@ export function GoalProgressCard({
   const progress = Math.min(goal.progress_percentage || 0, 100);
   const color    = goal.color || Colors.accent;
   const icon     = goal.icon  || 'flag';
-  const remaining = Number(goal.target_amount) - Number(goal.current_amount);
 
   return (
-    <TouchableOpacity
-      style={styles.card}
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        {
+          opacity: pressed ? 0.72 : 1,
+          transform: [{ scale: pressed ? 0.97 : 1 }],
+        },
+      ]}
       onPress={onPress}
-      activeOpacity={0.85}
     >
       <LinearGradient colors={Colors.gradientCard} style={styles.inner}>
         {/* Header */}
@@ -79,7 +83,7 @@ export function GoalProgressCard({
           )}
         </View>
       </LinearGradient>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 

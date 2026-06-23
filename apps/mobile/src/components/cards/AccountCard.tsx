@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Account } from '../../types';
@@ -42,10 +42,15 @@ export function AccountCard({
   const iconName = ACCOUNT_ICONS[account.account_type] || 'card';
 
   return (
-    <TouchableOpacity
-      style={styles.wrapper}
+    <Pressable
+      style={({ pressed }) => [
+        styles.wrapper,
+        {
+          opacity: pressed ? 0.72 : 1,
+          transform: [{ scale: pressed ? 0.97 : 1 }],
+        },
+      ]}
       onPress={onPress}
-      activeOpacity={0.85}
     >
       <LinearGradient
         colors={[cardColor + 'CC', cardColor + '88']}
@@ -76,7 +81,7 @@ export function AccountCard({
           {formatCurrency(Number(account.current_balance), currency, true)}
         </Text>
       </LinearGradient>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 

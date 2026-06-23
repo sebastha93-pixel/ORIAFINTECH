@@ -1,11 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Transaction } from '../../types';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { formatCurrency, formatDate } from '../../utils/format';
 
-export function TransactionRow({
+function TransactionRowBase({
   transaction,
   currency,
   onPress,
@@ -26,11 +26,20 @@ export function TransactionRow({
   const iconName  = cat?.icon  || (isTransfer ? 'swap-horizontal' : isIncome ? 'arrow-down-circle' : 'arrow-up-circle');
   const iconColor = cat?.color || amountColor;
 
+  const handlePress = useCallback(() => {
+    onPress?.();
+  }, [onPress]);
+
   return (
-    <TouchableOpacity
-      style={styles.row}
-      onPress={onPress}
-      activeOpacity={0.7}
+    <Pressable
+      style={({ pressed }) => [
+        styles.row,
+        {
+          opacity: pressed ? 0.72 : 1,
+          transform: [{ scale: pressed ? 0.97 : 1 }],
+        },
+      ]}
+      onPress={handlePress}
     >
       {/* Icon */}
       <View style={[styles.icon, { backgroundColor: iconColor + '20' }]}>
@@ -56,9 +65,11 @@ export function TransactionRow({
           <Text style={styles.category} numberOfLines={1}>{cat.name}</Text>
         )}
       </View>
-    </TouchableOpacity>
+    </Pressable>
   );
 }
+
+export const TransactionRow = React.memo(TransactionRowBase);
 
 const styles = StyleSheet.create({
   row: {
@@ -66,12 +77,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    height: 56, // fixed 56px height per DESIGN.md
   },
   icon: {
-    width: 40, height: 40,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center', alignItems: 'center',
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
     flexShrink: 0,
   },
   info: { flex: 1 },
