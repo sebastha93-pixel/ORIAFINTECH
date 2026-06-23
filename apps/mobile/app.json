@@ -26,7 +26,6 @@
       "package": "com.nexofinanzas.app"
     },
     "plugins": [
-      "expo-router",
       "expo-secure-store",
       [
         "expo-font",
@@ -35,9 +34,6 @@
         }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "scheme": "nexofinanzas",
     "extra": {
       "eas": {
