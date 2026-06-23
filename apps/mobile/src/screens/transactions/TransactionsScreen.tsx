@@ -1,13 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, ActivityIndicator, RefreshControl, Platform,
+  View, Text, StyleSheet, FlatList, Pressable,
+  TextInput, RefreshControl, Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { api } from '../../services/api';
 import { Transaction } from '../../types';
+import { TransactionRow } from '../../components/common/TransactionRow';
+import { TransactionDetailSheet } from '../../components/common/TransactionDetailSheet';
+import { SkeletonTransactionList } from '../../components/skeleton';
+import { EmptyState } from '../../components/common/EmptyState';
 
 // ─── helpers ───────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -18,24 +22,14 @@ const fmtDate = (iso: string) => {
   return d.toLocaleDateString('es-CO', { day: '2-digit', month: 'short' });
 };
 
-const groupByDate = (txns: Transaction[]) => {
-  const map: Record<string, Transaction[]> = {};
-  txns.forEach((t) => {
-    const key = t.date.slice(0, 10);
-    if (!map[key]) map[key] = [];
-    map[key].push(t);
-  });
-  return Object.entries(map).sort(([a], [b]) => b.localeCompare(a));
-};
+// Flat list item for getItemLayout — each transaction row is 56px
+// Date headers are approximated at 32px
+type FlatItem =
+  | { kind: 'header'; date: string; label: string }
+  | { kind: 'row'; transaction: Transaction };
 
-const CATEGORY_ICONS: Record<string, string> = {
-  Salario: 'briefcase', Freelance: 'laptop', Inversiones: 'trending-up',
-  Vivienda: 'home', Alimentación: 'restaurant', Transporte: 'car',
-  Entretenimiento: 'game-controller', Salud: 'medkit', Educación: 'school',
-  Ropa: 'shirt', Tecnología: 'phone-portrait', Viajes: 'airplane',
-  Deporte: 'fitness', Mascotas: 'paw', Regalos: 'gift',
-  Suscripciones: 'repeat', Impuestos: 'document-text',
-};
+const ROW_HEIGHT = 56;
+const HEADER_HEIGHT = 32;
 
 // ─── Component ─────────────────────────────────────────────
 type FilterType = 'all' | 'income' | 'expense';
@@ -50,6 +44,10 @@ export function TransactionsScreen() {
   const [hasMore, setHasMore]           = useState(true);
   const [income, setIncome]             = useState(0);
   const [expense, setExpense]           = useState(0);
+
+  // Detail sheet state
+  const [selectedTx, setSelectedTx]   = useState<Transaction | null>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
 
   const load = useCallback(async (reset = false) => {
     try {
@@ -97,45 +95,67 @@ export function TransactionsScreen() {
     load(true);
   }, [load]);
 
-  // ── Render helpers ────────────────────────────────────────
-  const renderTxn = ({ item }: { item: Transaction }) => {
-    const isIncome = item.transaction_type === 'income';
-    const catName  = item.category?.name || '';
-    const iconName = CATEGORY_ICONS[catName] || (isIncome ? 'arrow-down-circle' : 'arrow-up-circle');
-    const color    = item.category?.color || (isIncome ? Colors.accent : Colors.danger);
+  // Build flat items array for FlatList with getItemLayout support
+  const flatItems = useCallback((): FlatItem[] => {
+    const result: FlatItem[] = [];
+    const grouped: Record<string, Transaction[]> = {};
+    transactions.forEach((t) => {
+      const key = t.date.slice(0, 10);
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(t);
+    });
+    Object.entries(grouped)
+      .sort(([a], [b]) => b.localeCompare(a))
+      .forEach(([date, items]) => {
+        const d = new Date(date + 'T12:00:00');
+        const label = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'long' });
+        result.push({ kind: 'header', date, label });
+        items.forEach((t) => result.push({ kind: 'row', transaction: t }));
+      });
+    return result;
+  }, [transactions]);
 
+  const items = flatItems();
+
+  const getItemLayout = useCallback(
+    (_: any, index: number) => {
+      let offset = 0;
+      let length = ROW_HEIGHT;
+      for (let i = 0; i < index; i++) {
+        const item = items[i];
+        offset += item?.kind === 'header' ? HEADER_HEIGHT : ROW_HEIGHT;
+      }
+      if (items[index]?.kind === 'header') length = HEADER_HEIGHT;
+      return { length, offset, index };
+    },
+    [items]
+  );
+
+  const openDetail = useCallback((tx: Transaction) => {
+    setSelectedTx(tx);
+    setSheetVisible(true);
+  }, []);
+
+  const closeDetail = useCallback(() => {
+    setSheetVisible(false);
+  }, []);
+
+  const renderItem = useCallback(({ item }: { item: FlatItem }) => {
+    if (item.kind === 'header') {
+      return <Text style={s.dateLabel}>{item.label}</Text>;
+    }
     return (
-      <View style={s.txnRow}>
-        <View style={[s.txnIcon, { backgroundColor: color + '20' }]}>
-          <Ionicons name={iconName as 'home'} size={18} color={color} />
-        </View>
-        <View style={s.txnMeta}>
-          <Text style={s.txnDesc} numberOfLines={1}>
-            {item.description || catName || 'Transacción'}
-          </Text>
-          <Text style={s.txnSub}>
-            {item.account?.name || '—'}  ·  {fmtDate(item.date)}
-          </Text>
-        </View>
-        <Text style={[s.txnAmt, { color: isIncome ? Colors.accent : Colors.textPrimary }]}>
-          {isIncome ? '+' : '-'}{fmt(item.amount)}
-        </Text>
-      </View>
+      <TransactionRow
+        transaction={item.transaction}
+        currency="COP"
+        onPress={() => openDetail(item.transaction)}
+      />
     );
-  };
+  }, [openDetail]);
 
-  const groups = groupByDate(transactions);
-
-  const renderSection = ({ item: [date, items] }: { item: [string, Transaction[]] }) => {
-    const d = new Date(date + 'T12:00:00');
-    const label = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'long' });
-    return (
-      <View>
-        <Text style={s.dateLabel}>{label}</Text>
-        {items.map((t) => <View key={t.id}>{renderTxn({ item: t })}</View>)}
-      </View>
-    );
-  };
+  const keyExtractor = useCallback((item: FlatItem) => {
+    return item.kind === 'header' ? `h-${item.date}` : `r-${item.transaction.id}`;
+  }, []);
 
   return (
     <View style={s.root}>
@@ -168,63 +188,68 @@ export function TransactionsScreen() {
           returnKeyType="search"
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <Pressable onPress={() => setSearch('')}>
             <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
 
       {/* Filter tabs */}
       <View style={s.filterRow}>
         {(['all', 'income', 'expense'] as FilterType[]).map((f) => (
-          <TouchableOpacity
+          <Pressable
             key={f}
-            style={[s.filterTab, filter === f && s.filterTabActive]}
+            style={({ pressed }) => [
+              s.filterTab,
+              filter === f && s.filterTabActive,
+              pressed && { opacity: 0.8 },
+            ]}
             onPress={() => setFilter(f)}
           >
             <Text style={[s.filterTabText, filter === f && s.filterTabTextActive]}>
               {f === 'all' ? 'Todos' : f === 'income' ? 'Ingresos' : 'Gastos'}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
 
       {/* List */}
       {isLoading ? (
-        <ActivityIndicator color={Colors.accent} style={{ flex: 1 }} />
+        <SkeletonTransactionList rows={7} />
       ) : transactions.length === 0 ? (
-        <EmptyState filter={filter} />
+        <EmptyState
+          icon={<Ionicons name="swap-horizontal" size={28} color={Colors.accent} />}
+          title={filter === 'income' ? 'Sin ingresos' : filter === 'expense' ? 'Sin gastos' : 'Sin movimientos'}
+          subtitle={
+            filter === 'income' ? 'No tienes ingresos registrados este período.'
+            : filter === 'expense' ? 'No tienes gastos registrados este período.'
+            : 'Usa el botón + para registrar tu primer movimiento.'
+          }
+          ctaLabel={filter === 'all' ? 'Agregar movimiento' : undefined}
+        />
       ) : (
         <FlatList
-          data={groups}
-          keyExtractor={([date]) => date}
-          renderItem={renderSection}
+          data={items}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
           contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
+          getItemLayout={getItemLayout}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.accent} />
           }
           onEndReached={() => hasMore && load()}
           onEndReachedThreshold={0.4}
-          ListFooterComponent={hasMore ? <ActivityIndicator color={Colors.accent} style={{ marginVertical: 16 }} /> : null}
+          removeClippedSubviews
         />
       )}
-    </View>
-  );
-}
 
-function EmptyState({ filter }: { filter: FilterType }) {
-  return (
-    <View style={s.empty}>
-      <LinearGradient colors={[Colors.accent + '20', Colors.primary + '10']} style={s.emptyIcon}>
-        <Ionicons name="swap-horizontal" size={32} color={Colors.accent} />
-      </LinearGradient>
-      <Text style={s.emptyTitle}>Sin movimientos</Text>
-      <Text style={s.emptySub}>
-        {filter === 'income' ? 'No tienes ingresos registrados este período.'
-          : filter === 'expense' ? 'No tienes gastos registrados este período.'
-          : 'Usa el botón + para registrar tu primer movimiento.'}
-      </Text>
+      {/* Transaction Detail Sheet */}
+      <TransactionDetailSheet
+        transaction={selectedTx}
+        visible={sheetVisible}
+        onClose={closeDetail}
+      />
     </View>
   );
 }
@@ -283,25 +308,9 @@ const s = StyleSheet.create({
   dateLabel: {
     color: Colors.textMuted, fontSize: Typography.xs,
     fontWeight: Typography.semibold, textTransform: 'uppercase',
-    letterSpacing: 0.8, marginTop: Spacing.md, marginBottom: Spacing.xs,
+    letterSpacing: 0.8,
+    height: HEADER_HEIGHT,
+    lineHeight: HEADER_HEIGHT,
+    paddingTop: 8,
   },
-
-  txnRow: {
-    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.xs,
-    borderWidth: 1, borderColor: Colors.border,
-  },
-  txnIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
-  txnMeta: { flex: 1 },
-  txnDesc: { color: Colors.textPrimary, fontSize: Typography.base, fontWeight: Typography.medium },
-  txnSub: { color: Colors.textMuted, fontSize: Typography.xs, marginTop: 2 },
-  txnAmt: { fontSize: Typography.base, fontWeight: Typography.bold },
-
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
-  emptyIcon: { width: 72, height: 72, borderRadius: 36, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
-  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold, marginBottom: Spacing.xs },
-  emptySub: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center', lineHeight: 22 },
 });

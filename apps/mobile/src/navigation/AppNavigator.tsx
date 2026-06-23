@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, Platform, Pressable, Modal } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator, BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAppSelector } from '../store';
-import { Colors, Typography, BorderRadius, Shadows } from '../theme';
+import { Colors, Typography, BorderRadius } from '../theme';
 
 // Screens
 import { LoginScreen }           from '../screens/auth/LoginScreen';
@@ -16,6 +16,7 @@ import { TransactionsScreen }    from '../screens/transactions/TransactionsScree
 import { AddTransactionScreen }  from '../screens/transactions/AddTransactionScreen';
 import { GoalsScreen }           from '../screens/goals/GoalsScreen';
 import { AiChatScreen }          from '../screens/ai/AiChatScreen';
+import { AnalysisScreen }        from '../screens/analysis/AnalysisScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -43,11 +44,21 @@ function NexoTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
             if (isFab) {
               return (
-                <TouchableOpacity key={route.key} style={tb.fabWrap} onPress={onPress} activeOpacity={0.85}>
-                  <LinearGradient colors={[Colors.accent, Colors.accentDark]} style={[tb.fab, Shadows.glow]}>
-                    <Ionicons name="add" size={28} color="#fff" />
-                  </LinearGradient>
-                </TouchableOpacity>
+                <Pressable
+                  key={route.key}
+                  style={tb.fabWrap}
+                  onPress={onPress}
+                  hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+                >
+                  {({ pressed }) => (
+                    <LinearGradient
+                      colors={[Colors.accent, Colors.accentDark]}
+                      style={[tb.fab, { opacity: pressed ? 0.85 : 1 }]}
+                    >
+                      <Ionicons name="add" size={28} color="#fff" />
+                    </LinearGradient>
+                  )}
+                </Pressable>
               );
             }
 
@@ -55,16 +66,25 @@ function NexoTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
             const icon  = TAB_ICONS[route.name] || 'ellipsis-horizontal';
 
             return (
-              <TouchableOpacity key={route.key} style={tb.tab} onPress={onPress} activeOpacity={0.7}>
-                <View style={[tb.iconWrap, focused && tb.iconActive]}>
-                  <Ionicons
-                    name={(focused ? icon : `${icon}-outline`) as 'home'}
-                    size={22}
-                    color={focused ? Colors.accent : Colors.textMuted}
-                  />
-                </View>
-                <Text style={[tb.label, focused && tb.labelActive]}>{label}</Text>
-              </TouchableOpacity>
+              <Pressable
+                key={route.key}
+                style={tb.tab}
+                onPress={onPress}
+                hitSlop={{ top: 8, bottom: 8, left: 16, right: 16 }}
+              >
+                {({ pressed }) => (
+                  <>
+                    <View style={[tb.iconWrap, focused && tb.iconActive, pressed && { opacity: 0.72 }]}>
+                      <Ionicons
+                        name={(focused ? icon : `${icon}-outline`) as 'home'}
+                        size={22}
+                        color={focused ? Colors.accent : Colors.textMuted}
+                      />
+                    </View>
+                    <Text style={[tb.label, focused && tb.labelActive]}>{label}</Text>
+                  </>
+                )}
+              </Pressable>
             );
           })}
         </LinearGradient>
@@ -84,6 +104,7 @@ function NexoTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 const TAB_ICONS: Record<string, string> = {
   Dashboard:    'home',
   Transactions: 'swap-horizontal',
+  Analysis:     'bar-chart',
   Goals:        'flag',
   AI:           'sparkles',
 };
@@ -100,6 +121,7 @@ function MainTabs() {
       <Tab.Screen name="Dashboard"    component={DashboardScreen}    options={{ tabBarLabel: 'Inicio' }} />
       <Tab.Screen name="Transactions" component={TransactionsScreen} options={{ tabBarLabel: 'Movimientos' }} />
       <Tab.Screen name="AddTransaction" component={EmptyScreen}      options={{ tabBarLabel: '' }} />
+      <Tab.Screen name="Analysis"     component={AnalysisScreen}     options={{ tabBarLabel: 'Análisis' }} />
       <Tab.Screen name="Goals"        component={GoalsScreen}        options={{ tabBarLabel: 'Metas' }} />
       <Tab.Screen name="AI"           component={AiChatScreen}       options={{ tabBarLabel: 'Nexo IA' }} />
     </Tab.Navigator>

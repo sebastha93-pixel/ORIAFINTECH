@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Typography, BorderRadius } from '../../theme';
 import { api } from '../../services/api';
 import { Goal, GoalType } from '../../types';
+import { EmptyState } from '../../components/common/EmptyState';
 
 // ─── helpers ───────────────────────────────────────────────
 const fmt = (n: number) =>
@@ -185,7 +186,13 @@ export function GoalsScreen() {
       {isLoading ? (
         <ActivityIndicator color={Colors.accent} style={{ flex: 1 }} />
       ) : goals.length === 0 ? (
-        <EmptyGoals onAdd={() => setShowAdd(true)} />
+        <EmptyState
+          icon={<Ionicons name="flag-outline" size={28} color={Colors.accent} />}
+          title="Sin metas aún"
+          subtitle="Define una meta financiera y conecta tus ahorros automáticamente."
+          ctaLabel="Crear primera meta"
+          onCta={() => setShowAdd(true)}
+        />
       ) : (
         <FlatList
           data={goals}
@@ -220,23 +227,7 @@ export function GoalsScreen() {
   );
 }
 
-// ─── Empty state ───────────────────────────────────────────
-function EmptyGoals({ onAdd }: { onAdd: () => void }) {
-  return (
-    <View style={s.empty}>
-      <LinearGradient colors={[Colors.accent + '20', Colors.primary + '10']} style={s.emptyIcon}>
-        <Ionicons name="flag" size={32} color={Colors.accent} />
-      </LinearGradient>
-      <Text style={s.emptyTitle}>Sin metas aún</Text>
-      <Text style={s.emptySub}>Define una meta financiera y conecta tus ahorros automáticamente.</Text>
-      <TouchableOpacity style={s.emptyBtn} onPress={onAdd}>
-        <LinearGradient colors={Colors.gradientAccent} style={s.emptyBtnGrad}>
-          <Text style={s.emptyBtnText}>Crear primera meta</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
-  );
-}
+// EmptyGoals replaced by shared EmptyState component
 
 // ─── Contribution modal ────────────────────────────────────
 function ContributionModal({ goalId, goalName, onClose, onSaved }: {

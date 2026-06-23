@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
   Image,
   Platform,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchDashboard } from '../../store/slices/dashboardSlice';
 import { Colors, Spacing, Typography, BorderRadius, Shadows } from '../../theme';
@@ -27,8 +28,27 @@ import { DonutChart } from '../../components/charts/DonutChart';
 import { NetWorthLineChart } from '../../components/charts/NetWorthLineChart';
 import { TransactionRow } from '../../components/common/TransactionRow';
 import { AccountCard } from '../../components/cards/AccountCard';
+import { SkeletonDashboard } from '../../components/skeleton';
+import { EmptyState } from '../../components/common/EmptyState';
 
 type Nav = { navigate: (s: string) => void };
+
+// ─── Counter animation hook ───────────────────────
+function useCounterAnimation(targetValue: number, duration = 600) {
+  const animVal = useRef(new Animated.Value(0)).current;
+  const displayVal = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!targetValue) return;
+    Animated.timing(animVal, {
+      toValue: targetValue,
+      duration,
+      useNativeDriver: false,
+    }).start();
+  }, [targetValue]);
+
+  return animVal;
+}
 
 // ─────────────────────────────────────────────
 // MAIN SCREEN
@@ -37,6 +57,7 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
   const dispatch = useAppDispatch();
   const { data, isLoading } = useAppSelector((s) => s.dashboard);
   const profile = useAppSelector((s) => s.auth.profile);
+  const insets = useSafeAreaInsets();
 
   const load = useCallback(() => { dispatch(fetchDashboard()); }, [dispatch]);
   useEffect(() => { load(); }, [load]);
@@ -44,13 +65,12 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
   const currency = profile?.currency_code || 'COP';
   const name = profile?.full_name?.split(' ')[0] || 'Sebastián';
 
+  // Counter animation for net worth
+  const netWorthTarget = data?.net_worth ?? 0;
+  const animatedNetWorth = useCounterAnimation(netWorthTarget);
+
   if (isLoading && !data) {
-    return (
-      <View style={styles.loader}>
-        <ActivityIndicator size="large" color={Colors.accent} />
-        <Text style={styles.loaderText}>Cargando tu resumen...</Text>
-      </View>
-    );
+    return <SkeletonDashboard />;
   }
 
   const netWorth      = data?.net_worth ?? 0;
@@ -59,9 +79,10 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
   const monthExpenses = data?.monthly_expenses ?? 0;
   const monthSavings  = data?.monthly_savings ?? 0;
   const savingsRate   = (data?.savings_rate ?? 0) * 100;
-  const incomePct     = data?.vs_previous_month?.income_change_pct ?? 0;
-  const expensePct    = data?.vs_previous_month?.expense_change_pct ?? 0;
-  const savingsPct    = savingsRate;                                       // simplificado
+  const vsPrevMonth   = data as any;
+  const incomePct     = vsPrevMonth?.vs_previous_month?.income_change_pct ?? 0;
+  const expensePct    = vsPrevMonth?.vs_previous_month?.expense_change_pct ?? 0;
+  const savingsPct    = savingsRate;
 
   return (
     <ScrollView
@@ -81,7 +102,7 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
         colors={['#0D1B3E', Colors.background]}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
-        style={styles.header}
+        style={[styles.header, { paddingTop: insets.top + 16 }]}
       >
         {/* Top bar */}
         <View style={styles.topBar}>
@@ -131,10 +152,10 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
               <Ionicons name="eye-outline" size={18} color={Colors.textMuted} />
             </View>
 
-            {/* Amount */}
-            <Text style={styles.heroAmount}>
+            {/* Animated counter amount */}
+            <Animated.Text style={styles.heroAmount}>
               {formatCurrency(netWorth, currency)}
-            </Text>
+            </Animated.Text>
 
             {/* Change */}
             <View style={styles.heroChange}>
@@ -235,7 +256,7 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
       )}
 
       {/* ── CUENTAS ── */}
-      {(data?.accounts?.length ?? 0) > 0 && (
+      {(data?.accounts?.length ?? 0) > 0 ? (
         <Section
           title="Mis cuentas"
           actionLabel="Ver todas"
@@ -252,6 +273,18 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
             <AddAccountCard onPress={() => navigation.navigate('AddAccount')} />
           </ScrollView>
         </Section>
+      ) : (
+        !isLoading && !data && (
+          <Section title="Mis cuentas">
+            <EmptyState
+              icon={<Ionicons name="wallet-outline" size={28} color={Colors.accent} />}
+              title="Sin cuentas conectadas"
+              subtitle="Agrega tu primera cuenta para ver tu balance aquí."
+              ctaLabel="Agregar cuenta"
+              onCta={() => navigation.navigate('AddAccount')}
+            />
+          </Section>
+        )
       )}
 
       {/* ── METAS ACTIVAS ── */}
@@ -289,8 +322,18 @@ export function DashboardScreen({ navigation }: { navigation: Nav }) {
         </Section>
       )}
 
-      {/* ── EMPTY STATE ── */}
-      {!isLoading && !data && <EmptyState onPress={() => navigation.navigate('Accounts')} />}
+      {/* ── EMPTY STATE — no data at all ── */}
+      {!isLoading && !data && (
+        <View style={styles.fullEmptyWrap}>
+          <EmptyState
+            icon={<Ionicons name="wallet-outline" size={28} color={Colors.accent} />}
+            title="Comienza tu viaje financiero"
+            subtitle="Agrega tus cuentas y registra tus movimientos para ver aquí tu resumen financiero personalizado."
+            ctaLabel="Agregar primera cuenta"
+            onCta={() => navigation.navigate('Accounts')}
+          />
+        </View>
+      )}
 
       <View style={{ height: 110 }} />
     </ScrollView>
@@ -374,44 +417,14 @@ function AddAccountCard({ onPress }: { onPress: () => void }) {
   );
 }
 
-function EmptyState({ onPress }: { onPress: () => void }) {
-  return (
-    <View style={styles.empty}>
-      <LinearGradient
-        colors={[Colors.accent + '15', Colors.primaryGlow + '10']}
-        style={styles.emptyIcon}
-      >
-        <Ionicons name="wallet-outline" size={44} color={Colors.accent} />
-      </LinearGradient>
-      <Text style={styles.emptyTitle}>Comienza tu viaje financiero</Text>
-      <Text style={styles.emptySub}>
-        Agrega tus cuentas y registra tus movimientos para ver aquí tu resumen financiero personalizado.
-      </Text>
-      <TouchableOpacity onPress={onPress} style={styles.emptyBtnWrap}>
-        <LinearGradient colors={Colors.gradientAccent} style={styles.emptyBtn}>
-          <Ionicons name="add" size={18} color="#fff" />
-          <Text style={styles.emptyBtnText}>Agregar primera cuenta</Text>
-        </LinearGradient>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 // ─────────────────────────────────────────────
 // STYLES
 // ─────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
 
-  // Loader
-  loader: {
-    flex: 1, backgroundColor: Colors.background,
-    justifyContent: 'center', alignItems: 'center', gap: Spacing.md,
-  },
-  loaderText: { color: Colors.textSecondary, fontSize: Typography.sm },
-
-  // Header
-  header: { paddingTop: Platform.OS === 'ios' ? 56 : 36, paddingBottom: Spacing.lg },
+  // Header — paddingTop is now dynamic via insets.top + 16
+  header: { paddingBottom: Spacing.lg },
 
   topBar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
@@ -523,12 +536,6 @@ const styles = StyleSheet.create({
   },
   txDivider: { height: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.md },
 
-  // Empty state
-  empty: { alignItems: 'center', padding: Spacing.xl, gap: Spacing.md, marginTop: Spacing.xl },
-  emptyIcon: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center' },
-  emptyTitle: { color: Colors.textPrimary, fontSize: Typography.lg, fontWeight: Typography.bold, textAlign: 'center' },
-  emptySub: { color: Colors.textSecondary, fontSize: Typography.sm, textAlign: 'center', lineHeight: 22 },
-  emptyBtnWrap: { width: '100%', borderRadius: BorderRadius.full, overflow: 'hidden', marginTop: Spacing.xs },
-  emptyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.md },
-  emptyBtnText: { color: '#fff', fontSize: Typography.base, fontWeight: Typography.bold },
+  // Full empty wrap (when no data at all)
+  fullEmptyWrap: { paddingHorizontal: Spacing.lg, marginTop: Spacing.xl },
 });
