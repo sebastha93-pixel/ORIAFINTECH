@@ -8,6 +8,8 @@
     "nohoist": [
       "**/metro",
       "**/metro/**",
+      "**/@expo/cli",
+      "**/@expo/cli/**",
       "**/@expo/metro-config",
       "**/@expo/metro-config/**",
       "**/@expo/metro-runtime",
