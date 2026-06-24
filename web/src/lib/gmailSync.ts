@@ -29,7 +29,7 @@ export function computeGlobalCutoff(accounts: Pick<SyncAccount, 'initial_balance
     .filter(a => a.initial_balance_set_at)
     .map(a => a.initial_balance_set_at!)
     .sort();
-  return dates.length ? dates[dates.length - 1] : null;
+  return dates.length ? dates[0] : null;  // oldest date = most permissive cutoff
 }
 
 // Use Date objects, not string comparison, to handle timezone-offset formats correctly
@@ -114,8 +114,7 @@ export async function runGmailSync(
     parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
   }
 
-  let created = 0;
-  for (const txn of parsed) {
+  const insertResults = await Promise.all(parsed.map(async txn => {
     const meta: Record<string, string> = {};
     if (txn.merchant)        meta.merchant         = txn.merchant;
     if (txn.recipientName)   meta.recipient_name   = txn.recipientName;
@@ -140,13 +139,11 @@ export async function runGmailSync(
       ...(Object.keys(meta).length ? { metadata: meta } : {}),
       ...(txn.account_id ? { account_id: txn.account_id } : {}),
     });
-    if (!error) {
-      created++;
-    } else if (error.code !== '23505') {
-      // 23505 = duplicate key (already imported) — silently skip; log the rest
-      console.error('gmailSync insert error:', error.code, error.message);
-    }
-  }
+    if (!error) return true;
+    if (error.code !== '23505') console.error('gmailSync insert error:', error.code, error.message);
+    return false;
+  }));
+  const created = insertResults.filter(Boolean).length;
 
   return { created, emailCount: emails.length };
 }

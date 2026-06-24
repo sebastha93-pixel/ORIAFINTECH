@@ -475,7 +475,7 @@ function AddContribModal({ goal, userId, onClose, onSaved }: { goal: Goal; userI
         }),
         supabase.from('goals').update({
           current_amount: Number(goal.current_amount) + amt,
-        }).eq('id', goal.id),
+        }).eq('id', goal.id).eq('user_id', userId),
       ]);
       if (e1 || e2) { setError('Error al guardar. Intenta de nuevo.'); return; }
       onSaved();

@@ -61,7 +61,14 @@ export function AddTransactionScreen({ userId, onClose, onSaved }: {
   const effectiveCat = cat === CUSTOM_MARKER ? (customCat.trim() || 'Personalizado') : cat;
 
   async function handleSave() {
-    const num = parseFloat(amount.replace(/[^0-9.]/g, ''));
+    // Handle Colombian format: '1.000.000' → 1000000, '1.5' → 1.5
+    const rawAmt = amount.replace(/[^0-9.,]/g, '');
+    const amtParts = rawAmt.split('.');
+    const amtLast = amtParts[amtParts.length - 1] ?? '';
+    const amtNorm = (amtParts.length > 2 || (amtParts.length === 2 && amtLast.length === 3))
+      ? rawAmt.replace(/\./g, '').replace(',', '.')
+      : rawAmt.replace(',', '.');
+    const num = parseFloat(amtNorm);
     if (!num || num <= 0) { setError('Ingresa un monto válido'); return; }
     if (num > 999_999_999_999) { setError('Monto demasiado alto'); return; }
     if (!desc.trim()) { setError('Ingresa una descripción'); return; }

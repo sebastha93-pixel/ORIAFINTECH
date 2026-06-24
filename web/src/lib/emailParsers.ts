@@ -24,7 +24,13 @@ function parseAmount(raw: string): number {
     if (after.length === 3) return parseFloat(s.replace(/,/g, '')) || 0;
     return parseFloat(s.replace(',', '.')) || 0;
   }
-  return parseFloat(s.replace(/\./g, '')) || 0;
+  // Only dots: if last segment has exactly 3 digits, all dots are thousands separators
+  // Otherwise the last dot is a decimal separator ('1.5' → 1.5, '50.00' → 50, '1.234' → 1234)
+  const parts = s.split('.');
+  const last = parts[parts.length - 1] ?? '';
+  if (parts.length > 2 || (parts.length === 2 && last.length === 3))
+    return parseFloat(s.replace(/\./g, '')) || 0;
+  return parseFloat(s) || 0;
 }
 
 function inferCategory(text: string): string {

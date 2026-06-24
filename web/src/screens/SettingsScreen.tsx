@@ -455,6 +455,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
   // Listen for postMessage from the Railway OAuth popup (desktop)
   useEffect(() => {
     function onMessage(e: MessageEvent) {
+      if (e.origin !== window.location.origin) return;
       if (e.data?.type === 'nexo_gmail_connected') {
         setGmailConnected(true);
         localStorage.setItem('nexo_gmail_connected', '1');
@@ -530,7 +531,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
         throw new Error(`HTTP ${emailsRes.status}: ${body.slice(0, 120)}`);
       }
 
-      const emails = await emailsRes.json() as { messageId: string; bank: string; subject: string; body: string; date: string }[];
+      const rawEmails = await emailsRes.json() as unknown;
+      if (!Array.isArray(rawEmails)) throw new Error('Respuesta inesperada del servidor de correo. Reconecta Gmail si el problema persiste.');
+      const emails = (rawEmails as { messageId: string; bank: string; subject: string; body: string; date: string }[])
+        .filter(e => e && typeof e.messageId === 'string' && typeof e.bank === 'string');
 
       // Parse emails — try to link to registered accounts but import regardless
       const registeredAccounts = accounts.filter(a => a.account_suffix);
@@ -587,10 +591,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
         setLastSync(`${time} · ${emails.length} correos · ${cNoParse} sin parsear${cutoffInfo} · sin movimientos nuevos`);
         return;
       }
-      // Step 3: Insert via Supabase JS (user is authenticated → no RLS issues)
-      let created = 0;
+      // Step 3: Insert via Supabase JS — parallel to avoid N×roundtrip latency
       const upsertErrors: string[] = [];
-      for (const txn of parsed) {
+      const insertResults = await Promise.all(parsed.map(async txn => {
         const meta: Record<string, string> = {};
         if (txn.merchant)        meta.merchant         = txn.merchant;
         if (txn.recipientName)   meta.recipient_name   = txn.recipientName;
@@ -615,13 +618,11 @@ export function SettingsScreen({ userId }: { userId: string }) {
           ...(Object.keys(meta).length ? { metadata: meta } : {}),
           ...(txn.account_id ? { account_id: txn.account_id } : {}),
         });
-        if (!error) {
-          created++;
-        } else if (error.code !== '23505') {
-          // 23505 = duplicate (already imported) → silently skip
-          upsertErrors.push(error.message.slice(0, 60));
-        }
-      }
+        if (!error) return true;
+        if (error.code !== '23505') upsertErrors.push(error.message.slice(0, 60));
+        return false;
+      }));
+      const created = insertResults.filter(Boolean).length;
 
       setGmailCount(prev => prev + created);
       const errStr = upsertErrors.length > 0 ? ` ⚠️ ${upsertErrors[0]}` : '';

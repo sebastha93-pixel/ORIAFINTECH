@@ -180,7 +180,7 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
         {snap.accounts.map(acc => {
           const isCredit = acc.account_type === 'credit_card';
           return (
-            <div key={acc.name} style={{
+            <div key={acc.id} style={{
               background: C.surface,
               border: `1px solid ${C.border}`,
               borderRadius: 8,
