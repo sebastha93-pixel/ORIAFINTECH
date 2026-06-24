@@ -98,11 +98,11 @@ export function PatrimonyScreen() {
           <div style={{ ...card }}>
             {debitAccounts.map((a, i) => (
               <AccountRow key={`d${i}`} institution={a.institution} suffix={a.account_suffix}
-                amount={Number(a.initial_balance ?? 0)} positive
+                amount={a.currentBalance} positive
                 divider={i > 0} />
             ))}
             {creditAccounts.map((a, i) => {
-              const debt  = Number(a.initial_balance ?? 0);
+              const debt  = a.currentBalance;
               const limit = Number(a.credit_limit ?? 0);
               const pct   = limit > 0 ? Math.min(100, Math.round((debt / limit) * 100)) : null;
               return (

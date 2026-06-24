@@ -121,42 +121,35 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
   // Compute per-account balance = initial_balance ± all transactions since creation
   const txnsByAccount: Record<string, { income: number; expense: number }> = {};
   let globalIncome = 0, globalExpense = 0;
+  let linkedIncome = 0, linkedExpense = 0;
 
   for (const txn of (allTxnsRes.data ?? [])) {
     const t = txn as { account_id: string | null; transaction_type: string; amount: number };
-    const amt = Number(t.amount);
+    const amt = Number(t.amount) || 0;   // guard against null/undefined → NaN
     if (t.transaction_type === 'income') globalIncome += amt; else globalExpense += amt;
     if (!t.account_id) continue;
     if (!txnsByAccount[t.account_id]) txnsByAccount[t.account_id] = { income: 0, expense: 0 };
-    if (t.transaction_type === 'income') txnsByAccount[t.account_id].income += amt;
-    else txnsByAccount[t.account_id].expense += amt;
+    if (t.transaction_type === 'income') { txnsByAccount[t.account_id].income += amt; linkedIncome += amt; }
+    else { txnsByAccount[t.account_id].expense += amt; linkedExpense += amt; }
   }
 
   type RawAccount = Omit<Account, 'currentBalance'>;
   const rawAccounts = (accountsRes.data as RawAccount[]) ?? [];
   const debitRaw = rawAccounts.filter(a => a.account_type !== 'credit_card');
 
-  // Transactions without account_id: distribute across debit accounts
-  const linkedIncome  = Object.values(txnsByAccount).reduce((s, t) => s + t.income, 0);
-  const linkedExpense = Object.values(txnsByAccount).reduce((s, t) => s + t.expense, 0);
-  const unlinkedIncome  = globalIncome  - linkedIncome;
-  const unlinkedExpense = globalExpense - linkedExpense;
+  // Distribute unlinked transactions (no account_id) across debit accounts, weighted by initial_balance
+  const unlinkedNet = (globalIncome - linkedIncome) - (globalExpense - linkedExpense);
+  const totalBase   = debitRaw.reduce((s, a) => s + Math.max(0, Number(a.initial_balance ?? 0)), 0);
 
   const accounts: Account[] = rawAccounts.map(acc => {
     const t = txnsByAccount[acc.id] ?? { income: 0, expense: 0 };
     const isCC = acc.account_type === 'credit_card';
     const base = Number(acc.initial_balance ?? 0);
-    if (isCC) return { ...acc, currentBalance: base + t.expense - t.income };
-    // Distribute unlinked transactions: all to single account, or proportional by initial_balance
-    let bonus = 0;
-    if (debitRaw.length === 1) {
-      bonus = unlinkedIncome - unlinkedExpense;
-    } else if (debitRaw.length > 1) {
-      const totalBase = debitRaw.reduce((s, a) => s + Math.max(0, Number(a.initial_balance ?? 0)), 0);
-      const weight = totalBase > 0 ? Math.max(0, base) / totalBase : 1 / debitRaw.length;
-      bonus = (unlinkedIncome - unlinkedExpense) * weight;
-    }
-    return { ...acc, currentBalance: base + t.income - t.expense + bonus };
+    if (isCC) return { ...acc, currentBalance: Math.max(0, base + t.expense - t.income) };
+    const weight = debitRaw.length === 0 ? 0
+      : totalBase > 0 ? Math.max(0, base) / totalBase
+      : 1 / debitRaw.length;
+    return { ...acc, currentBalance: base + t.income - t.expense + unlinkedNet * weight };
   });
 
   return {
