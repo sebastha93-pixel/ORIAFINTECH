@@ -480,7 +480,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
       const parts = displayName.split(/\s+/);
       setUserEmail(email);
       setUserName(parts.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '));
-      setUserInitials(parts.slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || email[0]?.toUpperCase() ?? 'U');
+      setUserInitials(parts.slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || (email[0]?.toUpperCase() ?? 'U'));
     })();
   }, []);
 
@@ -730,797 +730,680 @@ export function SettingsScreen({ userId }: { userId: string }) {
   }
 
   return (
-    <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
-      {/* Header */}
-      <div style={{ background:'linear-gradient(160deg,#0E1620,#0A0C0F)', padding:'48px 20px 24px' }}>
-        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4, fontFamily:"'DM Sans',sans-serif" }}>Perfil</div>
-        <div style={{ color:C.textMuted, fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>Cuentas vinculadas, sincronización y seguridad</div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100vh', overflow:'hidden', background:C.background }}>
+
+      {/* ── Profile header ── */}
+      <div style={{ background:'linear-gradient(160deg,#0E1620,#0A0C0F)', padding:'48px 14px 20px', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+          <div style={{ width:48, height:48, borderRadius:999, background:C.accentBg, border:`2px solid ${C.accent}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <span style={{ color:C.accent, fontSize:18, fontWeight:800, fontFamily:"'DM Sans',sans-serif" }}>{userInitials || '?'}</span>
+          </div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ color:C.text, fontSize:16, fontWeight:700, fontFamily:"'DM Sans',sans-serif", overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{userName || 'Usuario'}</div>
+            <div style={{ color:C.textMuted, fontSize:12, fontFamily:"'DM Sans',sans-serif", overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{userEmail}</div>
+          </div>
+        </div>
       </div>
 
-      {/* Tab switcher */}
-      <div style={{ display:'flex', gap:0, margin:'16px 16px 0', borderRadius:14, overflow:'hidden', border:`1px solid ${C.border}` }}>
-        {([
-          ['gmail',   '✉️ Gmail'],
-          ['cuentas', '🏦 Cuentas'],
-          ['csv',     '📂 Extracto'],
-        ] as const).map(([t, label]) => (
-          <button key={t} onClick={() => setTab(t)}
-            style={{ flex:1, padding:'11px 0', border:'none', cursor:'pointer', fontWeight:700, fontSize:12,
-              fontFamily:"'DM Sans',sans-serif",
-              background: tab===t ? 'linear-gradient(135deg,#00E5A0,#00B87A)' : C.surface,
-              color: tab===t ? C.textInverse : C.textMuted }}>
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* ── Scrollable body ── */}
+      <div style={{ flex:1, overflowY:'auto', padding:'0 14px', paddingBottom:'calc(80px + env(safe-area-inset-bottom))' }}>
 
-      <div style={{ padding:'16px 16px', display:'flex', flexDirection:'column', gap:16 }}>
+        {/* ── Mis cuentas ── */}
+        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:'0.12em', color:C.textMuted, textTransform:'uppercase', padding:'14px 0 8px' }}>
+          Mis cuentas
+        </div>
 
-        {/* ── GMAIL TAB ── */}
-        {tab === 'gmail' && (
-          <>
-            {!gmailConnected ? (
-              <div style={{ ...card }}>
-                <div style={{ color:C.text, fontSize:16, fontWeight:800, marginBottom:8, fontFamily:"'DM Sans',sans-serif" }}>Sincronización automática</div>
-                <div style={{ color:C.textSec, fontSize:13, lineHeight:1.7, marginBottom:20, fontFamily:"'DM Sans',sans-serif" }}>
-                  ORIA lee los correos de alerta de <strong style={{color:C.text}}>Bancolombia</strong>, <strong style={{color:C.text}}>Davivienda</strong> y <strong style={{color:C.text}}>Nequi</strong> y registra tus movimientos automáticamente. Solo lectura — ORIA nunca modifica tu correo.
+        {accounts.map(acc => {
+          const isCC       = acc.account_type === 'credit_card';
+          const isExpanded = expandedAccount === acc.id;
+          const locked     = isBalanceLocked(acc);
+          const editable   = !locked;
+          const isSaving   = savingBalance[acc.id] ?? false;
+          const trmVal     = parseFloat(trm) || 3516;
+          const debt       = acc.initial_balance ?? 0;
+          const limit      = acc.credit_limit ?? 0;
+          const debtUsd    = acc.initial_balance_usd ?? 0;
+          const limitUsd   = acc.credit_limit_usd ?? 0;
+          const totalDebt  = debt + debtUsd * trmVal;
+          const totalLimit = limit + limitUsd * trmVal;
+          const utilPct    = totalLimit > 0 ? Math.min(100, Math.round((totalDebt / totalLimit) * 100)) : null;
+          const utilColor  = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? C.amber : C.accent;
+          const fmtUsd     = (n: number) => 'US$' + n.toLocaleString('en-US', { minimumFractionDigits:0, maximumFractionDigits:2 });
+
+          return (
+            <div key={acc.id} style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:8 }}>
+              {/* Row */}
+              <div onClick={() => setExpandedAccount(isExpanded ? null : acc.id)} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 13px', cursor:'pointer' }}>
+                <BankLogo institution={acc.institution} size={32} borderRadius={8} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  <span style={{ fontSize:12, fontWeight:500, color:C.text, fontFamily:"'DM Sans',sans-serif" }}>{acc.name}</span>
+                  <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:10, color:C.textMuted, display:'block', marginTop:1 }}>
+                    {ACCOUNT_TYPE_LABELS[acc.account_type] || acc.account_type}{acc.account_suffix ? ` *${acc.account_suffix}` : ''}
+                  </span>
                 </div>
-
-                {gmailError && (
-                  <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:10, padding:'10px 14px', marginBottom:16, color:C.danger, fontSize:13 }}>
-                    ⚠️ {gmailError}
-                  </div>
-                )}
-
-                <button onClick={connectGmail} disabled={gmailLoading}
-                  style={{ width:'100%', padding:'15px 0', borderRadius:14, border:'none', cursor: gmailLoading ? 'default' : 'pointer',
-                    background: gmailLoading ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
-                    color:'#0A0C0F', fontSize:15, fontWeight:700, opacity: gmailLoading ? 0.7 : 1 }}>
-                  {gmailLoading ? '⏳ Esperando autorización…' : '🔗 Conectar Gmail'}
-                </button>
-
-                <div style={{ marginTop:12, display:'flex', alignItems:'flex-start', gap:8 }}>
-                  <span style={{ color:C.accent, fontSize:12, marginTop:1 }}>🔒</span>
-                  <div style={{ color:C.textMuted, fontSize:11, lineHeight:1.6 }}>
-                    Usa OAuth 2.0 seguro. ORIA nunca almacena tu contraseña. Puedes revocar el acceso en cualquier momento desde tu cuenta Google.
-                  </div>
-                </div>
+                <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:500, color: isCC ? C.danger : C.text }}>
+                  {isCC ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
+                </span>
               </div>
-            ) : (
-              <div style={{ ...card, border:`1px solid rgba(0,229,160,0.3)`, background:'rgba(0,229,160,0.05)' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-                  <div style={{ width:44, height:44, borderRadius:14, background:'rgba(0,229,160,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✅</div>
-                  <div>
-                    <div style={{ color:C.text, fontSize:15, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>Gmail conectado</div>
-                    <div style={{ color:C.textMuted, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>{gmailEmail}</div>
-                  </div>
-                </div>
-                <div style={{ background:'rgba(0,229,160,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
-                  {gmailCount} movimiento{gmailCount !== 1 ? 's' : ''} importado{gmailCount !== 1 ? 's' : ''} automáticamente
-                </div>
-                {lastSync && (
-                  <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center' }}>
-                    Última sync: {lastSync}
-                  </div>
-                )}
-                {accounts.length === 0 && (
-                  <div style={{ background:'rgba(245,166,35,0.1)', border:'1px solid rgba(245,166,35,0.3)', borderRadius:10, padding:'10px 14px', color:'#F5A623', fontSize:12, textAlign:'center', marginTop:8 }}>
-                    Registra al menos una cuenta bancaria para activar la sincronización
-                  </div>
-                )}
-                <button onClick={syncNow} disabled={syncing || accounts.length === 0}
-                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:'none',
-                    cursor: (syncing || accounts.length === 0) ? 'default' : 'pointer',
-                    background: (syncing || accounts.length === 0) ? C.surface : 'rgba(0,229,160,0.1)',
-                    color: accounts.length === 0 ? C.textMuted : C.accent,
-                    fontSize:14, fontWeight:700, opacity: (syncing || accounts.length === 0) ? 0.5 : 1 }}>
-                  {syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar ahora'}
-                </button>
-                <button onClick={cleanAndResync} disabled={syncing || accounts.length === 0}
-                  style={{ width:'100%', marginTop:8, padding:'10px 0', borderRadius:12, border:`1px solid rgba(239,68,68,0.3)`,
-                    cursor: (syncing || accounts.length === 0) ? 'default' : 'pointer',
-                    background: 'rgba(239,68,68,0.07)', color:'#f87171', fontSize:13, fontWeight:600,
-                    opacity: (syncing || accounts.length === 0) ? 0.4 : 1 }}>
-                  🗑 Limpiar y re-sincronizar desde cero
-                </button>
-                <div style={{ color:C.textMuted, fontSize:11, marginTop:8, textAlign:'center', lineHeight:1.5 }}>
-                  ORIA sincroniza automáticamente cada 2 horas y al abrir la app.
-                </div>
-
-                {/* Diagnostic tool */}
-                <button onClick={runDiagnostic} disabled={diagRunning}
-                  style={{ width:'100%', marginTop:8, padding:'10px 0', borderRadius:12,
-                    border:`1px solid ${C.border}`, cursor: diagRunning ? 'default' : 'pointer',
-                    background: 'transparent', color: C.textMuted, fontSize:12, fontWeight:600,
-                    opacity: diagRunning ? 0.6 : 1 }}>
-                  {diagRunning ? '⏳ Analizando correos…' : '🔍 Diagnóstico de correos'}
-                </button>
-
-                {diagResult && (
-                  <div style={{ marginTop:8, background: C.bg, border:`1px solid ${C.border}`,
-                    borderRadius:10, padding:'12px 14px', maxHeight:320, overflowY:'auto' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                      <span style={{ color:C.textMuted, fontSize:10, fontWeight:700, letterSpacing:1 }}>DIAGNÓSTICO</span>
-                      <button onClick={() => setDiagResult(null)}
-                        style={{ background:'none', border:'none', color:C.textMuted, fontSize:16, cursor:'pointer', padding:0 }}>✕</button>
-                    </div>
-                    <pre style={{ color:C.textSec, fontSize:10, lineHeight:1.6, whiteSpace:'pre-wrap',
-                      wordBreak:'break-word', margin:0, fontFamily:'monospace' }}>
-                      {diagResult}
-                    </pre>
-                  </div>
-                )}
+              {/* Divider */}
+              <div style={{ height:1, background:C.border, margin:'0 13px' }} />
+              {/* Footer */}
+              <div style={{ display:'flex', padding:'8px 13px', alignItems:'center' }}>
+                <span style={{ fontSize:10, color:C.textMuted, fontFamily:"'DM Sans',sans-serif" }}>{ACCOUNT_TYPE_LABELS[acc.account_type] || acc.account_type}</span>
+                {gmailConnected && <span style={{ fontSize:9, fontWeight:500, color:C.accent, marginLeft:'auto', fontFamily:"'DM Sans',sans-serif" }}>Sincronizada</span>}
+                <button onClick={(e) => { e.stopPropagation(); removeAccount(acc.id); }} style={{ background:'none', border:'none', color:C.danger, fontSize:11, cursor:'pointer', marginLeft: gmailConnected ? 8 : 'auto', fontFamily:"'DM Sans',sans-serif" }}>Quitar</button>
               </div>
-            )}
+              {/* Expanded detail */}
+              {isExpanded && (
+                <div style={{ borderTop:`1px solid ${C.border}`, padding:'12px 13px', display:'flex', flexDirection:'column', gap:12 }}>
 
-            {/* How it works */}
-            <div style={{ ...card }}>
-              <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:1, marginBottom:12 }}>CÓMO FUNCIONA</div>
-              {[
-                ['1','Conecta tu Gmail con un clic usando Google OAuth'],
-                ['2','ORIA busca correos de Bancolombia, Davivienda y Nequi'],
-                ['3','Extrae el monto, comercio y fecha de cada alerta'],
-                ['4','Los movimientos aparecen en tu historial automáticamente'],
-              ].map(([n, text]) => (
-                <div key={n} style={{ display:'flex', gap:10, marginBottom:10, alignItems:'flex-start' }}>
-                  <div style={{ width:24, height:24, borderRadius:'50%', background:'rgba(0,229,160,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:C.accent, fontWeight:800, flexShrink:0 }}>{n}</div>
-                  <div style={{ color:C.textSec, fontSize:13, lineHeight:1.5 }}>{text}</div>
-                </div>
-              ))}
-            </div>
-
-            {/* Notifications */}
-            <NotificationCard />
-          </>
-        )}
-
-        {/* ── CUENTAS TAB ── */}
-        {tab === 'cuentas' && (
-          <>
-            <div style={{ ...card }}>
-              <div style={{ color:C.text, fontSize:15, fontWeight:700, marginBottom:4, fontFamily:"'DM Sans',sans-serif" }}>Mis productos bancarios</div>
-              <div style={{ color:C.textMuted, fontSize:12, lineHeight:1.6, marginBottom:16, fontFamily:"'DM Sans',sans-serif" }}>
-                Registra tus cuentas para que ORIA solo importe movimientos que pertenecen a tus productos.
-              </div>
-
-              {accounts.length === 0 && !showAddAccount && (
-                <div style={{ textAlign:'center', padding:'16px 0', color:C.textMuted, fontSize:13, lineHeight:1.6 }}>
-                  Sin cuentas registradas.<br />
-                  <span style={{ color: C.amber, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>Agrega al menos una cuenta para que ORIA importe tus movimientos de Gmail.</span>
-                </div>
-              )}
-
-              {accounts.map(acc => {
-                const isCC    = acc.account_type === 'credit_card';
-                const locked  = isBalanceLocked(acc);
-                const editable = !locked;
-                const isSaving = savingBalance[acc.id] ?? false;
-                const trmVal  = parseFloat(trm) || 3516;
-                const debt    = acc.initial_balance ?? 0;
-                const limit   = acc.credit_limit ?? 0;
-                const debtUsd   = acc.initial_balance_usd ?? 0;
-                const limitUsd  = acc.credit_limit_usd ?? 0;
-                // Combined utilization: convert everything to COP using TRM
-                const totalDebt  = debt + debtUsd * trmVal;
-                const totalLimit = limit + limitUsd * trmVal;
-                const utilPct = totalLimit > 0 ? Math.min(100, Math.round((totalDebt / totalLimit) * 100)) : null;
-                const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? C.amber : C.accent;
-                const fmtUsd = (n: number) => 'US$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-                return (
-                  <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
-                    {/* Account row */}
-                    <div style={{ display:'flex', alignItems:'center', gap:12, paddingTop:12 }}>
-                      <div style={{ flexShrink:0 }}>
-                        <BankLogo institution={acc.institution} size={40} borderRadius={12} />
-                      </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                          <div style={{ color:C.text, fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {acc.name}
-                          </div>
-                          {isCC && (() => {
-                            const net = CARD_NETWORKS.find(n => n.id === (acc.card_network ?? 'other'));
-                            return net ? (
-                              <span style={{ background:`${net.color}22`, border:`1px solid ${net.color}55`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:800, color:net.color, flexShrink:0 }}>
-                                {net.name.toUpperCase()}
-                              </span>
-                            ) : null;
-                          })()}
-                          {isCC && (() => {
-                            // Si el usuario definió el estado manualmente, usarlo directamente
-                            if (acc.payment_status === 'overdue')
-                              return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
-                            if (acc.payment_status === 'current')
-                              return <span style={{ background:'rgba(0,229,160,0.15)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
-                            // Sin estado manual: auto-derivar por fecha vs. día de pago
-                            const hasDebt = (acc.initial_balance ?? 0) > 0 || (acc.initial_balance_usd ?? 0) > 0;
-                            if (!hasDebt) return <span style={{ background:'rgba(0,229,160,0.15)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
-                            const dueDay = acc.payment_due_day;
-                            if (!dueDay) return <span style={{ background: C.amberBg, border:`1px solid rgba(245,166,35,0.3)`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color: C.amber, flexShrink:0 }}>⚠️ Pendiente</span>;
-                            const today = new Date().getDate();
-                            if (today < dueDay) return <span style={{ background: C.amberBg, border:`1px solid rgba(245,166,35,0.3)`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color: C.amber, flexShrink:0 }}>⏰ Paga en {dueDay - today}d</span>;
-                            if (today === dueDay) return <span style={{ background:'rgba(249,115,22,0.15)', border:'1px solid rgba(249,115,22,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f97316', flexShrink:0 }}>⚡ Vence hoy</span>;
-                            return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
-                          })()}
-                        </div>
-                        <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>
-                          {acc.institution} · *{acc.account_suffix}
-                          {acc.account_holder && <span> · {acc.account_holder}</span>}
-                          {isCC && limit > 0 && <span> · Cupo {fmt(limit)}</span>}
-                          {isCC && limitUsd > 0 && <span> · Cupo {fmtUsd(limitUsd)}</span>}
-                        </div>
-                        {/* Combined utilization bar (COP + USD converted at TRM) */}
-                        {isCC && utilPct != null && (
-                          <div style={{ marginTop:6 }}>
-                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                              <span style={{ color:utilColor, fontSize:10, fontWeight:700 }}>{utilPct}% utilizado</span>
-                              <span style={{ color:C.textMuted, fontSize:10 }}>
-                                {fmt(debt)}{debtUsd > 0 ? ` + ${fmtUsd(debtUsd)}` : ''} de {fmt(limit)}{limitUsd > 0 ? ` + ${fmtUsd(limitUsd)}` : ''}
-                              </span>
-                            </div>
-                            <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
-                              <div style={{ width:`${utilPct}%`, height:'100%', background:utilColor, borderRadius:99 }} />
-                            </div>
-                            {debtUsd > 0 && (
-                              <div style={{ color:C.textMuted, fontSize:9, marginTop:2 }}>
-                                TRM: ${parseFloat(trm).toLocaleString('es-CO')} · {fmtUsd(debtUsd)} ≈ {fmt(Math.round(debtUsd * (parseFloat(trm) || 3516)))} COP
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <button onClick={() => removeAccount(acc.id)}
-                        style={{ background:'rgba(239,68,68,0.1)', border:'none', borderRadius:8, padding:'6px 10px',
-                          color:C.danger, fontSize:12, cursor:'pointer', flexShrink:0 }}>
-                        Quitar
-                      </button>
-                    </div>
-
-                    {/* Balance / debt row */}
-                    <div style={{ marginTop:10, marginLeft:52 }}>
-                      <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5 }}>
-                        {isCC ? 'DEUDA ACTUAL' : 'SALDO INICIAL'}
-                      </div>
-                      {editable ? (
-                        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-                          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                          <div style={{ position:'relative', flex:1 }}>
-                            <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              placeholder="0"
-                              value={
-                                balanceDraft[acc.id]
-                                  ? Number(balanceDraft[acc.id].replace(/\D/g, '') || 0).toLocaleString('es-CO')
-                                  : ''
-                              }
-                              onChange={e => {
-                                const digits = e.target.value.replace(/\D/g, '');
-                                setBalanceDraft(prev => ({ ...prev, [acc.id]: digits }));
-                              }}
-                              style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:8, paddingBottom:8,
-                                borderRadius:10, border:`1px solid ${C.border}`,
-                                background:C.surface, color:C.text, fontSize:14, fontWeight:600,
-                                boxSizing:'border-box', outline:'none' }}
-                            />
-                          </div>
-                          <button onClick={() => saveInitialBalance(acc)} disabled={isSaving}
-                            style={{ padding:'8px 14px', borderRadius:10, border:'none',
-                              background: isSaving ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
-                              color:'#fff', fontSize:12, fontWeight:700, cursor: isSaving ? 'default' : 'pointer',
-                              flexShrink:0, opacity: isSaving ? 0.7 : 1 }}>
-                            {isSaving ? '…' : 'Guardar'}
-                          </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                          <span style={{ color: isCC ? C.danger : C.accent, fontSize:14, fontWeight:700 }}>
-                            {isCC ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
+                  {/* Credit card badges */}
+                  {isCC && (
+                    <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+                      {(() => {
+                        const net = CARD_NETWORKS.find(n => n.id === (acc.card_network ?? 'other'));
+                        return net ? (
+                          <span style={{ background:`${net.color}22`, border:`1px solid ${net.color}55`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:800, color:net.color }}>
+                            {net.name.toUpperCase()}
                           </span>
-                          <span style={{ fontSize:13 }}>🔒</span>
-                          <span style={{ color:C.textMuted, fontSize:10 }}>
-                            fijado el {acc.initial_balance_set_at
-                              ? new Date(acc.initial_balance_set_at).toLocaleString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
-                              : ''}
-                          </span>
-                          {canUnlockToday(acc) && (
-                            <button
-                              onClick={() => setEditingBalance(prev => ({ ...prev, [acc.id]: true }))}
-                              style={{ background:'none', border:'none', color:C.info, fontSize:11,
-                                cursor:'pointer', padding:0, fontWeight:600 }}>
-                              Editar
-                            </button>
-                          )}
+                        ) : null;
+                      })()}
+                      {(() => {
+                        if (acc.payment_status === 'overdue')
+                          return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger }}>🔴 En mora</span>;
+                        if (acc.payment_status === 'current')
+                          return <span style={{ background:'rgba(0,229,160,0.15)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent }}>✅ Al día</span>;
+                        const hasDebt = (acc.initial_balance ?? 0) > 0 || (acc.initial_balance_usd ?? 0) > 0;
+                        if (!hasDebt) return <span style={{ background:'rgba(0,229,160,0.15)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent }}>✅ Al día</span>;
+                        const dueDay = acc.payment_due_day;
+                        if (!dueDay) return <span style={{ background:C.amberBg, border:`1px solid rgba(245,166,35,0.3)`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.amber }}>⚠️ Pendiente</span>;
+                        const today = new Date().getDate();
+                        if (today < dueDay) return <span style={{ background:C.amberBg, border:`1px solid rgba(245,166,35,0.3)`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.amber }}>⏰ Paga en {dueDay - today}d</span>;
+                        if (today === dueDay) return <span style={{ background:'rgba(249,115,22,0.15)', border:'1px solid rgba(249,115,22,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f97316' }}>⚡ Vence hoy</span>;
+                        return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger }}>🔴 En mora</span>;
+                      })()}
+                    </div>
+                  )}
+
+                  {/* Utilization bar */}
+                  {isCC && utilPct != null && (
+                    <div>
+                      <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                        <span style={{ color:utilColor, fontSize:10, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>{utilPct}% utilizado</span>
+                        <span style={{ color:C.textMuted, fontSize:10, fontFamily:"'DM Sans',sans-serif" }}>
+                          {fmt(debt)}{debtUsd > 0 ? ` + ${fmtUsd(debtUsd)}` : ''} de {fmt(limit)}{limitUsd > 0 ? ` + ${fmtUsd(limitUsd)}` : ''}
+                        </span>
+                      </div>
+                      <div style={{ height:4, background:C.border, borderRadius:99, overflow:'hidden' }}>
+                        <div style={{ width:`${utilPct}%`, height:'100%', background:utilColor, borderRadius:99 }} />
+                      </div>
+                      {debtUsd > 0 && (
+                        <div style={{ color:C.textMuted, fontSize:9, marginTop:2, fontFamily:"'DM Sans',sans-serif" }}>
+                          TRM: ${parseFloat(trm).toLocaleString('es-CO')} · {fmtUsd(debtUsd)} ≈ {fmt(Math.round(debtUsd * (parseFloat(trm) || 3516)))} COP
                         </div>
                       )}
                     </div>
+                  )}
 
-                    {/* Estado de pago (solo tarjetas de crédito, siempre editable) */}
-                    {isCC && (
-                      <div style={{ marginTop:10, marginLeft:52 }}>
-                        <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:6 }}>ESTADO DEL PAGO</div>
-                        <div style={{ display:'flex', gap:8 }}>
-                          {([
-                            { val: 'current' as const, label: '✅ Al día',  bg:'rgba(0,229,160,0.12)', border:'rgba(0,229,160,0.35)', color:'#00E5A0' },
-                            { val: 'overdue' as const, label: '🔴 En mora', bg:'rgba(239,68,68,0.12)',  border:'rgba(239,68,68,0.35)',  color:'#EF4444' },
-                          ]).map(opt => (
-                            <button key={opt.val} type="button"
-                              onClick={() => updatePaymentStatus(acc.id, opt.val)}
-                              style={{ flex:1, padding:'8px 0', borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:700,
-                                border:`1px solid ${acc.payment_status === opt.val ? opt.border : C.border}`,
-                                background: acc.payment_status === opt.val ? opt.bg : 'transparent',
-                                color: acc.payment_status === opt.val ? opt.color : C.textMuted }}>
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-
-              {showAddAccount ? (
-                <div style={{ marginTop:16, display:'flex', flexDirection:'column', gap:12 }}>
+                  {/* Balance edit */}
                   <div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Banco</div>
-                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      {INSTITUTIONS.map(inst => (
-                        <button key={inst.id} onClick={() => { setNewInstitution(inst.id); setNewAccountType(inst.types[0]); }}
-                          style={{ display:'flex', alignItems:'center', gap:8,
-                            padding:'8px 12px', borderRadius:10,
-                            border:`1px solid ${newInstitution===inst.id ? inst.color : C.border}`,
-                            background: newInstitution===inst.id ? `${inst.color}22` : C.surface,
-                            cursor:'pointer' }}>
-                          <BankLogo institution={inst.name} size={22} borderRadius={6} />
-                          <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:1 }}>
-                            <span style={{ color: newInstitution===inst.id ? inst.color : C.textMuted,
-                              fontSize:12, fontWeight:600 }}>{inst.name}</span>
-                            {inst.gmailSync && (
-                              <span style={{ fontSize:9, color:'#00E5A0', fontWeight:700, letterSpacing:0.3 }}>✉ Gmail sync</span>
-                            )}
-                          </div>
-                        </button>
-                      ))}
+                    <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5, fontFamily:"'DM Sans',sans-serif" }}>
+                      {isCC ? 'DEUDA ACTUAL' : 'SALDO INICIAL'}
                     </div>
-                  </div>
-
-                  <div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Tipo de cuenta</div>
-                    <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                      {(INSTITUTIONS.find(i => i.id === newInstitution)?.types ?? ['savings']).map(t => (
-                        <button key={t} onClick={() => setNewAccountType(t)}
-                          style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newAccountType===t ? C.accent : C.border}`,
-                            background: newAccountType===t ? 'rgba(0,229,160,0.1)' : C.surface,
-                            color: newAccountType===t ? C.accent : C.textMuted,
-                            fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                          {ACCOUNT_TYPE_LABELS[t]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Últimos 4 dígitos de la cuenta</div>
-                    <input
-                      type="number"
-                      placeholder="ej. 1234"
-                      value={newSuffix}
-                      maxLength={4}
-                      onChange={e => setNewSuffix(e.target.value.slice(-4))}
-                      style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
-                        background:C.surface, color:C.text, fontSize:15, fontWeight:700,
-                        letterSpacing:4, boxSizing:'border-box', outline:'none' }}
-                    />
-                  </div>
-
-                  <div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Nombre personalizado (opcional)</div>
-                    <input
-                      type="text"
-                      placeholder="ej. Cuenta principal"
-                      value={newNickname}
-                      onChange={e => setNewNickname(e.target.value)}
-                      style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
-                        background:C.surface, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none' }}
-                    />
-                  </div>
-
-                  {(() => {
-                    const inst = INSTITUTIONS.find(i => i.id === newInstitution);
-                    const sameBank = accounts.filter(a =>
-                      a.institution?.toLowerCase() === inst?.name?.toLowerCase()
-                    );
-                    const holderRequired = sameBank.length > 0;
-                    const holderMissing = holderRequired && !newHolder.trim();
-                    return (
-                      <div>
-                        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-                          <span style={{ color: holderRequired ? C.warning : C.textMuted, fontSize:11, fontWeight: holderRequired ? 700 : 400 }}>
-                            Titular de la cuenta{holderRequired ? ' *' : ''}
-                          </span>
-                          {holderRequired && (
-                            <span style={{ fontSize:10, color:C.warning, background: C.amberBg, padding:'2px 7px', borderRadius:6, fontWeight:600 }}>
-                              Requerido — ya tienes otra cuenta de {inst?.name}
-                            </span>
-                          )}
-                        </div>
-                        <input
-                          type="text"
-                          placeholder="ej. NOMBRE APELLIDO"
-                          value={newHolder}
-                          onChange={e => setNewHolder(e.target.value)}
-                          style={{ width:'100%', padding:'10px 14px', borderRadius:10,
-                            border:`1px solid ${holderMissing ? C.warning : C.border}`,
-                            background:C.surface, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none' }}
-                        />
-                        <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
-                          Nombre exactamente como aparece en el correo del banco — distingue tus cuentas de las de otras personas en el mismo Gmail.
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Credit card extra fields */}
-                  {newAccountType === 'credit_card' && (
-                    <>
-                      <div>
-                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Franquicia</div>
-                        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                          {CARD_NETWORKS.map(n => (
-                            <button key={n.id} onClick={() => setNewCardNetwork(n.id)}
-                              style={{ padding:'8px 14px', borderRadius:10,
-                                border:`1px solid ${newCardNetwork===n.id ? n.color : C.border}`,
-                                background: newCardNetwork===n.id ? `${n.color}22` : C.surface,
-                                color: newCardNetwork===n.id ? n.color : C.textMuted,
-                                fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                              {n.name}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo total de la tarjeta</div>
-                        <div style={{ position:'relative' }}>
-                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
+                    {editable ? (
+                      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                        <div style={{ position:'relative', flex:1 }}>
+                          <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
                           <input
                             type="text"
                             inputMode="numeric"
-                            placeholder="ej. 5.000.000"
-                            value={newCreditLimit ? Number(newCreditLimit.replace(/\D/g,'')||0).toLocaleString('es-CO') : ''}
-                            onChange={e => setNewCreditLimit(e.target.value.replace(/\D/g,''))}
-                            style={{ width:'100%', paddingLeft:26, paddingRight:14, paddingTop:10, paddingBottom:10,
-                              borderRadius:10, border:`1px solid ${C.border}`,
-                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
-                              boxSizing:'border-box', outline:'none' }}
+                            placeholder="0"
+                            value={balanceDraft[acc.id] ? Number(balanceDraft[acc.id].replace(/\D/g,'') || 0).toLocaleString('es-CO') : ''}
+                            onChange={e => { const digits = e.target.value.replace(/\D/g,''); setBalanceDraft(prev => ({ ...prev, [acc.id]: digits })); }}
+                            style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:8, paddingBottom:8, borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:14, fontWeight:600, boxSizing:'border-box', outline:'none' }}
                           />
                         </div>
+                        <button onClick={() => saveInitialBalance(acc)} disabled={isSaving}
+                          style={{ padding:'8px 14px', borderRadius:10, border:'none', background: isSaving ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)', color:'#fff', fontSize:12, fontWeight:700, cursor: isSaving ? 'default' : 'pointer', flexShrink:0, opacity: isSaving ? 0.7 : 1 }}>
+                          {isSaving ? '…' : 'Guardar'}
+                        </button>
                       </div>
-                      <div>
-                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Día de pago (día del mes)</div>
-                        <input
-                          type="number"
-                          min="1" max="31"
-                          placeholder="ej. 25"
-                          value={newDueDay}
-                          onChange={e => setNewDueDay(e.target.value)}
-                          style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`,
-                            background:C.surface, color:C.text, fontSize:14, fontWeight:600,
-                            boxSizing:'border-box', outline:'none' }}
-                        />
+                    ) : (
+                      <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                        <span style={{ color: isCC ? C.danger : C.accent, fontSize:14, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>
+                          {isCC ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
+                        </span>
+                        <span style={{ fontSize:13 }}>🔒</span>
+                        <span style={{ color:C.textMuted, fontSize:10, fontFamily:"'DM Sans',sans-serif" }}>
+                          fijado el {acc.initial_balance_set_at ? new Date(acc.initial_balance_set_at).toLocaleString('es-CO', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : ''}
+                        </span>
+                        {canUnlockToday(acc) && (
+                          <button onClick={() => setEditingBalance(prev => ({ ...prev, [acc.id]: true }))}
+                            style={{ background:'none', border:'none', color:C.info, fontSize:11, cursor:'pointer', padding:0, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                            Editar
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Estado actual del pago</div>
-                        <div style={{ display:'flex', gap:8 }}>
-                          {([
-                            { val: 'current', label: '✅ Al día',  bg: 'rgba(0,229,160,0.12)', border: 'rgba(0,229,160,0.35)', active: '#00E5A0' },
-                            { val: 'overdue', label: '🔴 En mora', bg: 'rgba(239,68,68,0.12)',  border: 'rgba(239,68,68,0.35)',  active: '#EF4444' },
-                          ] as const).map(opt => (
-                            <button key={opt.val} type="button"
-                              onClick={() => setNewPaymentStatus(opt.val)}
-                              style={{ flex:1, padding:'10px 0', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700,
-                                border: `1px solid ${newPaymentStatus === opt.val ? opt.border : C.border}`,
-                                background: newPaymentStatus === opt.val ? opt.bg : 'transparent',
-                                color: newPaymentStatus === opt.val ? opt.active : C.textMuted }}>
-                              {opt.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Cupo en USD (opcional)</div>
-                        <div style={{ position:'relative' }}>
-                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="ej. 2,000"
-                            value={newCreditLimitUsd ? Number(newCreditLimitUsd || 0).toLocaleString('en-US') : ''}
-                            onChange={e => setNewCreditLimitUsd(e.target.value.replace(/[^0-9.]/g, ''))}
-                            style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10,
-                              borderRadius:10, border:`1px solid ${C.border}`,
-                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
-                              boxSizing:'border-box', outline:'none' }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>Deuda actual en USD (opcional)</div>
-                        <div style={{ position:'relative' }}>
-                          <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="ej. 150.00"
-                            value={newInitialBalanceUsd ? Number(newInitialBalanceUsd || 0).toLocaleString('en-US') : ''}
-                            onChange={e => setNewInitialBalanceUsd(e.target.value.replace(/[^0-9.]/g, ''))}
-                            style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10,
-                              borderRadius:10, border:`1px solid ${C.border}`,
-                              background:C.surface, color:C.text, fontSize:14, fontWeight:600,
-                              boxSizing:'border-box', outline:'none' }}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Initial balance / current debt */}
-                  <div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginBottom:6 }}>
-                      {newAccountType === 'credit_card' ? 'Deuda actual (opcional)' : 'Saldo actual (opcional)'}
-                    </div>
-                    <div style={{ position:'relative' }}>
-                      <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={newInitialBalance ? Number(newInitialBalance||0).toLocaleString('es-CO') : ''}
-                        onChange={e => setNewInitialBalance(e.target.value.replace(/\D/g,''))}
-                        style={{ width:'100%', paddingLeft:26, paddingRight:14, paddingTop:10, paddingBottom:10,
-                          borderRadius:10, border:`1px solid ${C.border}`,
-                          background:C.surface, color:C.text, fontSize:14, fontWeight:600,
-                          boxSizing:'border-box', outline:'none' }}
-                      />
-                    </div>
-                    <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5 }}>
-                      {newAccountType === 'credit_card'
-                        ? 'Tu deuda actual en esta tarjeta.'
-                        : 'Saldo de tu cuenta en este momento. ORIA solo importará movimientos a partir de ahora.'}
-                    </div>
+                    )}
                   </div>
 
-                  {addAccountError && (
-                    <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`,
-                      borderRadius:10, padding:'10px 14px', color:C.danger, fontSize:12, lineHeight:1.5 }}>
-                      ⚠️ {addAccountError}
+                  {/* Payment status (credit cards only) */}
+                  {isCC && (
+                    <div>
+                      <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>ESTADO DEL PAGO</div>
+                      <div style={{ display:'flex', gap:8 }}>
+                        {([
+                          { val: 'current' as const, label:'✅ Al día',  bg:'rgba(0,229,160,0.12)', border:'rgba(0,229,160,0.35)', color:'#00E5A0' },
+                          { val: 'overdue' as const, label:'🔴 En mora', bg:'rgba(239,68,68,0.12)',  border:'rgba(239,68,68,0.35)',  color:'#EF4444' },
+                        ]).map(opt => (
+                          <button key={opt.val} type="button" onClick={() => updatePaymentStatus(acc.id, opt.val)}
+                            style={{ flex:1, padding:'8px 0', borderRadius:10, cursor:'pointer', fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                              border:`1px solid ${acc.payment_status === opt.val ? opt.border : C.border}`,
+                              background: acc.payment_status === opt.val ? opt.bg : 'transparent',
+                              color: acc.payment_status === opt.val ? opt.color : C.textMuted }}>
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
-
-                  {(() => {
-                    const inst = INSTITUTIONS.find(i => i.id === newInstitution);
-                    const sameBank = accounts.filter(a =>
-                      a.institution?.toLowerCase() === inst?.name?.toLowerCase()
-                    );
-                    const holderRequired = sameBank.length > 0;
-                    const holderMissing = holderRequired && !newHolder.trim();
-                    const disabled = newSuffix.length < 4 || savingAccount || holderMissing;
-                    return (
-                      <div style={{ display:'flex', gap:8 }}>
-                        <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setNewCreditLimit(''); setNewCreditLimitUsd(''); setNewInitialBalance(''); setNewInitialBalanceUsd(''); setAddAccountError(''); }}
-                          style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`,
-                            background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer' }}>
-                          Cancelar
-                        </button>
-                        <button onClick={addAccount} disabled={disabled}
-                          style={{ flex:2, padding:'12px 0', borderRadius:12, border:'none',
-                            background: disabled ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
-                            color: disabled ? C.textMuted : '#0A0C0F',
-                            fontSize:13, fontWeight:700, cursor: disabled ? 'default' : 'pointer' }}>
-                          {savingAccount ? 'Guardando…' : 'Guardar cuenta'}
-                        </button>
-                      </div>
-                    );
-                  })()}
                 </div>
-              ) : (
-                <button onClick={() => setShowAddAccount(true)}
-                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:12, border:`1px dashed ${C.border}`,
-                    background:'transparent', color:C.accent, fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                  + Agregar cuenta
-                </button>
               )}
             </div>
+          );
+        })}
 
-            {accounts.length > 0 && (
-              <div style={{ background:'rgba(0,229,160,0.05)', border:`1px solid rgba(0,229,160,0.2)`, borderRadius:12, padding:'12px 16px' }}>
-                <div style={{ color:C.accent, fontSize:12, fontWeight:600, marginBottom:4 }}>
-                  Filtro activo
-                </div>
-                <div style={{ color:C.textSec, fontSize:12, lineHeight:1.6 }}>
-                  Solo se importarán movimientos de tus {accounts.length} cuenta{accounts.length!==1?'s':''} registrada{accounts.length!==1?'s':''}.
-                </div>
+        {/* Conectar cuenta dashed button */}
+        {!showAddAccount && (
+          <button onClick={() => setShowAddAccount(true)}
+            style={{ width:'100%', marginBottom:8, padding:'12px 0', borderRadius:8, border:`1px dashed ${C.borderLight}`, background:'transparent', color:C.accent, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+            + Conectar cuenta
+          </button>
+        )}
+
+        {/* Add account form */}
+        {showAddAccount && (
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:'14px 13px', marginBottom:8, display:'flex', flexDirection:'column', gap:12 }}>
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Banco</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {INSTITUTIONS.map(inst => (
+                  <button key={inst.id} onClick={() => { setNewInstitution(inst.id); setNewAccountType(inst.types[0]); }}
+                    style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', borderRadius:10,
+                      border:`1px solid ${newInstitution===inst.id ? inst.color : C.border}`,
+                      background: newInstitution===inst.id ? `${inst.color}22` : C.surfaceMid, cursor:'pointer' }}>
+                    <BankLogo institution={inst.name} size={22} borderRadius={6} />
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:1 }}>
+                      <span style={{ color: newInstitution===inst.id ? inst.color : C.textMuted, fontSize:12, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>{inst.name}</span>
+                      {inst.gmailSync && <span style={{ fontSize:9, color:'#00E5A0', fontWeight:700, letterSpacing:0.3, fontFamily:"'DM Sans',sans-serif" }}>✉ Gmail sync</span>}
+                    </div>
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
 
-            {/* TRM setting — only shown when at least one CC has USD fields */}
-            {accounts.some(a => a.account_type === 'credit_card' && ((a.credit_limit_usd ?? 0) > 0 || (a.initial_balance_usd ?? 0) > 0)) && (
-              <div style={{ ...card }}>
-                <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:0.5, marginBottom:10 }}>
-                  💱 TASA DE CAMBIO (TRM)
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Tipo de cuenta</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {(INSTITUTIONS.find(i => i.id === newInstitution)?.types ?? ['savings']).map(t => (
+                  <button key={t} onClick={() => setNewAccountType(t)}
+                    style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newAccountType===t ? C.accent : C.border}`,
+                      background: newAccountType===t ? 'rgba(0,229,160,0.1)' : C.surfaceMid,
+                      color: newAccountType===t ? C.accent : C.textMuted,
+                      fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    {ACCOUNT_TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Últimos 4 dígitos de la cuenta</div>
+              <input type="number" placeholder="ej. 1234" value={newSuffix} maxLength={4}
+                onChange={e => setNewSuffix(e.target.value.slice(-4))}
+                style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:15, fontWeight:700, letterSpacing:4, boxSizing:'border-box', outline:'none' }}
+              />
+            </div>
+
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Nombre personalizado (opcional)</div>
+              <input type="text" placeholder="ej. Cuenta principal" value={newNickname}
+                onChange={e => setNewNickname(e.target.value)}
+                style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:"'DM Sans',sans-serif" }}
+              />
+            </div>
+
+            {(() => {
+              const inst = INSTITUTIONS.find(i => i.id === newInstitution);
+              const sameBank = accounts.filter(a => a.institution?.toLowerCase() === inst?.name?.toLowerCase());
+              const holderRequired = sameBank.length > 0;
+              const holderMissing = holderRequired && !newHolder.trim();
+              return (
+                <div>
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                    <span style={{ color: holderRequired ? C.warning : C.textMuted, fontSize:11, fontWeight: holderRequired ? 700 : 400, fontFamily:"'DM Sans',sans-serif" }}>
+                      Titular de la cuenta{holderRequired ? ' *' : ''}
+                    </span>
+                    {holderRequired && (
+                      <span style={{ fontSize:10, color:C.warning, background:C.amberBg, padding:'2px 7px', borderRadius:6, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                        Requerido — ya tienes otra cuenta de {inst?.name}
+                      </span>
+                    )}
+                  </div>
+                  <input type="text" placeholder="ej. NOMBRE APELLIDO" value={newHolder}
+                    onChange={e => setNewHolder(e.target.value)}
+                    style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${holderMissing ? C.warning : C.border}`, background:C.surfaceMid, color:C.text, fontSize:13, boxSizing:'border-box', outline:'none', fontFamily:"'DM Sans',sans-serif" }}
+                  />
+                  <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5, fontFamily:"'DM Sans',sans-serif" }}>
+                    Nombre exactamente como aparece en el correo del banco — distingue tus cuentas de las de otras personas en el mismo Gmail.
+                  </div>
                 </div>
-                <div style={{ color:C.textSec, fontSize:12, lineHeight:1.5, marginBottom:10 }}>
-                  Usada para convertir tus saldos en USD a COP y calcular la ocupación real de tus tarjetas.
+              );
+            })()}
+
+            {/* Credit card extra fields */}
+            {newAccountType === 'credit_card' && (
+              <>
+                <div>
+                  <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Franquicia</div>
+                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                    {CARD_NETWORKS.map(n => (
+                      <button key={n.id} onClick={() => setNewCardNetwork(n.id)}
+                        style={{ padding:'8px 14px', borderRadius:10, border:`1px solid ${newCardNetwork===n.id ? n.color : C.border}`,
+                          background: newCardNetwork===n.id ? `${n.color}22` : C.surfaceMid,
+                          color: newCardNetwork===n.id ? n.color : C.textMuted,
+                          fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                        {n.name}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <div style={{ position:'relative', flex:1 }}>
-                    <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>$</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={parseFloat(trm) ? Number(trm).toLocaleString('es-CO') : ''}
-                      placeholder="4.200"
-                      onChange={e => setTrm(e.target.value.replace(/\D/g, ''))}
-                      style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:9, paddingBottom:9,
-                        borderRadius:10, border:`1px solid ${C.border}`,
-                        background:C.surface, color:C.text, fontSize:14, fontWeight:600,
-                        boxSizing:'border-box', outline:'none' }}
+                <div>
+                  <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Cupo total de la tarjeta</div>
+                  <div style={{ position:'relative' }}>
+                    <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
+                    <input type="text" inputMode="numeric" placeholder="ej. 5.000.000"
+                      value={newCreditLimit ? Number(newCreditLimit.replace(/\D/g,'')||0).toLocaleString('es-CO') : ''}
+                      onChange={e => setNewCreditLimit(e.target.value.replace(/\D/g,''))}
+                      style={{ width:'100%', paddingLeft:26, paddingRight:14, paddingTop:10, paddingBottom:10, borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:14, fontWeight:600, boxSizing:'border-box', outline:'none' }}
                     />
                   </div>
-                  <span style={{ color:C.textMuted, fontSize:12 }}>COP / USD</span>
-                  <button
-                    onClick={() => { localStorage.setItem('nexo_trm', trm); }}
-                    style={{ padding:'9px 14px', borderRadius:10, border:'none',
-                      background:'linear-gradient(135deg,#00E5A0,#00B87A)',
-                      color:'#0A0C0F', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>
-                    Guardar
-                  </button>
                 </div>
+                <div>
+                  <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Día de pago (día del mes)</div>
+                  <input type="number" min="1" max="31" placeholder="ej. 25" value={newDueDay}
+                    onChange={e => setNewDueDay(e.target.value)}
+                    style={{ width:'100%', padding:'10px 14px', borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:14, fontWeight:600, boxSizing:'border-box', outline:'none' }}
+                  />
+                </div>
+                <div>
+                  <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Estado actual del pago</div>
+                  <div style={{ display:'flex', gap:8 }}>
+                    {([
+                      { val: 'current', label:'✅ Al día',  bg:'rgba(0,229,160,0.12)', border:'rgba(0,229,160,0.35)', active:'#00E5A0' },
+                      { val: 'overdue', label:'🔴 En mora', bg:'rgba(239,68,68,0.12)',  border:'rgba(239,68,68,0.35)',  active:'#EF4444' },
+                    ] as const).map(opt => (
+                      <button key={opt.val} type="button" onClick={() => setNewPaymentStatus(opt.val)}
+                        style={{ flex:1, padding:'10px 0', borderRadius:10, cursor:'pointer', fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                          border:`1px solid ${newPaymentStatus===opt.val ? opt.border : C.border}`,
+                          background: newPaymentStatus===opt.val ? opt.bg : 'transparent',
+                          color: newPaymentStatus===opt.val ? opt.active : C.textMuted }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Cupo en USD (opcional)</div>
+                  <div style={{ position:'relative' }}>
+                    <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
+                    <input type="text" inputMode="decimal" placeholder="ej. 2,000"
+                      value={newCreditLimitUsd ? Number(newCreditLimitUsd||0).toLocaleString('en-US') : ''}
+                      onChange={e => setNewCreditLimitUsd(e.target.value.replace(/[^0-9.]/g,''))}
+                      style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10, borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:14, fontWeight:600, boxSizing:'border-box', outline:'none' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>Deuda actual en USD (opcional)</div>
+                  <div style={{ position:'relative' }}>
+                    <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>US$</span>
+                    <input type="text" inputMode="decimal" placeholder="ej. 150.00"
+                      value={newInitialBalanceUsd ? Number(newInitialBalanceUsd||0).toLocaleString('en-US') : ''}
+                      onChange={e => setNewInitialBalanceUsd(e.target.value.replace(/[^0-9.]/g,''))}
+                      style={{ width:'100%', paddingLeft:40, paddingRight:14, paddingTop:10, paddingBottom:10, borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:14, fontWeight:600, boxSizing:'border-box', outline:'none' }}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Initial balance / current debt */}
+            <div>
+              <div style={{ color:C.textMuted, fontSize:11, marginBottom:6, fontFamily:"'DM Sans',sans-serif" }}>
+                {newAccountType === 'credit_card' ? 'Deuda actual (opcional)' : 'Saldo actual (opcional)'}
+              </div>
+              <div style={{ position:'relative' }}>
+                <span style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:13 }}>$</span>
+                <input type="text" inputMode="numeric" placeholder="0"
+                  value={newInitialBalance ? Number(newInitialBalance||0).toLocaleString('es-CO') : ''}
+                  onChange={e => setNewInitialBalance(e.target.value.replace(/\D/g,''))}
+                  style={{ width:'100%', paddingLeft:26, paddingRight:14, paddingTop:10, paddingBottom:10, borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:14, fontWeight:600, boxSizing:'border-box', outline:'none' }}
+                />
+              </div>
+              <div style={{ color:C.textMuted, fontSize:10, marginTop:4, lineHeight:1.5, fontFamily:"'DM Sans',sans-serif" }}>
+                {newAccountType === 'credit_card' ? 'Tu deuda actual en esta tarjeta.' : 'Saldo de tu cuenta en este momento. ORIA solo importará movimientos a partir de ahora.'}
+              </div>
+            </div>
+
+            {addAccountError && (
+              <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:10, padding:'10px 14px', color:C.danger, fontSize:12, lineHeight:1.5, fontFamily:"'DM Sans',sans-serif" }}>
+                ⚠️ {addAccountError}
               </div>
             )}
-          </>
+
+            {(() => {
+              const inst = INSTITUTIONS.find(i => i.id === newInstitution);
+              const sameBank = accounts.filter(a => a.institution?.toLowerCase() === inst?.name?.toLowerCase());
+              const holderRequired = sameBank.length > 0;
+              const holderMissing = holderRequired && !newHolder.trim();
+              const disabled = newSuffix.length < 4 || savingAccount || holderMissing;
+              return (
+                <div style={{ display:'flex', gap:8 }}>
+                  <button onClick={() => { setShowAddAccount(false); setNewSuffix(''); setNewNickname(''); setNewCreditLimit(''); setNewCreditLimitUsd(''); setNewInitialBalance(''); setNewInitialBalanceUsd(''); setAddAccountError(''); }}
+                    style={{ flex:1, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    Cancelar
+                  </button>
+                  <button onClick={addAccount} disabled={disabled}
+                    style={{ flex:2, padding:'12px 0', borderRadius:12, border:'none',
+                      background: disabled ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
+                      color: disabled ? C.textMuted : '#0A0C0F',
+                      fontSize:13, fontWeight:700, cursor: disabled ? 'default' : 'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    {savingAccount ? 'Guardando…' : 'Guardar cuenta'}
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
         )}
 
-        {/* ── CSV TAB ── */}
-        {tab === 'csv' && (
-          <>
-            {/* Bank picker — dropdown grid */}
-            <div>
-              <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>SELECCIONA TU BANCO</div>
+        {/* ── Bancos disponibles ── */}
+        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:'0.12em', color:C.textMuted, textTransform:'uppercase', padding:'14px 0 8px' }}>
+          Bancos disponibles
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:8 }}>
+          {INSTITUTIONS.slice(0, 8).map(inst => (
+            <button key={inst.id}
+              onClick={() => { setNewInstitution(inst.id); setNewAccountType(inst.types[0]); setShowAddAccount(true); }}
+              style={{ padding:'10px 4px', borderRadius:8, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:5,
+                border:`1px solid ${C.border}`, background:C.surface }}>
+              <BankLogo institution={inst.name} size={36} borderRadius={10} />
+              <span style={{ color:C.textMuted, fontSize:8, fontWeight:600, lineHeight:1.2, textAlign:'center', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' as never, fontFamily:"'DM Sans',sans-serif" }}>
+                {inst.name}
+              </span>
+            </button>
+          ))}
+        </div>
 
-              {/* Trigger */}
-              <button
-                onClick={() => setBankDropOpen(o => !o)}
-                style={{ width:'100%', ...card, display:'flex', alignItems:'center', gap:12,
-                  padding:'12px 14px', cursor:'pointer', textAlign:'left' }}>
-                {bank ? (
-                  <>
-                    <BankLogo institution={bank.name} size={38} borderRadius={10} />
-                    <span style={{ color:C.text, fontSize:15, fontWeight:600, flex:1 }}>{bank.name}</span>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ width:38, height:38, borderRadius:10, background:C.surfaceEl,
-                      display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏦</div>
-                    <span style={{ color:C.textMuted, fontSize:14, flex:1 }}>Selecciona tu banco…</span>
-                  </>
-                )}
-                <span style={{ color:C.textMuted, fontSize:12,
-                  display:'inline-block',
-                  transform: bankDropOpen ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.2s' }}>▼</span>
-              </button>
+        {/* ── Configuración ── */}
+        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:'0.12em', color:C.textMuted, textTransform:'uppercase', padding:'14px 0 8px' }}>
+          Configuración
+        </div>
 
-              {/* Grid dropdown */}
-              {bankDropOpen && (
-                <div style={{ ...card, marginTop:6, padding:12 }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
-                    {BANKS.map(b => {
-                      const sel = selectedBank === b.id;
-                      return (
-                        <button key={b.id}
-                          onClick={() => { setSelectedBank(b.id); setBankDropOpen(false); setCsvStatus('idle'); setImported([]); }}
-                          style={{ padding:'10px 4px', borderRadius:12, cursor:'pointer', display:'flex',
-                            flexDirection:'column', alignItems:'center', gap:5,
-                            border:`1px solid ${sel ? b.color+'88' : C.border}`,
-                            background: sel ? `${b.color}18` : C.bg }}>
-                          <BankLogo institution={b.name} size={36} borderRadius={10} />
-                          <span style={{ color: sel ? C.text : C.textMuted, fontSize:8, fontWeight:600,
-                            lineHeight:1.2, textAlign:'center',
-                            overflow:'hidden', display:'-webkit-box',
-                            WebkitLineClamp:2, WebkitBoxOrient:'vertical' as never }}>
-                            {b.name}
-                          </span>
-                        </button>
-                      );
-                    })}
+        {/* Gmail sync row (expandable) */}
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:8 }}>
+          <div onClick={() => setExpandedGmail(v => !v)} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 13px', cursor:'pointer' }}>
+            <div style={{ width:32, height:32, borderRadius:8, background: gmailConnected ? 'rgba(0,229,160,0.1)' : C.surfaceMid, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>✉️</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <span style={{ fontSize:12, fontWeight:500, color:C.text, fontFamily:"'DM Sans',sans-serif" }}>Sincronización Gmail</span>
+              <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:10, color: gmailConnected ? C.accent : C.textMuted, display:'block', marginTop:1 }}>
+                {gmailConnected ? `Conectado · ${gmailEmail}` : 'No conectado'}
+              </span>
+            </div>
+            <span style={{ color:C.textMuted, fontSize:10, display:'inline-block', transform: expandedGmail ? 'rotate(180deg)' : 'none', transition:'transform 0.2s' }}>▼</span>
+          </div>
+          {expandedGmail && (
+            <div style={{ borderTop:`1px solid ${C.border}`, padding:'12px 13px', display:'flex', flexDirection:'column', gap:12 }}>
+              {!gmailConnected ? (
+                <>
+                  <div style={{ color:C.textSec, fontSize:12, lineHeight:1.7, fontFamily:"'DM Sans',sans-serif" }}>
+                    ORIA lee los correos de alerta de <strong style={{color:C.text}}>Bancolombia</strong>, <strong style={{color:C.text}}>Davivienda</strong> y <strong style={{color:C.text}}>Nequi</strong> y registra tus movimientos automáticamente. Solo lectura — ORIA nunca modifica tu correo.
                   </div>
+                  {gmailError && (
+                    <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:10, padding:'10px 14px', color:C.danger, fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>
+                      ⚠️ {gmailError}
+                    </div>
+                  )}
+                  <button onClick={connectGmail} disabled={gmailLoading}
+                    style={{ width:'100%', padding:'13px 0', borderRadius:12, border:'none', cursor: gmailLoading ? 'default' : 'pointer',
+                      background: gmailLoading ? C.surface : 'linear-gradient(135deg,#00E5A0,#00B87A)',
+                      color:'#0A0C0F', fontSize:14, fontWeight:700, opacity: gmailLoading ? 0.7 : 1, fontFamily:"'DM Sans',sans-serif" }}>
+                    {gmailLoading ? '⏳ Esperando autorización…' : '🔗 Conectar Gmail'}
+                  </button>
+                  <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                    <span style={{ color:C.accent, fontSize:12, marginTop:1 }}>🔒</span>
+                    <div style={{ color:C.textMuted, fontSize:11, lineHeight:1.6, fontFamily:"'DM Sans',sans-serif" }}>
+                      Usa OAuth 2.0 seguro. ORIA nunca almacena tu contraseña. Puedes revocar el acceso en cualquier momento desde tu cuenta Google.
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ background:'rgba(0,229,160,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>
+                    {gmailCount} movimiento{gmailCount !== 1 ? 's' : ''} importado{gmailCount !== 1 ? 's' : ''} automáticamente
+                  </div>
+                  {lastSync && (
+                    <div style={{ color:C.textMuted, fontSize:11, textAlign:'center', fontFamily:"'DM Sans',sans-serif" }}>
+                      Última sync: {lastSync}
+                    </div>
+                  )}
+                  {accounts.length === 0 && (
+                    <div style={{ background:'rgba(245,166,35,0.1)', border:'1px solid rgba(245,166,35,0.3)', borderRadius:10, padding:'10px 14px', color:'#F5A623', fontSize:12, textAlign:'center', fontFamily:"'DM Sans',sans-serif" }}>
+                      Registra al menos una cuenta bancaria para activar la sincronización
+                    </div>
+                  )}
+                  <button onClick={syncNow} disabled={syncing || accounts.length === 0}
+                    style={{ width:'100%', padding:'12px 0', borderRadius:12, border:'none',
+                      cursor: (syncing || accounts.length === 0) ? 'default' : 'pointer',
+                      background: (syncing || accounts.length === 0) ? C.surface : 'rgba(0,229,160,0.1)',
+                      color: accounts.length === 0 ? C.textMuted : C.accent,
+                      fontSize:13, fontWeight:700, opacity: (syncing || accounts.length === 0) ? 0.5 : 1, fontFamily:"'DM Sans',sans-serif" }}>
+                    {syncing ? '⏳ Sincronizando…' : '🔄 Sincronizar ahora'}
+                  </button>
+                  <button onClick={cleanAndResync} disabled={syncing || accounts.length === 0}
+                    style={{ width:'100%', padding:'10px 0', borderRadius:12, border:`1px solid rgba(239,68,68,0.3)`,
+                      cursor: (syncing || accounts.length === 0) ? 'default' : 'pointer',
+                      background:'rgba(239,68,68,0.07)', color:'#f87171', fontSize:12, fontWeight:600,
+                      opacity: (syncing || accounts.length === 0) ? 0.4 : 1, fontFamily:"'DM Sans',sans-serif" }}>
+                    🗑 Limpiar y re-sincronizar desde cero
+                  </button>
+                  <div style={{ color:C.textMuted, fontSize:11, textAlign:'center', lineHeight:1.5, fontFamily:"'DM Sans',sans-serif" }}>
+                    ORIA sincroniza automáticamente cada 2 horas y al abrir la app.
+                  </div>
+                  <button onClick={runDiagnostic} disabled={diagRunning}
+                    style={{ width:'100%', padding:'10px 0', borderRadius:12, border:`1px solid ${C.border}`, cursor: diagRunning ? 'default' : 'pointer',
+                      background:'transparent', color:C.textMuted, fontSize:12, fontWeight:600, opacity: diagRunning ? 0.6 : 1, fontFamily:"'DM Sans',sans-serif" }}>
+                    {diagRunning ? '⏳ Analizando correos…' : '🔍 Diagnóstico de correos'}
+                  </button>
+                  {diagResult && (
+                    <div style={{ background:C.background, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px 14px', maxHeight:320, overflowY:'auto' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <span style={{ color:C.textMuted, fontSize:10, fontWeight:700, letterSpacing:1, fontFamily:"'DM Mono',monospace" }}>DIAGNÓSTICO</span>
+                        <button onClick={() => setDiagResult(null)} style={{ background:'none', border:'none', color:C.textMuted, fontSize:16, cursor:'pointer', padding:0 }}>✕</button>
+                      </div>
+                      <pre style={{ color:C.textSec, fontSize:10, lineHeight:1.6, whiteSpace:'pre-wrap', wordBreak:'break-word', margin:0, fontFamily:'monospace' }}>
+                        {diagResult}
+                      </pre>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Notifications */}
+        <div style={{ marginBottom:8 }}>
+          <NotificationCard />
+        </div>
+
+        {/* CSV row (expandable) */}
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:8 }}>
+          <div onClick={() => setExpandedCsv(v => !v)} style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 13px', cursor:'pointer' }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:C.surfaceMid, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>📂</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <span style={{ fontSize:12, fontWeight:500, color:C.text, fontFamily:"'DM Sans',sans-serif" }}>Importar extracto CSV</span>
+              <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:10, color:C.textMuted, display:'block', marginTop:1 }}>Sube un extracto de cualquier banco</span>
+            </div>
+            <span style={{ color:C.textMuted, fontSize:10, display:'inline-block', transform: expandedCsv ? 'rotate(180deg)' : 'none', transition:'transform 0.2s' }}>▼</span>
+          </div>
+          {expandedCsv && (
+            <div style={{ borderTop:`1px solid ${C.border}`, padding:'12px 13px', display:'flex', flexDirection:'column', gap:12 }}>
+              {/* Bank picker */}
+              <div>
+                <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10, fontFamily:"'DM Sans',sans-serif" }}>SELECCIONA TU BANCO</div>
+                <button onClick={() => setBankDropOpen(o => !o)}
+                  style={{ width:'100%', display:'flex', alignItems:'center', gap:12, padding:'12px 14px', cursor:'pointer', textAlign:'left', background:C.surfaceMid, border:`1px solid ${C.border}`, borderRadius:10 }}>
+                  {bank ? (
+                    <>
+                      <BankLogo institution={bank.name} size={38} borderRadius={10} />
+                      <span style={{ color:C.text, fontSize:14, fontWeight:600, flex:1, fontFamily:"'DM Sans',sans-serif" }}>{bank.name}</span>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ width:38, height:38, borderRadius:10, background:C.surfaceEl, display:'flex', alignItems:'center', justifyContent:'center', fontSize:20 }}>🏦</div>
+                      <span style={{ color:C.textMuted, fontSize:13, flex:1, fontFamily:"'DM Sans',sans-serif" }}>Selecciona tu banco…</span>
+                    </>
+                  )}
+                  <span style={{ color:C.textMuted, fontSize:12, display:'inline-block', transform: bankDropOpen ? 'rotate(180deg)' : 'none', transition:'transform 0.2s' }}>▼</span>
+                </button>
+                {bankDropOpen && (
+                  <div style={{ marginTop:6, background:C.surfaceMid, border:`1px solid ${C.border}`, borderRadius:10, padding:12 }}>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8 }}>
+                      {BANKS.map(b => {
+                        const sel = selectedBank === b.id;
+                        return (
+                          <button key={b.id}
+                            onClick={() => { setSelectedBank(b.id); setBankDropOpen(false); setCsvStatus('idle'); setImported([]); }}
+                            style={{ padding:'10px 4px', borderRadius:12, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:5,
+                              border:`1px solid ${sel ? b.color+'88' : C.border}`, background: sel ? `${b.color}18` : C.surface }}>
+                            <BankLogo institution={b.name} size={36} borderRadius={10} />
+                            <span style={{ color: sel ? C.text : C.textMuted, fontSize:8, fontWeight:600, lineHeight:1.2, textAlign:'center', overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' as never, fontFamily:"'DM Sans',sans-serif" }}>
+                              {b.name}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {bank && (
+                <div style={{ background:C.surfaceMid, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px 14px' }}>
+                  <div style={{ color:C.text, fontSize:13, fontWeight:700, marginBottom:10, fontFamily:"'DM Sans',sans-serif" }}>¿Cómo descargar el extracto?</div>
+                  {bank.steps.map((step, i) => (
+                    <div key={i} style={{ display:'flex', gap:10, marginBottom:8, alignItems:'flex-start' }}>
+                      <div style={{ width:22, height:22, borderRadius:'50%', background:`${bank.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:bank.color, fontWeight:800, flexShrink:0 }}>{i+1}</div>
+                      <div style={{ color:C.textSec, fontSize:12, lineHeight:1.5, fontFamily:"'DM Sans',sans-serif" }}>{step}</div>
+                    </div>
+                  ))}
+                  <input ref={fileRef} type="file" accept=".csv,.txt,.xls,.xlsx" style={{ display:'none' }} onChange={handleFile} />
+                  <button onClick={() => fileRef.current?.click()}
+                    style={{ width:'100%', marginTop:12, padding:'13px 0', borderRadius:12, border:'none',
+                      background:`linear-gradient(135deg,${bank.color},${bank.color}CC)`,
+                      color: bank.id==='bancolombia'?'#1a1a1a':'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    📂 Subir extracto de {bank.name}
+                  </button>
+                </div>
+              )}
+
+              {csvStatus === 'error' && (
+                <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:10, padding:'12px 14px' }}>
+                  <div style={{ color:C.danger, fontSize:12, lineHeight:1.5, fontFamily:"'DM Sans',sans-serif" }}>⚠️ {csvError}</div>
+                </div>
+              )}
+
+              {csvStatus === 'done' && imported.length > 0 && (
+                <div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12 }}>
+                    <div style={{ background:C.surfaceMid, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px', textAlign:'center' }}>
+                      <div style={{ color:C.accent, fontSize:22, fontWeight:800, fontFamily:"'DM Sans',sans-serif" }}>{imported.length}</div>
+                      <div style={{ color:C.textMuted, fontSize:11, marginTop:2, fontFamily:"'DM Sans',sans-serif" }}>Movimientos</div>
+                    </div>
+                    <div style={{ background:C.surfaceMid, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px', textAlign:'center' }}>
+                      <div style={{ color:C.accent, fontSize:22, fontWeight:800, fontFamily:"'DM Sans',sans-serif" }}>{[...new Set(imported.map(t => t.category))].length}</div>
+                      <div style={{ color:C.textMuted, fontSize:11, marginTop:2, fontFamily:"'DM Sans',sans-serif" }}>Categorías</div>
+                    </div>
+                  </div>
+                  <div style={{ background:C.surfaceMid, border:`1px solid ${C.border}`, borderRadius:10, padding:'12px 14px' }}>
+                    {imported.slice(0, 10).map((t, i) => (
+                      <div key={i} style={{ display:'flex', alignItems:'center', gap:10,
+                        paddingBottom: i < Math.min(imported.length,10)-1 ? 12:0,
+                        marginBottom:  i < Math.min(imported.length,10)-1 ? 12:0,
+                        borderBottom:  i < Math.min(imported.length,10)-1 ? `1px solid ${C.border}` : 'none' }}>
+                        <div style={{ width:36, height:36, borderRadius:10, background:t.type==='income'?'rgba(0,229,160,0.12)':'rgba(239,68,68,0.1)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0 }}>
+                          {t.type==='income'?'💰':'💳'}
+                        </div>
+                        <div style={{ flex:1, minWidth:0 }}>
+                          <div style={{ color:C.text, fontSize:12, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontFamily:"'DM Sans',sans-serif" }}>{t.description}</div>
+                          <div style={{ color:C.textMuted, fontSize:10, marginTop:1, fontFamily:"'DM Sans',sans-serif" }}>{t.category} · {t.date}</div>
+                        </div>
+                        <div style={{ color:t.type==='income'?C.accent:C.text, fontSize:12, fontWeight:700, flexShrink:0, fontFamily:"'DM Sans',sans-serif" }}>
+                          {t.type==='income'?'+':'-'}{fmt(t.amount)}
+                        </div>
+                      </div>
+                    ))}
+                    {imported.length > 10 && (
+                      <div style={{ color:C.textMuted, fontSize:11, textAlign:'center', marginTop:10, fontFamily:"'DM Sans',sans-serif" }}>
+                        +{imported.length - 10} movimientos más
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => { setImported([]); setCsvStatus('idle'); }}
+                    style={{ width:'100%', marginTop:10, padding:'12px 0', borderRadius:12, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:13, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                    Importar otro extracto
+                  </button>
                 </div>
               )}
             </div>
+          )}
+        </div>
 
-            {bank && (
-              <div style={{ ...card }}>
-                <div style={{ color:C.text, fontSize:14, fontWeight:700, marginBottom:12 }}>¿Cómo descargar el extracto?</div>
-                {bank.steps.map((step, i) => (
-                  <div key={i} style={{ display:'flex', gap:10, marginBottom:8, alignItems:'flex-start' }}>
-                    <div style={{ width:22, height:22, borderRadius:'50%', background:`${bank.color}22`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:bank.color, fontWeight:800, flexShrink:0 }}>{i+1}</div>
-                    <div style={{ color:C.textSec, fontSize:13, lineHeight:1.5 }}>{step}</div>
-                  </div>
-                ))}
-                <input ref={fileRef} type="file" accept=".csv,.txt,.xls,.xlsx" style={{ display:'none' }} onChange={handleFile} />
-                <button onClick={() => fileRef.current?.click()}
-                  style={{ width:'100%', marginTop:16, padding:'14px 0', borderRadius:14, border:'none',
-                    background:`linear-gradient(135deg,${bank.color},${bank.color}CC)`,
-                    color: bank.id==='bancolombia'?'#1a1a1a':'#fff', fontSize:15, fontWeight:700, cursor:'pointer' }}>
-                  📂 Subir extracto de {bank.name}
-                </button>
+        {/* TRM card — only when has USD credit cards */}
+        {accounts.some(a => a.account_type === 'credit_card' && ((a.credit_limit_usd ?? 0) > 0 || (a.initial_balance_usd ?? 0) > 0)) && (
+          <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:'14px 13px', marginBottom:8 }}>
+            <div style={{ color:C.textMuted, fontSize:11, fontWeight:700, letterSpacing:0.5, marginBottom:10, fontFamily:"'DM Sans',sans-serif" }}>
+              💱 TASA DE CAMBIO (TRM)
+            </div>
+            <div style={{ color:C.textSec, fontSize:12, lineHeight:1.5, marginBottom:10, fontFamily:"'DM Sans',sans-serif" }}>
+              Usada para convertir tus saldos en USD a COP y calcular la ocupación real de tus tarjetas.
+            </div>
+            <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+              <div style={{ position:'relative', flex:1 }}>
+                <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:C.textMuted, fontSize:12, fontWeight:600 }}>$</span>
+                <input type="text" inputMode="numeric"
+                  value={parseFloat(trm) ? Number(trm).toLocaleString('es-CO') : ''}
+                  placeholder="4.200"
+                  onChange={e => setTrm(e.target.value.replace(/\D/g,''))}
+                  style={{ width:'100%', paddingLeft:24, paddingRight:10, paddingTop:9, paddingBottom:9, borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:14, fontWeight:600, boxSizing:'border-box', outline:'none' }}
+                />
               </div>
-            )}
-
-            {csvStatus === 'error' && (
-              <div style={{ background:'rgba(239,68,68,0.1)', border:`1px solid rgba(239,68,68,0.3)`, borderRadius:14, padding:'14px 16px' }}>
-                <div style={{ color:C.danger, fontSize:13, lineHeight:1.5 }}>⚠️ {csvError}</div>
-              </div>
-            )}
-
-            {csvStatus === 'done' && imported.length > 0 && (
-              <div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:14 }}>
-                  <div style={{ ...card, textAlign:'center' }}>
-                    <div style={{ color:C.accent, fontSize:24, fontWeight:800 }}>{imported.length}</div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Movimientos</div>
-                  </div>
-                  <div style={{ ...card, textAlign:'center' }}>
-                    <div style={{ color:C.accent, fontSize:24, fontWeight:800 }}>
-                      {[...new Set(imported.map(t => t.category))].length}
-                    </div>
-                    <div style={{ color:C.textMuted, fontSize:11, marginTop:2 }}>Categorías</div>
-                  </div>
-                </div>
-
-                <div style={{ color:C.textMuted, fontSize:11, fontWeight:600, letterSpacing:1, marginBottom:10 }}>MOVIMIENTOS IMPORTADOS</div>
-                <div style={{ ...card }}>
-                  {imported.slice(0, 10).map((t, i) => (
-                    <div key={i} style={{ display:'flex', alignItems:'center', gap:10,
-                      paddingBottom: i < Math.min(imported.length,10)-1 ? 12:0,
-                      marginBottom:  i < Math.min(imported.length,10)-1 ? 12:0,
-                      borderBottom:  i < Math.min(imported.length,10)-1 ? `1px solid ${C.border}` : 'none' }}>
-                      <div style={{ width:38, height:38, borderRadius:11,
-                        background:t.type==='income'?'rgba(0,229,160,0.12)':'rgba(239,68,68,0.1)',
-                        display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, flexShrink:0 }}>
-                        {t.type==='income'?'💰':'💳'}
-                      </div>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ color:C.text, fontSize:13, fontWeight:500, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.description}</div>
-                        <div style={{ color:C.textMuted, fontSize:10, marginTop:1 }}>{t.category} · {t.date}</div>
-                      </div>
-                      <div style={{ color:t.type==='income'?C.accent:C.text, fontSize:13, fontWeight:700, flexShrink:0 }}>
-                        {t.type==='income'?'+':'-'}{fmt(t.amount)}
-                      </div>
-                    </div>
-                  ))}
-                  {imported.length > 10 && (
-                    <div style={{ color:C.textMuted, fontSize:12, textAlign:'center', marginTop:12 }}>
-                      +{imported.length - 10} movimientos más
-                    </div>
-                  )}
-                </div>
-
-                <button onClick={() => { setImported([]); setCsvStatus('idle'); }}
-                  style={{ width:'100%', marginTop:12, padding:'12px 0', borderRadius:14, border:`1px solid ${C.border}`, background:'transparent', color:C.textSec, fontSize:14, cursor:'pointer' }}>
-                  Importar otro extracto
-                </button>
-              </div>
-            )}
-          </>
+              <span style={{ color:C.textMuted, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>COP / USD</span>
+              <button onClick={() => { localStorage.setItem('nexo_trm', trm); }}
+                style={{ padding:'9px 14px', borderRadius:10, border:'none', background:'linear-gradient(135deg,#00E5A0,#00B87A)', color:'#0A0C0F', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0, fontFamily:"'DM Sans',sans-serif" }}>
+                Guardar
+              </button>
+            </div>
+          </div>
         )}
-      </div>
 
-      {/* Danger zone */}
-      <div style={{ padding:'8px 16px 32px', display:'flex', flexDirection:'column', gap:10 }}>
+        {/* UpdateButton */}
+        <div style={{ marginBottom:8 }}>
+          <UpdateButton />
+        </div>
+
+        {/* Borrar todo */}
         <button
           onClick={async () => {
             const ok = window.confirm(
@@ -1544,15 +1427,17 @@ export function SettingsScreen({ userId }: { userId: string }) {
             localStorage.removeItem('nexo_gmail_email');
             window.location.reload();
           }}
-          style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.2)`, background:'transparent', color:C.textMuted, fontSize:14, fontWeight:600, cursor:'pointer' }}>
+          style={{ width:'100%', marginBottom:8, padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.2)`, background:'transparent', color:C.textMuted, fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
           🗑️ Borrar todo y empezar desde cero
         </button>
-        <UpdateButton />
+
+        {/* Cerrar sesión */}
         <button
           onClick={() => { localStorage.removeItem('nexo_gmail_connected'); localStorage.removeItem('nexo_gmail_email'); supabase.auth.signOut(); }}
-          style={{ width:'100%', padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.3)`, background:'rgba(239,68,68,0.07)', color:C.danger, fontSize:15, fontWeight:700, cursor:'pointer' }}>
+          style={{ width:'100%', marginBottom:8, padding:'14px 0', borderRadius:14, border:`1px solid rgba(239,68,68,0.3)`, background:'rgba(239,68,68,0.07)', color:C.danger, fontSize:15, fontWeight:700, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
           Cerrar sesión
         </button>
+
       </div>
     </div>
   );
