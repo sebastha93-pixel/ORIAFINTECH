@@ -120,27 +120,43 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
 
   // Compute per-account balance = initial_balance ± all transactions since creation
   const txnsByAccount: Record<string, { income: number; expense: number }> = {};
+  let globalIncome = 0, globalExpense = 0;
+
   for (const txn of (allTxnsRes.data ?? [])) {
-    const aid = (txn as { account_id: string | null; transaction_type: string; amount: number }).account_id;
-    if (!aid) continue;
-    if (!txnsByAccount[aid]) txnsByAccount[aid] = { income: 0, expense: 0 };
-    if ((txn as { transaction_type: string }).transaction_type === 'income')
-      txnsByAccount[aid].income += Number((txn as { amount: number }).amount);
-    else
-      txnsByAccount[aid].expense += Number((txn as { amount: number }).amount);
+    const t = txn as { account_id: string | null; transaction_type: string; amount: number };
+    const amt = Number(t.amount);
+    if (t.transaction_type === 'income') globalIncome += amt; else globalExpense += amt;
+    if (!t.account_id) continue;
+    if (!txnsByAccount[t.account_id]) txnsByAccount[t.account_id] = { income: 0, expense: 0 };
+    if (t.transaction_type === 'income') txnsByAccount[t.account_id].income += amt;
+    else txnsByAccount[t.account_id].expense += amt;
   }
 
   type RawAccount = Omit<Account, 'currentBalance'>;
-  const accounts: Account[] = ((accountsRes.data as RawAccount[]) ?? []).map(acc => {
+  const rawAccounts = (accountsRes.data as RawAccount[]) ?? [];
+  const debitRaw = rawAccounts.filter(a => a.account_type !== 'credit_card');
+
+  // Transactions without account_id: distribute across debit accounts
+  const linkedIncome  = Object.values(txnsByAccount).reduce((s, t) => s + t.income, 0);
+  const linkedExpense = Object.values(txnsByAccount).reduce((s, t) => s + t.expense, 0);
+  const unlinkedIncome  = globalIncome  - linkedIncome;
+  const unlinkedExpense = globalExpense - linkedExpense;
+
+  const accounts: Account[] = rawAccounts.map(acc => {
     const t = txnsByAccount[acc.id] ?? { income: 0, expense: 0 };
     const isCC = acc.account_type === 'credit_card';
     const base = Number(acc.initial_balance ?? 0);
-    // Debit: balance grows with income, shrinks with expenses
-    // Credit card: debt grows with expenses, shrinks with payments (income)
-    const currentBalance = isCC
-      ? base + t.expense - t.income
-      : base + t.income - t.expense;
-    return { ...acc, currentBalance };
+    if (isCC) return { ...acc, currentBalance: base + t.expense - t.income };
+    // Distribute unlinked transactions: all to single account, or proportional by initial_balance
+    let bonus = 0;
+    if (debitRaw.length === 1) {
+      bonus = unlinkedIncome - unlinkedExpense;
+    } else if (debitRaw.length > 1) {
+      const totalBase = debitRaw.reduce((s, a) => s + Math.max(0, Number(a.initial_balance ?? 0)), 0);
+      const weight = totalBase > 0 ? Math.max(0, base) / totalBase : 1 / debitRaw.length;
+      bonus = (unlinkedIncome - unlinkedExpense) * weight;
+    }
+    return { ...acc, currentBalance: base + t.income - t.expense + bonus };
   });
 
   return {
