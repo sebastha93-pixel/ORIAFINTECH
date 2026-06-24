@@ -269,6 +269,14 @@ export function SettingsScreen({ userId }: { userId: string }) {
   // Cuentas que el usuario ha desbloqueado manualmente para re-editar hoy
   const [editingBalance, setEditingBalance] = useState<Record<string, boolean>>({});
 
+  // New layout state
+  const [expandedAccount, setExpandedAccount] = useState<string | null>(null);
+  const [expandedGmail, setExpandedGmail] = useState(false);
+  const [expandedCsv, setExpandedCsv] = useState(false);
+  const [userName, setUserName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userInitials, setUserInitials] = useState('');
+
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
 
@@ -460,6 +468,20 @@ export function SettingsScreen({ userId }: { userId: string }) {
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const email = user.email ?? '';
+      const fullName = (user.user_metadata?.full_name as string | undefined) ?? (user.user_metadata?.name as string | undefined) ?? '';
+      const displayName = fullName || email.split('@')[0].replace(/[._]/g, ' ');
+      const parts = displayName.split(/\s+/);
+      setUserEmail(email);
+      setUserName(parts.map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' '));
+      setUserInitials(parts.slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('') || email[0]?.toUpperCase() ?? 'U');
+    })();
   }, []);
 
   async function cleanAndResync() {
