@@ -711,8 +711,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
     <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
       {/* Header */}
       <div style={{ background:'linear-gradient(160deg,#0E1620,#0A0C0F)', padding:'48px 20px 24px' }}>
-        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4 }}>Perfil</div>
-        <div style={{ color:C.textMuted, fontSize:13 }}>Cuentas vinculadas, sincronización y seguridad</div>
+        <div style={{ color:C.text, fontSize:22, fontWeight:800, marginBottom:4, fontFamily:"'DM Sans',sans-serif" }}>Perfil</div>
+        <div style={{ color:C.textMuted, fontSize:13, fontFamily:"'DM Sans',sans-serif" }}>Cuentas vinculadas, sincronización y seguridad</div>
       </div>
 
       {/* Tab switcher */}
@@ -724,8 +724,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
         ] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
             style={{ flex:1, padding:'11px 0', border:'none', cursor:'pointer', fontWeight:700, fontSize:12,
+              fontFamily:"'DM Sans',sans-serif",
               background: tab===t ? 'linear-gradient(135deg,#00E5A0,#00B87A)' : C.surface,
-              color: tab===t ? '#fff' : C.textMuted }}>
+              color: tab===t ? C.textInverse : C.textMuted }}>
             {label}
           </button>
         ))}
@@ -738,8 +739,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
           <>
             {!gmailConnected ? (
               <div style={{ ...card }}>
-                <div style={{ color:C.text, fontSize:16, fontWeight:800, marginBottom:8 }}>Sincronización automática</div>
-                <div style={{ color:C.textSec, fontSize:13, lineHeight:1.7, marginBottom:20 }}>
+                <div style={{ color:C.text, fontSize:16, fontWeight:800, marginBottom:8, fontFamily:"'DM Sans',sans-serif" }}>Sincronización automática</div>
+                <div style={{ color:C.textSec, fontSize:13, lineHeight:1.7, marginBottom:20, fontFamily:"'DM Sans',sans-serif" }}>
                   ORIA lee los correos de alerta de <strong style={{color:C.text}}>Bancolombia</strong>, <strong style={{color:C.text}}>Davivienda</strong> y <strong style={{color:C.text}}>Nequi</strong> y registra tus movimientos automáticamente. Solo lectura — ORIA nunca modifica tu correo.
                 </div>
 
@@ -768,8 +769,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
                   <div style={{ width:44, height:44, borderRadius:14, background:'rgba(0,229,160,0.15)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>✅</div>
                   <div>
-                    <div style={{ color:C.text, fontSize:15, fontWeight:700 }}>Gmail conectado</div>
-                    <div style={{ color:C.textMuted, fontSize:12 }}>{gmailEmail}</div>
+                    <div style={{ color:C.text, fontSize:15, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>Gmail conectado</div>
+                    <div style={{ color:C.textMuted, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>{gmailEmail}</div>
                   </div>
                 </div>
                 <div style={{ background:'rgba(0,229,160,0.1)', borderRadius:10, padding:'10px 14px', color:C.accent, fontSize:13, fontWeight:600 }}>
@@ -855,15 +856,15 @@ export function SettingsScreen({ userId }: { userId: string }) {
         {tab === 'cuentas' && (
           <>
             <div style={{ ...card }}>
-              <div style={{ color:C.text, fontSize:15, fontWeight:700, marginBottom:4 }}>Mis productos bancarios</div>
-              <div style={{ color:C.textMuted, fontSize:12, lineHeight:1.6, marginBottom:16 }}>
+              <div style={{ color:C.text, fontSize:15, fontWeight:700, marginBottom:4, fontFamily:"'DM Sans',sans-serif" }}>Mis productos bancarios</div>
+              <div style={{ color:C.textMuted, fontSize:12, lineHeight:1.6, marginBottom:16, fontFamily:"'DM Sans',sans-serif" }}>
                 Registra tus cuentas para que ORIA solo importe movimientos que pertenecen a tus productos.
               </div>
 
               {accounts.length === 0 && !showAddAccount && (
                 <div style={{ textAlign:'center', padding:'16px 0', color:C.textMuted, fontSize:13, lineHeight:1.6 }}>
                   Sin cuentas registradas.<br />
-                  <span style={{ color:'#f59e0b', fontWeight:600 }}>Agrega al menos una cuenta para que ORIA importe tus movimientos de Gmail.</span>
+                  <span style={{ color: C.amber, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>Agrega al menos una cuenta para que ORIA importe tus movimientos de Gmail.</span>
                 </div>
               )}
 
@@ -881,7 +882,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                 const totalDebt  = debt + debtUsd * trmVal;
                 const totalLimit = limit + limitUsd * trmVal;
                 const utilPct = totalLimit > 0 ? Math.min(100, Math.round((totalDebt / totalLimit) * 100)) : null;
-                const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? '#f59e0b' : C.accent;
+                const utilColor = utilPct == null ? C.textMuted : utilPct >= 80 ? C.danger : utilPct >= 50 ? C.amber : C.accent;
                 const fmtUsd = (n: number) => 'US$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
                 return (
                   <div key={acc.id} style={{ borderBottom:`1px solid ${C.border}`, paddingBottom:14, marginBottom:4 }}>
@@ -913,9 +914,9 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             const hasDebt = (acc.initial_balance ?? 0) > 0 || (acc.initial_balance_usd ?? 0) > 0;
                             if (!hasDebt) return <span style={{ background:'rgba(0,229,160,0.15)', border:'1px solid rgba(0,229,160,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.accent, flexShrink:0 }}>✅ Al día</span>;
                             const dueDay = acc.payment_due_day;
-                            if (!dueDay) return <span style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f59e0b', flexShrink:0 }}>⚠️ Pendiente</span>;
+                            if (!dueDay) return <span style={{ background: C.amberBg, border:`1px solid rgba(245,166,35,0.3)`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color: C.amber, flexShrink:0 }}>⚠️ Pendiente</span>;
                             const today = new Date().getDate();
-                            if (today < dueDay) return <span style={{ background:'rgba(245,158,11,0.15)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f59e0b', flexShrink:0 }}>⏰ Paga en {dueDay - today}d</span>;
+                            if (today < dueDay) return <span style={{ background: C.amberBg, border:`1px solid rgba(245,166,35,0.3)`, borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color: C.amber, flexShrink:0 }}>⏰ Paga en {dueDay - today}d</span>;
                             if (today === dueDay) return <span style={{ background:'rgba(249,115,22,0.15)', border:'1px solid rgba(249,115,22,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:'#f97316', flexShrink:0 }}>⚡ Vence hoy</span>;
                             return <span style={{ background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:6, padding:'1px 7px', fontSize:9, fontWeight:700, color:C.danger, flexShrink:0 }}>🔴 En mora</span>;
                           })()}
@@ -1119,7 +1120,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                             Titular de la cuenta{holderRequired ? ' *' : ''}
                           </span>
                           {holderRequired && (
-                            <span style={{ fontSize:10, color:C.warning, background:'rgba(245,158,11,0.12)', padding:'2px 7px', borderRadius:6, fontWeight:600 }}>
+                            <span style={{ fontSize:10, color:C.warning, background: C.amberBg, padding:'2px 7px', borderRadius:6, fontWeight:600 }}>
                               Requerido — ya tienes otra cuenta de {inst?.name}
                             </span>
                           )}
