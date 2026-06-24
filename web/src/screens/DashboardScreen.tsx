@@ -221,7 +221,7 @@ export function DashboardScreen({ onNavigate }: { onNavigate?: (screen: string) 
                 flexShrink: 0,
                 color: isCredit ? C.danger : C.textPrimary,
               }}>
-                {fmt(acc.initial_balance ?? 0)}
+                {isCredit ? '-' : ''}{fmt(Math.abs(acc.currentBalance))}
               </div>
             </div>
           );
