@@ -89,13 +89,17 @@ export function BankLogo({ institution, size = 40, borderRadius = 12 }: Props) {
     );
   }
 
-  /* ── Scotiabank Colpatria ─────────────────────────────────────────────── */
-  if (inst.includes('colpatria') || inst.includes('scotiabank')) {
+  /* ── DAVIbank Colpatria ─────────────────────────────────────────────── */
+  if (inst.includes('colpatria') || inst.includes('scotiabank') || inst.includes('davibank')) {
     return (
       <svg width={s} height={s} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect width="40" height="40" rx={r} fill="#EC111A"/>
-        {/* Scotia S-shape */}
-        <path d="M25 14c-2.5-2.5-9-2-9 3 0 3.5 8 4 8 8 0 5-7 6-10 3" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"/>
+        <text x="20" y="21" dominantBaseline="middle" textAnchor="middle"
+              fontFamily="'Arial Black', Arial, sans-serif" fontWeight="900"
+              fontSize="10" fill="white">DAVI</text>
+        <text x="20" y="30" dominantBaseline="middle" textAnchor="middle"
+              fontFamily="Arial, sans-serif" fontWeight="700"
+              fontSize="7" fill="white" opacity="0.9">BANK</text>
       </svg>
     );
   }

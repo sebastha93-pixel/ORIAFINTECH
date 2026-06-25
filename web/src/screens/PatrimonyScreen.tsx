@@ -41,16 +41,17 @@ export function PatrimonyScreen() {
 
   const firstVal  = m.history[0]?.value ?? m.netWorth;
   const growthPct = firstVal !== 0 ? ((m.netWorth - firstVal) / Math.abs(firstVal)) * 100 : 0;
-  const debitAccounts  = snap.accounts.filter(a => a.account_type !== 'credit_card');
-  const creditAccounts = snap.accounts.filter(a => a.account_type === 'credit_card');
+  const DEBT_TYPES = ['credit_card', 'loan'];
+  const debitAccounts  = snap.accounts.filter(a => !DEBT_TYPES.includes(a.account_type));
+  const creditAccounts = snap.accounts.filter(a => DEBT_TYPES.includes(a.account_type));
 
   return (
     <div style={{ paddingBottom: 'calc(100px + env(safe-area-inset-bottom))' }}>
 
       {/* ── HERO: patrimonio actual + evolución ── */}
       <div style={{ background: gradHero, padding: '48px 20px 0' }}>
-        <div style={{ color: C.text, fontSize: 22, fontWeight: 800 }}>Patrimonio</div>
-        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>Tu riqueza, construyéndose</div>
+        <div style={{ color: C.text, fontSize: 22, fontWeight: 800 }}>Balance</div>
+        <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>Tu patrimonio neto en tiempo real</div>
 
         <div style={{ color: C.textMuted, fontSize: 11, fontWeight: 700, letterSpacing: 1 }}>PATRIMONIO NETO</div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>

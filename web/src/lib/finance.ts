@@ -135,7 +135,8 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
 
   type RawAccount = Omit<Account, 'currentBalance'>;
   const rawAccounts = (accountsRes.data as RawAccount[]) ?? [];
-  const debitRaw = rawAccounts.filter(a => a.account_type !== 'credit_card');
+  const DEBT_TYPES = ['credit_card', 'loan'];
+  const debitRaw = rawAccounts.filter(a => !DEBT_TYPES.includes(a.account_type));
 
   // Distribute unlinked transactions (no account_id) across debit accounts, weighted by initial_balance
   const unlinkedNet = (globalIncome - linkedIncome) - (globalExpense - linkedExpense);
@@ -143,9 +144,9 @@ export async function loadFinanceSnapshot(): Promise<FinanceSnapshot | null> {
 
   const accounts: Account[] = rawAccounts.map(acc => {
     const t = txnsByAccount[acc.id] ?? { income: 0, expense: 0 };
-    const isCC = acc.account_type === 'credit_card';
+    const isDebt = DEBT_TYPES.includes(acc.account_type);
     const base = Number(acc.initial_balance ?? 0);
-    if (isCC) return { ...acc, currentBalance: Math.max(0, base + t.expense - t.income) };
+    if (isDebt) return { ...acc, currentBalance: Math.max(0, base + t.expense - t.income) };
     const weight = debitRaw.length === 0 ? 0
       : totalBase > 0 ? Math.max(0, base) / totalBase
       : 1 / debitRaw.length;
@@ -180,8 +181,9 @@ export interface Metrics {
 
 export function computeMetrics(s: FinanceSnapshot): Metrics {
   const trm = s.trm > 0 ? s.trm : 3516;
-  const debitAccounts  = s.accounts.filter(a => a.account_type !== 'credit_card');
-  const creditAccounts = s.accounts.filter(a => a.account_type === 'credit_card');
+  const DEBT_TYPES = ['credit_card', 'loan'];
+  const debitAccounts  = s.accounts.filter(a => !DEBT_TYPES.includes(a.account_type));
+  const creditAccounts = s.accounts.filter(a => DEBT_TYPES.includes(a.account_type));
 
   // Live net worth: use currentBalance (initial_balance ± all transactions) for accuracy
   const totalAssets = debitAccounts.reduce((t, a) => t + a.currentBalance, 0);

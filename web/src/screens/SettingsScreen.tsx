@@ -102,30 +102,31 @@ function parseCSV(text: string, bank: string): Transaction[] {
 
 const INSTITUTIONS = [
   // ── Con sync automático de Gmail ──────────────────────────────────────────
-  { id: 'bancolombia',  name: 'Bancolombia',          color: '#FFCD00', types: ['savings','checking','credit_card'], gmailSync: true },
-  { id: 'davivienda',   name: 'Davivienda',            color: '#E8192C', types: ['savings','checking','credit_card'], gmailSync: true },
+  { id: 'bancolombia',  name: 'Bancolombia',          color: '#FFCD00', types: ['savings','checking','credit_card','loan'], gmailSync: true },
+  { id: 'davivienda',   name: 'Davivienda',            color: '#E8192C', types: ['savings','checking','credit_card','loan'], gmailSync: true },
   { id: 'nequi',        name: 'Nequi',                 color: '#7B3FF2', types: ['savings'],                         gmailSync: true },
   // ── Registro manual ───────────────────────────────────────────────────────
-  { id: 'bogota',       name: 'Banco de Bogotá',       color: '#003DA5', types: ['savings','checking','credit_card'], gmailSync: false },
-  { id: 'bbva',         name: 'BBVA',                  color: '#004B91', types: ['savings','checking','credit_card'], gmailSync: false },
-  { id: 'itau',         name: 'Itaú',                  color: '#EC7000', types: ['savings','checking','credit_card'], gmailSync: false },
-  { id: 'colpatria',    name: 'Scotiabank Colpatria',   color: '#EC111A', types: ['savings','checking','credit_card'], gmailSync: false },
-  { id: 'popular',      name: 'Banco Popular',          color: '#005BAA', types: ['savings','checking','credit_card'], gmailSync: false },
-  { id: 'avvillas',     name: 'AV Villas',              color: '#FF6B00', types: ['savings','checking','credit_card'], gmailSync: false },
-  { id: 'cajasocial',   name: 'Banco Caja Social',      color: '#D4002B', types: ['savings','checking'],               gmailSync: false },
-  { id: 'occidente',    name: 'Banco de Occidente',     color: '#0072BC', types: ['savings','checking','credit_card'], gmailSync: false },
-  { id: 'gnb',          name: 'GNB Sudameris',          color: '#1A5276', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'bogota',       name: 'Banco de Bogotá',       color: '#003DA5', types: ['savings','checking','credit_card','loan'], gmailSync: false },
+  { id: 'bbva',         name: 'BBVA',                  color: '#004B91', types: ['savings','checking','credit_card','loan'], gmailSync: false },
+  { id: 'itau',         name: 'Itaú',                  color: '#EC7000', types: ['savings','checking','credit_card','loan'], gmailSync: false },
+  { id: 'colpatria',    name: 'DAVIbank Colpatria',     color: '#EC111A', types: ['savings','checking','credit_card','loan'], gmailSync: false },
+  { id: 'popular',      name: 'Banco Popular',          color: '#005BAA', types: ['savings','checking','credit_card','loan'], gmailSync: false },
+  { id: 'avvillas',     name: 'AV Villas',              color: '#FF6B00', types: ['savings','checking','credit_card','loan'], gmailSync: false },
+  { id: 'cajasocial',   name: 'Banco Caja Social',      color: '#D4002B', types: ['savings','checking','loan'],        gmailSync: false },
+  { id: 'occidente',    name: 'Banco de Occidente',     color: '#0072BC', types: ['savings','checking','credit_card','loan'], gmailSync: false },
+  { id: 'gnb',          name: 'GNB Sudameris',          color: '#1A5276', types: ['savings','checking','credit_card','loan'], gmailSync: false },
   { id: 'nubank',       name: 'Nubank',                 color: '#820AD1', types: ['savings','credit_card'],            gmailSync: false },
   { id: 'lulo',         name: 'Lulo Bank',              color: '#00C896', types: ['savings'],                         gmailSync: false },
   { id: 'rappipay',     name: 'RappiPay',               color: '#FF441F', types: ['savings'],                         gmailSync: false },
   { id: 'dale',         name: 'Dale!',                  color: '#6C00EA', types: ['savings'],                         gmailSync: false },
-  { id: 'otro',         name: 'Otro banco',             color: '#6b7280', types: ['savings','checking','credit_card'], gmailSync: false },
+  { id: 'otro',         name: 'Otro banco',             color: '#6b7280', types: ['savings','checking','credit_card','loan'], gmailSync: false },
 ];
 
 const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   savings:     'Ahorros',
   checking:    'Corriente',
   credit_card: 'Crédito',
+  loan:        'Hipoteca / Préstamo',
 };
 
 const CARD_NETWORKS = [
@@ -153,8 +154,8 @@ const BANKS = [
     steps:['Abre la app Nubank','Ve a Tarjeta de crédito → Extracto','Selecciona el mes','Exportar en PDF o CSV'] },
   { id:'lulo',         name:'Lulo Bank',            color:'#00C896',
     steps:['Abre la app Lulo Bank','Ve a Movimientos','Toca Exportar','Descarga en CSV'] },
-  { id:'colpatria',    name:'Scotiabank Colpatria', color:'#EC111A',
-    steps:['Ingresa al portal de Scotiabank Colpatria','Ve a Mis productos → Extractos','Selecciona el período','Descarga en CSV o Excel'] },
+  { id:'colpatria',    name:'DAVIbank Colpatria',   color:'#EC111A',
+    steps:['Ingresa al portal de DAVIbank Colpatria','Ve a Mis productos → Extractos','Selecciona el período','Descarga en CSV o Excel'] },
   { id:'popular',      name:'Banco Popular',        color:'#005BAA',
     steps:['Ingresa a la Banca Virtual de Banco Popular','Ve a Cuentas → Movimientos','Selecciona el período','Descarga en CSV'] },
   { id:'occidente',    name:'Banco de Occidente',   color:'#0072BC',
@@ -749,6 +750,29 @@ export function SettingsScreen({ userId }: { userId: string }) {
       {/* ── Scrollable body ── */}
       <div style={{ flex:1, overflowY:'auto', padding:'0 14px', paddingBottom:'calc(80px + env(safe-area-inset-bottom))' }}>
 
+        {/* ── Quick sync button (visible when Gmail connected) ── */}
+        {gmailConnected && (
+          <div style={{ padding:'12px 0 4px', display:'flex', alignItems:'center', gap:8 }}>
+            <button
+              onClick={syncNow}
+              disabled={syncing || accounts.length === 0}
+              style={{
+                flex:1, padding:'11px 0', borderRadius:10, border:'none', cursor: syncing ? 'default' : 'pointer',
+                background: syncing ? C.surfaceEl : 'rgba(0,229,160,0.12)',
+                color: syncing ? C.textMuted : C.accent,
+                fontSize:13, fontWeight:700, fontFamily:"'DM Sans',sans-serif",
+                opacity: accounts.length === 0 ? 0.5 : 1,
+              }}>
+              {syncing ? '⏳ Sincronizando…' : '↻ Actualizar movimientos'}
+            </button>
+            {lastSync && (
+              <span style={{ fontSize:10, color:C.textMuted, flexShrink:0, maxWidth:120, textAlign:'right', lineHeight:1.3, fontFamily:"'DM Sans',sans-serif" }}>
+                {lastSync}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* ── Mis cuentas ── */}
         <div style={{ fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:'0.12em', color:C.textMuted, textTransform:'uppercase', padding:'14px 0 8px' }}>
           Mis cuentas
@@ -756,6 +780,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
 
         {accounts.map(acc => {
           const isCC       = acc.account_type === 'credit_card';
+          const isLoan     = acc.account_type === 'loan';
+          const isDebt     = isCC || isLoan;
           const isExpanded = expandedAccount === acc.id;
           const locked     = isBalanceLocked(acc);
           const editable   = !locked;
@@ -782,8 +808,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
                     {ACCOUNT_TYPE_LABELS[acc.account_type] || acc.account_type}{acc.account_suffix ? ` *${acc.account_suffix}` : ''}
                   </span>
                 </div>
-                <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:500, color: isCC ? C.danger : C.text }}>
-                  {isCC ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
+                <span style={{ fontFamily:"'DM Sans',sans-serif", fontSize:13, fontWeight:500, color: isDebt ? C.danger : C.text }}>
+                  {isDebt ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
                 </span>
               </div>
               {/* Divider */}
@@ -849,7 +875,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
                   {/* Balance edit */}
                   <div>
                     <div style={{ color:C.textMuted, fontSize:10, fontWeight:600, letterSpacing:0.5, marginBottom:5, fontFamily:"'DM Sans',sans-serif" }}>
-                      {isCC ? 'DEUDA ACTUAL' : 'SALDO INICIAL'}
+                      {isCC ? 'DEUDA ACTUAL' : isLoan ? 'DEUDA PENDIENTE' : 'SALDO INICIAL'}
                     </div>
                     {editable ? (
                       <div style={{ display:'flex', gap:8, alignItems:'center' }}>
@@ -871,8 +897,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
                       </div>
                     ) : (
                       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-                        <span style={{ color: isCC ? C.danger : C.accent, fontSize:14, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>
-                          {isCC ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
+                        <span style={{ color: isDebt ? C.danger : C.accent, fontSize:14, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }}>
+                          {isDebt ? '-' : ''}{fmt(acc.initial_balance ?? 0)}
                         </span>
                         <span style={{ fontSize:13 }}>🔒</span>
                         <span style={{ color:C.textMuted, fontSize:10, fontFamily:"'DM Sans',sans-serif" }}>

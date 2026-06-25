@@ -31,7 +31,7 @@ const ProfileIcon = () => (
 const TABS = [
   { id: 'dashboard',    label: 'Inicio',     Icon: HomeIcon },
   { id: 'transactions', label: 'Movim.',     Icon: TxIcon },
-  { id: 'patrimony',    label: 'Patrimonio', Icon: ChartIcon },
+  { id: 'patrimony',    label: 'Balance',    Icon: ChartIcon },
   { id: 'ai',          label: 'ORIA',       Icon: StarIcon },
   { id: 'settings',    label: 'Perfil',     Icon: ProfileIcon },
 ];
