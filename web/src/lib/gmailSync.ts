@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { parseEmail } from './emailParsers';
+import { fetchCategoryRules, applyRules } from './categoryRules';
 
 const API = (import.meta.env.VITE_API_URL as string | undefined)
   ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
@@ -53,7 +54,10 @@ export async function runGmailSync(
   accounts: SyncAccount[],
 ): Promise<SyncResult> {
   if (accounts.length === 0) throw new Error('NO_ACCOUNTS');
-  const headers = await getAuthHeaders();
+  const [headers, rules] = await Promise.all([
+    getAuthHeaders(),
+    fetchCategoryRules(userId),
+  ]);
   const res = await fetch(`${API}/email-sync/fetch-emails`, { headers });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -111,7 +115,8 @@ export async function runGmailSync(
       if (globalCutoff && beforeCutoff(emailTs, globalCutoff)) continue;
     }
 
-    parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
+    const category = applyRules(result, rules);
+    parsed.push({ ...result, category, messageId: email.messageId, date: email.date, account_id });
   }
 
   const insertResults = await Promise.all(parsed.map(async txn => {

@@ -3,6 +3,7 @@ import { C, fmt, card } from '../theme';
 import { supabase } from '../lib/supabase';
 import { parseEmail } from '../lib/emailParsers';
 import { computeGlobalCutoff, holderNamesMatch, getAuthHeaders } from '../lib/gmailSync';
+import { fetchCategoryRules, applyRules } from '../lib/categoryRules';
 import { BankLogo } from '../components/BankLogo';
 
 const RAILWAY_API = import.meta.env.VITE_API_URL as string ?? 'https://nexo-finanzas-tech-production.up.railway.app/api/v1';
@@ -278,8 +279,41 @@ export function SettingsScreen({ userId }: { userId: string }) {
   const [userEmail, setUserEmail] = useState('');
   const [userInitials, setUserInitials] = useState('');
 
+  // Category rules state
+  type CatRule = import('../lib/categoryRules').CategoryRule;
+  const [rules, setRules]                 = useState<CatRule[]>([]);
+  const [showAddRule, setShowAddRule]     = useState(false);
+  const [ruleField, setRuleField]         = useState<'description'|'recipient'|'merchant'>('description');
+  const [rulePattern, setRulePattern]     = useState('');
+  const [ruleCategory, setRuleCategory]   = useState('Transferencias');
+  const [savingRule, setSavingRule]       = useState(false);
+
   const fileRef = useRef<HTMLInputElement>(null);
   const bank    = BANKS.find(b => b.id === selectedBank);
+
+  async function loadRules() {
+    const data = await fetchCategoryRules(userId);
+    setRules(data);
+  }
+
+  async function addRule() {
+    if (!rulePattern.trim()) return;
+    setSavingRule(true);
+    const { error } = await supabase.from('category_rules').insert({
+      user_id: userId, field: ruleField, pattern: rulePattern.trim(), category: ruleCategory,
+    });
+    if (!error) {
+      setRulePattern('');
+      setShowAddRule(false);
+      await loadRules();
+    }
+    setSavingRule(false);
+  }
+
+  async function deleteRule(id: string) {
+    await supabase.from('category_rules').delete().eq('id', id).eq('user_id', userId);
+    setRules(prev => prev.filter(r => r.id !== id));
+  }
 
   async function loadAccounts() {
     // Try full select (requires migrations 009 and 010 to be applied in Supabase)
@@ -434,6 +468,7 @@ export function SettingsScreen({ userId }: { userId: string }) {
         .catch(() => {/* silent */});
     });
     loadAccounts();
+    loadRules();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -517,8 +552,11 @@ export function SettingsScreen({ userId }: { userId: string }) {
     }
     setSyncing(true);
     try {
-      // Step 1: Fetch raw emails from backend (authenticated)
-      const headers = await getAuthHeaders();
+      // Step 1: Fetch raw emails from backend (authenticated) + load rules
+      const [headers, rules] = await Promise.all([
+        getAuthHeaders(),
+        fetchCategoryRules(userId),
+      ]);
       const emailsRes = await fetch(`${RAILWAY_API}/email-sync/fetch-emails`, { headers });
 
       if (!emailsRes.ok) {
@@ -582,7 +620,8 @@ export function SettingsScreen({ userId }: { userId: string }) {
           cUnlinked++;
         }
 
-        parsed.push({ ...result, messageId: email.messageId, date: email.date, account_id });
+        const category = applyRules(result, rules);
+        parsed.push({ ...result, category, messageId: email.messageId, date: email.date, account_id });
       }
 
       const time = new Date().toLocaleTimeString('es-CO', { hour:'2-digit', minute:'2-digit' });
@@ -1153,6 +1192,89 @@ export function SettingsScreen({ userId }: { userId: string }) {
             })()}
           </div>
         )}
+
+        {/* ── Reglas de auto-categorización ── */}
+        <div style={{ fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:'0.12em', color:C.textMuted, textTransform:'uppercase', padding:'14px 0 8px' }}>
+          Reglas de categorización
+        </div>
+        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, marginBottom:8, overflow:'hidden' }}>
+          {/* Existing rules list */}
+          {rules.length === 0 && !showAddRule && (
+            <div style={{ padding:'14px 13px', color:C.textMuted, fontSize:12, fontFamily:"'DM Sans',sans-serif" }}>
+              Sin reglas. Puedes crear reglas para que ORIA clasifique automáticamente tus transferencias frecuentes.
+            </div>
+          )}
+          {rules.map((rule, i) => {
+            const fieldLabel: Record<string, string> = { description:'Descripción', recipient:'Destinatario', merchant:'Comercio' };
+            return (
+              <div key={rule.id} style={{
+                display:'flex', alignItems:'center', gap:8, padding:'10px 13px',
+                borderTop: i > 0 ? `1px solid ${C.border}` : 'none',
+              }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <span style={{ color:C.textMuted, fontSize:10, fontFamily:"'DM Sans',sans-serif" }}>
+                    {fieldLabel[rule.field] ?? rule.field} contiene "
+                  </span>
+                  <span style={{ color:C.text, fontSize:10, fontWeight:600, fontFamily:"'DM Sans',sans-serif" }}>{rule.pattern}</span>
+                  <span style={{ color:C.textMuted, fontSize:10, fontFamily:"'DM Sans',sans-serif" }}>" →</span>
+                  <span style={{ color:C.accent, fontSize:10, fontWeight:700, marginLeft:4, fontFamily:"'DM Sans',sans-serif" }}>{rule.category}</span>
+                </div>
+                <button onClick={() => deleteRule(rule.id)}
+                  style={{ background:'none', border:'none', color:C.danger, fontSize:12, cursor:'pointer', padding:'4px 6px', flexShrink:0, fontFamily:"'DM Sans',sans-serif" }}>
+                  ✕
+                </button>
+              </div>
+            );
+          })}
+
+          {/* Add rule form */}
+          {showAddRule ? (
+            <div style={{ borderTop: rules.length > 0 ? `1px solid ${C.border}` : 'none', padding:'12px 13px', display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ display:'flex', gap:8 }}>
+                <select value={ruleField} onChange={e => setRuleField(e.target.value as typeof ruleField)}
+                  style={{ flex:1, padding:'9px 10px', borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }}>
+                  <option value="description">Descripción</option>
+                  <option value="recipient">Destinatario</option>
+                  <option value="merchant">Comercio</option>
+                </select>
+              </div>
+              <input
+                type="text"
+                placeholder={ruleField === 'recipient' ? 'ej: HELDA GOMEZ' : ruleField === 'merchant' ? 'ej: Éxito' : 'ej: arriendo'}
+                value={rulePattern}
+                onChange={e => setRulePattern(e.target.value)}
+                style={{ padding:'9px 12px', borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }}
+              />
+              <select value={ruleCategory} onChange={e => setRuleCategory(e.target.value)}
+                style={{ padding:'9px 10px', borderRadius:10, border:`1px solid ${C.border}`, background:C.surfaceMid, color:C.text, fontSize:13, outline:'none', fontFamily:"'DM Sans',sans-serif" }}>
+                {['Alimentación','Transporte','Entretenimiento','Salud','Vivienda','Deporte','Educación',
+                  'Servicios','Ropa','Efectivo','Transferencias','Gasolina','Restaurante','Salario','Otros'].map(cat => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={() => { setShowAddRule(false); setRulePattern(''); }}
+                  style={{ flex:1, padding:'9px 0', borderRadius:10, border:`1px solid ${C.border}`, background:'transparent', color:C.textMuted, fontSize:12, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                  Cancelar
+                </button>
+                <button onClick={addRule} disabled={savingRule || !rulePattern.trim()}
+                  style={{ flex:2, padding:'9px 0', borderRadius:10, border:'none',
+                    background: (!rulePattern.trim() || savingRule) ? C.surfaceEl : 'rgba(0,229,160,0.15)',
+                    color: (!rulePattern.trim() || savingRule) ? C.textMuted : C.accent,
+                    fontSize:12, fontWeight:700, cursor: (!rulePattern.trim() || savingRule) ? 'default' : 'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                  {savingRule ? 'Guardando…' : 'Guardar regla'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ borderTop: rules.length > 0 ? `1px solid ${C.border}` : 'none', padding:'8px 13px' }}>
+              <button onClick={() => setShowAddRule(true)}
+                style={{ width:'100%', padding:'9px 0', borderRadius:8, border:`1px dashed ${C.borderLight}`, background:'transparent', color:C.accent, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:"'DM Sans',sans-serif" }}>
+                + Agregar regla
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* ── Bancos disponibles ── */}
         <div style={{ fontFamily:"'DM Mono',monospace", fontSize:9, letterSpacing:'0.12em', color:C.textMuted, textTransform:'uppercase', padding:'14px 0 8px' }}>
