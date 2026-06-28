@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
+import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
@@ -16,6 +17,10 @@ async function bootstrap() {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
+  // Explicit request body-size limits — cap payloads to a sane size.
+  app.use(json({ limit: '512kb' }));
+  app.use(urlencoded({ extended: true, limit: '512kb' }));
+
   // CORS — explicit allowlist + pattern fallback for Vercel previews
   const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(s => s.trim()) ?? [
     'http://localhost:5173',
@@ -23,18 +28,24 @@ async function bootstrap() {
     'https://oriafintech.com',
     'https://www.oriafintech.com',
   ];
+  // Vercel preview deployments are only auto-allowed outside production, so a
+  // hostile *.vercel.app site can't call the prod API. In production, set
+  // ALLOWED_ORIGINS explicitly to the known frontend origins.
+  const allowVercelPreviews = process.env.NODE_ENV !== 'production';
   app.enableCors({
     origin: (origin, cb) => {
       // Allow same-origin / server-to-server (no Origin header)
       if (!origin) return cb(null, true);
       if (allowedOrigins.includes(origin)) return cb(null, true);
-      // Allow any Vercel preview deployment and oriafintech.com subdomains
-      if (/\.vercel\.app$/.test(origin) || /\.oriafintech\.com$/.test(origin)) return cb(null, true);
+      if (/\.oriafintech\.com$/.test(origin)) return cb(null, true);
+      if (allowVercelPreviews && /\.vercel\.app$/.test(origin)) return cb(null, true);
       cb(new Error(`Origin ${origin} not allowed`), false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-secret'],
+    // Auth uses bearer tokens in the Authorization header, not cookies, so
+    // credentialed CORS is unnecessary and is disabled to remove CSRF surface.
+    credentials: false,
   });
 
   // Global prefix & versioning
@@ -54,8 +65,12 @@ async function bootstrap() {
     }),
   );
 
-  // Swagger docs
-  if (process.env.NODE_ENV !== 'production') {
+  // Swagger docs — disabled in production unless explicitly enabled, so a
+  // missing NODE_ENV can't accidentally publish the full API surface map.
+  const swaggerEnabled =
+    process.env.ENABLE_SWAGGER === 'true' ||
+    (process.env.NODE_ENV !== 'production' && process.env.ENABLE_SWAGGER !== 'false');
+  if (swaggerEnabled) {
     const config = new DocumentBuilder()
       .setTitle('ORIA API')
       .setDescription('Personal Financial Intelligence Platform - REST API')

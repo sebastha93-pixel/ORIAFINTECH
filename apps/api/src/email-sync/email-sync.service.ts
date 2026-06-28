@@ -3,10 +3,12 @@ import {
   Inject,
   Logger,
   UnauthorizedException,
+  BadRequestException,
   InternalServerErrorException,
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
+import { createHmac, timingSafeEqual, createHash, createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '../common/supabase/supabase.module';
 import { parseBancolombia, parseDavivienda, parseNequi } from './parsers';
@@ -60,6 +62,13 @@ export class EmailSyncService {
   private readonly clientId: string;
   private readonly clientSecret: string;
   private readonly redirectUri: string;
+  private readonly stateSecret: string;
+  private readonly tokenKey: Buffer | null;
+  private static readonly ENC_PREFIX = 'enc:v1:';
+
+  // Signed OAuth state lifetime — long enough to complete consent, short
+  // enough to limit replay. The state is a one-way binding to the user id.
+  private static readonly STATE_TTL_MS = 15 * 60 * 1000;
 
   constructor(
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
@@ -70,6 +79,46 @@ export class EmailSyncService {
     this.redirectUri =
       this.configService.get<string>('GOOGLE_REDIRECT_URI') ||
       'http://localhost:3001/email-sync/auth/callback';
+    // Dedicated secret if provided, otherwise derive from the service-role key
+    // (already a high-entropy server-only secret). Never client-exposed.
+    this.stateSecret =
+      this.configService.get<string>('OAUTH_STATE_SECRET') ??
+      this.configService.getOrThrow<string>('SUPABASE_SERVICE_ROLE_KEY');
+
+    // Encryption key for Gmail tokens at rest. If OAUTH_TOKEN_KEY is set we
+    // derive a 32-byte AES key from it; otherwise tokens are stored as before
+    // (plaintext) so existing deployments keep working. Set the env var to
+    // enable encryption — new/refreshed rows are then encrypted automatically.
+    const rawKey = this.configService.get<string>('OAUTH_TOKEN_KEY');
+    this.tokenKey = rawKey ? createHash('sha256').update(rawKey).digest() : null;
+    if (!this.tokenKey && this.configService.get<string>('NODE_ENV') === 'production') {
+      this.logger.warn('OAUTH_TOKEN_KEY not set — Gmail tokens are stored unencrypted. Set it to enable at-rest encryption.');
+    }
+  }
+
+  // ─── Token encryption at rest (AES-256-GCM) ──────────────────────────────
+  private encryptToken(plain: string): string {
+    if (!this.tokenKey || !plain) return plain;
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', this.tokenKey, iv);
+    const enc = Buffer.concat([cipher.update(plain, 'utf-8'), cipher.final()]);
+    const tag = cipher.getAuthTag();
+    return EmailSyncService.ENC_PREFIX + Buffer.concat([iv, tag, enc]).toString('base64');
+  }
+
+  private decryptToken(stored: string | null | undefined): string {
+    if (!stored) return '';
+    if (!stored.startsWith(EmailSyncService.ENC_PREFIX)) return stored; // legacy plaintext
+    if (!this.tokenKey) {
+      throw new InternalServerErrorException('Token cifrado pero OAUTH_TOKEN_KEY no está configurada.');
+    }
+    const raw = Buffer.from(stored.slice(EmailSyncService.ENC_PREFIX.length), 'base64');
+    const iv = raw.subarray(0, 12);
+    const tag = raw.subarray(12, 28);
+    const data = raw.subarray(28);
+    const decipher = createDecipheriv('aes-256-gcm', this.tokenKey, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf-8');
   }
 
   // ─── OAuth helpers ────────────────────────────────────────────────────────
@@ -78,7 +127,44 @@ export class EmailSyncService {
     return this.configService.get<string>('FRONTEND_URL') ?? 'https://nexo-finanzas-tech-api.vercel.app';
   }
 
-  getAuthUrl(state?: string): string {
+  /**
+   * Build a tamper-proof OAuth `state` bound to the authenticated user id.
+   * Format: base64url(payload).hmac  where payload = {uid, exp}.
+   * The callback can recover the real uid only by verifying the HMAC, so a
+   * client can never substitute another user's id (the C-1 fix).
+   */
+  createSignedState(userId: string): string {
+    const payload = JSON.stringify({ uid: userId, exp: Date.now() + EmailSyncService.STATE_TTL_MS });
+    const body = Buffer.from(payload, 'utf-8').toString('base64url');
+    const sig = createHmac('sha256', this.stateSecret).update(body).digest('base64url');
+    return `${body}.${sig}`;
+  }
+
+  /** Verify a signed state and return the bound user id, or throw. */
+  verifySignedState(state: string): string {
+    const dot = state.lastIndexOf('.');
+    if (dot <= 0) throw new BadRequestException('Estado OAuth inválido.');
+    const body = state.slice(0, dot);
+    const sig = state.slice(dot + 1);
+    const expected = createHmac('sha256', this.stateSecret).update(body).digest('base64url');
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
+      throw new BadRequestException('Firma de estado OAuth inválida.');
+    }
+    let parsed: { uid?: string; exp?: number };
+    try {
+      parsed = JSON.parse(Buffer.from(body, 'base64url').toString('utf-8')) as { uid?: string; exp?: number };
+    } catch {
+      throw new BadRequestException('Estado OAuth corrupto.');
+    }
+    if (!parsed.uid || !parsed.exp || Date.now() > parsed.exp) {
+      throw new BadRequestException('El estado OAuth expiró. Intenta conectar de nuevo.');
+    }
+    return parsed.uid;
+  }
+
+  getAuthUrl(state: string): string {
     const params = new URLSearchParams({
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
@@ -86,7 +172,7 @@ export class EmailSyncService {
       scope: 'openid email https://www.googleapis.com/auth/gmail.readonly',
       access_type: 'offline',
       prompt: 'consent',
-      ...(state ? { state } : {}),
+      state,
     });
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
@@ -107,8 +193,9 @@ export class EmailSyncService {
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      throw new InternalServerErrorException(`Google token exchange failed: ${body}`);
+      // Never surface Google's raw response (may include token/grant details).
+      this.logger.error(`Google token exchange failed (HTTP ${res.status})`);
+      throw new InternalServerErrorException('No se pudo completar el intercambio de tokens con Google.');
     }
 
     const tokens = (await res.json()) as {
@@ -154,8 +241,8 @@ export class EmailSyncService {
       {
         user_id: userId,
         gmail_address,
-        access_token,
-        refresh_token,
+        access_token: this.encryptToken(access_token),
+        refresh_token: this.encryptToken(refresh_token),
         token_expiry: new Date(expiry_date).toISOString(),
         emails_processed: 0,
         transactions_created: 0,
@@ -176,7 +263,7 @@ export class EmailSyncService {
     if (expiryMs - now < 5 * 60 * 1000) {
       return this.refreshAccessToken(connection);
     }
-    return connection.access_token;
+    return this.decryptToken(connection.access_token);
   }
 
   private async refreshAccessToken(connection: EmailConnection): Promise<string> {
@@ -186,14 +273,14 @@ export class EmailSyncService {
       body: new URLSearchParams({
         client_id: this.clientId,
         client_secret: this.clientSecret,
-        refresh_token: connection.refresh_token,
+        refresh_token: this.decryptToken(connection.refresh_token),
         grant_type: 'refresh_token',
       }),
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      this.logger.error(`Token refresh failed for user ${connection.user_id}: ${body}`);
+      // Do not log the raw body — it can contain token/grant material.
+      this.logger.error(`Token refresh failed for user ${connection.user_id} (HTTP ${res.status})`);
       throw new UnauthorizedException('Gmail token refresh failed. Please reconnect your account.');
     }
 
@@ -202,7 +289,7 @@ export class EmailSyncService {
 
     await this.supabase
       .from('email_connections')
-      .update({ access_token: tokens.access_token, token_expiry: newExpiry })
+      .update({ access_token: this.encryptToken(tokens.access_token), token_expiry: newExpiry })
       .eq('user_id', connection.user_id);
 
     return tokens.access_token;
@@ -299,8 +386,8 @@ export class EmailSyncService {
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      throw new InternalServerErrorException(`Gmail list messages failed: ${body}`);
+      this.logger.error(`Gmail list messages failed (HTTP ${res.status})`);
+      throw new InternalServerErrorException('No se pudieron listar los correos de Gmail.');
     }
 
     const data = (await res.json()) as { messages?: GmailMessage[] };
@@ -316,8 +403,8 @@ export class EmailSyncService {
     });
 
     if (!res.ok) {
-      const body = await res.text();
-      throw new InternalServerErrorException(`Gmail get message failed: ${body}`);
+      this.logger.error(`Gmail get message failed (HTTP ${res.status})`);
+      throw new InternalServerErrorException('No se pudo leer un correo de Gmail.');
     }
 
     return res.json() as Promise<GmailFullMessage>;
@@ -603,56 +690,6 @@ export class EmailSyncService {
         : new Date().toISOString();
 
       results.push({ messageId: msg.id, bank, subject, body: body.slice(0, 6000), date });
-    }
-    return results;
-  }
-
-  // ─── Debug: analyze real bank emails ────────────────────────────────────────
-
-  async debugSample(userId: string): Promise<{
-    bank: string; subject: string; from: string;
-    accountSuffix: string; accountHolder: string;
-    parsed: string; body: string; bodyLen: number;
-  }[]> {
-    const { data: connection } = await this.supabase
-      .from('email_connections').select('*').eq('user_id', userId).maybeSingle();
-    if (!connection) return [{
-      bank: 'NO_CONNECTION', subject: '', from: '', accountSuffix: '', accountHolder: '',
-      parsed: 'Gmail no está conectado', body: '', bodyLen: 0,
-    }];
-
-    const accessToken = await this.getValidAccessToken(connection as EmailConnection);
-    const messages = await this.listMessages(accessToken, BANK_QUERY);
-    const results: {
-      bank: string; subject: string; from: string;
-      accountSuffix: string; accountHolder: string;
-      parsed: string; body: string; bodyLen: number;
-    }[] = [];
-
-    for (const msg of messages.slice(0, 15)) {
-      const full = await this.getMessage(accessToken, msg.id);
-      const from = this.getHeader(full.payload, 'from');
-      const subject = this.getHeader(full.payload, 'subject');
-      const body = this.extractEmailBody(full.payload);
-      const bank = this.detectBank(from) ?? 'UNKNOWN';
-
-      let parsed = 'NO_MATCH';
-      let accountSuffix = '';
-      let accountHolder = '';
-
-      if (bank !== 'UNKNOWN') {
-        const result: ParsedTransaction | null =
-          bank === 'bancolombia' ? parseBancolombia(body, subject) :
-          bank === 'davivienda'  ? parseDavivienda(body, subject) :
-          parseNequi(body, subject);
-        if (result) {
-          parsed = JSON.stringify({ type: result.type, amount: result.amount, desc: result.description, suffix: result.accountSuffix, holder: result.accountHolder });
-          accountSuffix = result.accountSuffix ?? '';
-          accountHolder = result.accountHolder ?? '';
-        }
-      }
-
-      results.push({ bank, from, subject, accountSuffix, accountHolder, parsed, body: body.slice(0, 1200), bodyLen: body.length });
     }
     return results;
   }

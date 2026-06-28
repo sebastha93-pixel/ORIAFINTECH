@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Inject, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '../common/supabase/supabase.module';
 import { RegisterDto } from './dto/register.dto';
@@ -6,6 +6,8 @@ import { LoginDto } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
   ) {}
@@ -18,7 +20,12 @@ export class AuthService {
       email_confirm: false,
     });
 
-    if (error) throw new BadRequestException(error.message);
+    if (error) {
+      // Don't echo Supabase's message (e.g. "already registered") — that
+      // enables account enumeration. Log server-side, return generic.
+      this.logger.warn(`Registration failed: ${error.message}`);
+      throw new BadRequestException('No se pudo crear la cuenta. Verifica los datos e intenta de nuevo.');
+    }
 
     // Sign in to get session token
     const { data: session, error: signInError } = await this.supabase.auth.signInWithPassword({
@@ -26,7 +33,10 @@ export class AuthService {
       password: dto.password,
     });
 
-    if (signInError) throw new BadRequestException(signInError.message);
+    if (signInError) {
+      this.logger.warn(`Post-register sign-in failed: ${signInError.message}`);
+      throw new BadRequestException('La cuenta se creó pero no se pudo iniciar sesión. Intenta iniciar sesión manualmente.');
+    }
 
     return {
       user: data.user,
@@ -64,7 +74,9 @@ export class AuthService {
     const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
       redirectTo: process.env.RESET_PASSWORD_URL,
     });
-    if (error) throw new BadRequestException(error.message);
-    return { message: 'Password reset email sent' };
+    // Always return the same response whether or not the email exists, to
+    // prevent account enumeration via differential responses.
+    if (error) this.logger.warn(`Password reset request failed: ${error.message}`);
+    return { message: 'Si la cuenta existe, enviamos un correo para restablecer la contraseña.' };
   }
 }

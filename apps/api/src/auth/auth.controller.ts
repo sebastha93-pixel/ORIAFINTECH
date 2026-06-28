@@ -4,6 +4,8 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
@@ -30,8 +32,8 @@ export class AuthController {
   @Post('refresh')
   @Throttle({ short: { limit: 10, ttl: 60000 } })
   @ApiOperation({ summary: 'Refresh access token' })
-  refresh(@Body('refresh_token') token: string) {
-    return this.authService.refreshToken(token);
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshToken(dto.refresh_token);
   }
 
   @Post('logout')
@@ -44,7 +46,7 @@ export class AuthController {
   @Post('reset-password')
   @Throttle({ short: { limit: 3, ttl: 3600000 } })
   @ApiOperation({ summary: 'Send password reset email' })
-  resetPassword(@Body('email') email: string) {
-    return this.authService.resetPassword(email);
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.email);
   }
 }

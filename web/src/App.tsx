@@ -155,9 +155,10 @@ export default function App() {
     window.scrollTo(0, 0);
   }, [screen]);
 
-  // Auto-sync Gmail on open and reload transactions when new ones arrive
+  // Auto-sync Gmail on open and reload transactions when new ones arrive.
+  // Pass null while locked so no background sync runs behind the lock screen.
   const { newCount, clearCount } = useAutoGmailSync(
-    userId,
+    locked ? null : userId,
     () => setTxReloadKey(k => k + 1),
   );
 
@@ -174,19 +175,25 @@ export default function App() {
     return <LandingScreen onStart={() => setShowLogin('register')} onLogin={() => setShowLogin('login')} />;
   }
 
+  // Locked: render ONLY the lock screen. The app tree (with balances and
+  // financial data) is fully unmounted, not just hidden behind an overlay, so
+  // it can't be revealed by removing a DOM node or inspecting the page.
+  if (locked) {
+    return (
+      <LockScreen
+        email={lockEmail}
+        onUnlock={() => { setLocked(false); resetTimer(); }}
+        onSignOut={signOut}
+      />
+    );
+  }
+
   function handleTab(id: string) {
     setScreen(id as Screen);
   }
 
   return (
     <div style={{ position:'relative', width:'100%', maxWidth:480, margin:'0 auto', minHeight:'100vh', background:'#0A0C0F' }}>
-      {locked && (
-        <LockScreen
-          email={lockEmail}
-          onUnlock={() => { setLocked(false); resetTimer(); }}
-          onSignOut={signOut}
-        />
-      )}
       {screen === 'dashboard'    && <DashboardScreen onNavigate={handleTab} />}
       {screen === 'patrimony'    && <PatrimonyScreen />}
       {screen === 'transactions' && <TransactionsScreen reloadKey={txReloadKey} />}

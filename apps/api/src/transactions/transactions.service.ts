@@ -70,6 +70,13 @@ export class TransactionsService {
   }
 
   async create(userId: string, dto: CreateTransactionDto) {
+    // The backend client uses the service-role key (RLS is bypassed), so we
+    // must verify referenced rows belong to the caller in application code —
+    // otherwise a user could reference another user's account/category.
+    await this.assertOwnedAccount(userId, dto.account_id);
+    await this.assertOwnedAccount(userId, (dto as { to_account_id?: string }).to_account_id);
+    await this.assertOwnedCategory(userId, (dto as { category_id?: string }).category_id);
+
     const { data, error } = await this.supabase
       .from('transactions')
       .insert({ ...dto, user_id: userId })
@@ -78,6 +85,30 @@ export class TransactionsService {
 
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  private async assertOwnedAccount(userId: string, accountId?: string | null) {
+    if (!accountId) return;
+    const { data } = await this.supabase
+      .from('accounts')
+      .select('id')
+      .eq('id', accountId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!data) throw new ForbiddenException('Account does not belong to the user');
+  }
+
+  private async assertOwnedCategory(userId: string, categoryId?: string | null) {
+    if (!categoryId) return;
+    const { data } = await this.supabase
+      .from('categories')
+      .select('id, is_system, user_id')
+      .eq('id', categoryId)
+      .maybeSingle();
+    // Allow system categories (shared) or the user's own categories.
+    if (!data || (!data.is_system && data.user_id !== userId)) {
+      throw new ForbiddenException('Category does not belong to the user');
+    }
   }
 
   async update(userId: string, id: string, dto: UpdateTransactionDto) {

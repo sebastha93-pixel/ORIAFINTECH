@@ -723,7 +723,10 @@ export function SettingsScreen({ userId }: { userId: string }) {
     setGmailLoading(true);
     setGmailError('');
     try {
-      const res = await fetch(`${RAILWAY_API}/email-sync/auth/google?state=${encodeURIComponent(userId)}`);
+      // Auth header lets the backend derive + sign the OAuth state from the
+      // authenticated user. The client no longer supplies its own identity.
+      const headers = await getAuthHeaders();
+      const res = await fetch(`${RAILWAY_API}/email-sync/auth/google`, { headers });
       const data = await res.json() as { url: string };
 
       const popup = window.open(data.url, 'nexo_gmail', 'width=520,height=660,left=400,top=100,toolbar=no,menubar=no');

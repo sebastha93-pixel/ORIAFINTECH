@@ -15,7 +15,33 @@ import { EmailSyncService } from './email-sync.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-const successHtml = (email: string, userId: string, count: number, frontendUrl: string) => `<!DOCTYPE html>
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+// Safe to embed inside an inline <script> string literal: JSON-encodes then
+// neutralizes `<` so a value can't break out with `</script>` or inject markup.
+function jsString(value: string | number): string {
+  // JSON-encode, then neutralize characters that can break out of an inline
+  // <script> string literal: `<` (markup/`</script>`) and the U+2028/U+2029
+  // line separators (valid in JSON, but terminate a JS string).
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+const successHtml = (email: string, count: number, frontendUrl: string) => {
+  const emailHtml = escapeHtml(email);
+  const emailJs   = jsString(email);
+  const countJs   = jsString(count);
+  const urlJs     = jsString(frontendUrl);
+  return `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
@@ -35,7 +61,7 @@ const successHtml = (email: string, userId: string, count: number, frontendUrl: 
   <div class="card">
     <div class="icon">✅</div>
     <h2>Gmail conectado</h2>
-    <p>Tu cuenta <span class="email">${email}</span> está conectada.<br>${count} movimiento${count !== 1 ? 's' : ''} importado${count !== 1 ? 's' : ''} automáticamente.</p>
+    <p>Tu cuenta <span class="email">${emailHtml}</span> está conectada.<br>${count} movimiento${count !== 1 ? 's' : ''} importado${count !== 1 ? 's' : ''} automáticamente.</p>
     <button onclick="notify()">Volver a Nexo</button>
   </div>
   <script>
@@ -43,25 +69,17 @@ const successHtml = (email: string, userId: string, count: number, frontendUrl: 
       if (window.opener && !window.opener.closed) {
         const allowed = ['https://oriafintech.com','https://www.oriafintech.com','http://localhost:5173'];
         const target  = allowed.includes(window.opener.location.origin) ? window.opener.location.origin : allowed[0];
-        window.opener.postMessage({ type: 'nexo_gmail_connected', email: '${email}', userId: '${userId}', count: ${count} }, target);
+        window.opener.postMessage({ type: 'nexo_gmail_connected', email: ${emailJs}, count: ${countJs} }, target);
         window.close();
       } else {
-        window.location.href = '${frontendUrl}?gmail=connected&email=${encodeURIComponent(email)}&count=${count}';
+        window.location.href = ${urlJs} + '?gmail=connected&email=' + encodeURIComponent(${emailJs}) + '&count=' + ${countJs};
       }
     }
     setTimeout(notify, 1200);
   </script>
 </body>
 </html>`;
-
-function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;');
-}
+};
 
 const errorHtml = (msg: string) => `<!DOCTYPE html>
 <html lang="es">
@@ -97,7 +115,13 @@ export class EmailSyncController {
 
   @Get('auth/google')
   @ApiOperation({ summary: 'Get Google OAuth authorization URL' })
-  getAuthUrl(@Query('state') state?: string): { url: string } {
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  getAuthUrl(@CurrentUser() user: User): { url: string } {
+    // The state is derived server-side from the authenticated user and signed.
+    // Client-supplied state is ignored — this prevents binding another user's
+    // Gmail to this account (or vice-versa).
+    const state = this.emailSyncService.createSignedState(user.id);
     const url = this.emailSyncService.getAuthUrl(state);
     return { url };
   }
@@ -120,27 +144,36 @@ export class EmailSyncController {
       return errorHtml('Parámetro state faltante. Intenta conectar de nuevo.');
     }
 
+    // Recover the real user id from the signed state. A forged/expired/tampered
+    // state is rejected here — the callback never trusts state as an identity.
+    let userId: string;
+    try {
+      userId = this.emailSyncService.verifySignedState(state);
+    } catch {
+      return errorHtml('La sesión de conexión expiró o es inválida. Intenta conectar de nuevo.');
+    }
+
     try {
       const { access_token, refresh_token, expiry_date, email } =
         await this.emailSyncService.exchangeCodeForTokens(code);
 
-      await this.emailSyncService.storeTokens(state, email, access_token, refresh_token, expiry_date);
+      await this.emailSyncService.storeTokens(userId, email, access_token, refresh_token, expiry_date);
 
-      this.logger.log(`Gmail connected for user ${state} (${email}). Running initial sync…`);
+      this.logger.log(`Gmail connected for user ${userId}. Running initial sync…`);
 
-      const { transactionsCreated, errors } = await this.emailSyncService.syncEmails(state);
+      const { transactionsCreated, errors } = await this.emailSyncService.syncEmails(userId);
 
       if (errors.length) {
-        this.logger.warn(`Initial sync had ${errors.length} errors: ${errors.join('; ')}`);
+        this.logger.warn(`Initial sync had ${errors.length} errors.`);
       }
 
       // Backfill monthly summaries for all past months in background
-      this.emailSyncService.backfillMonthlySummaries(state).catch((e: unknown) => {
-        this.logger.warn(`Backfill failed for user ${state}: ${String(e)}`);
+      this.emailSyncService.backfillMonthlySummaries(userId).catch((e: unknown) => {
+        this.logger.warn(`Backfill failed for user ${userId}: ${String(e)}`);
       });
 
       const frontendUrl = this.emailSyncService.getFrontendUrl();
-      return successHtml(email, state, transactionsCreated, frontendUrl);
+      return successHtml(email, transactionsCreated, frontendUrl);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(`OAuth callback error: ${msg}`);
@@ -185,17 +218,5 @@ export class EmailSyncController {
     messageId: string; bank: string; subject: string; body: string; date: string;
   }[]> {
     return this.emailSyncService.fetchEmailsForClient(user.id);
-  }
-
-  @Get('debug-sample')
-  @ApiOperation({ summary: 'Debug: show what the parser extracts from real emails' })
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
-  async debugSample(@CurrentUser() user: User): Promise<{
-    bank: string; subject: string; from: string;
-    accountSuffix: string; accountHolder: string;
-    parsed: string; body: string; bodyLen: number;
-  }[]> {
-    return this.emailSyncService.debugSample(user.id);
   }
 }

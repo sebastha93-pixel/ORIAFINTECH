@@ -6,11 +6,10 @@ build/
 .nuxt/
 .cache/
 
-# Env files
+# Env files — ignore every variant, keep only the example template
 .env
-.env.local
-.env.production
-.env.staging
+.env.*
+!.env.example
 
 # OS
 .DS_Store

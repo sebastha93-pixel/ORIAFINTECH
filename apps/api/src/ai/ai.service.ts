@@ -23,6 +23,7 @@ export class AiService {
     const systemPrompt = this.buildSystemPrompt(context);
 
     let conversationId = dto.conversation_id;
+    let ownsConversation = false;
     let existingMessages: Array<{ role: string; content: string }> = [];
 
     if (conversationId) {
@@ -32,7 +33,14 @@ export class AiService {
         .eq('id', conversationId)
         .eq('user_id', userId)
         .single();
-      if (conv) existingMessages = conv.messages;
+      if (conv) {
+        existingMessages = conv.messages;
+        ownsConversation = true;
+      } else {
+        // Supplied a conversation id we don't own (or doesn't exist) — never
+        // write into it. Fall through to creating a fresh conversation.
+        conversationId = undefined;
+      }
     }
 
     const messages: Array<{ role: 'user' | 'assistant'; content: string }> = [
@@ -61,11 +69,12 @@ export class AiService {
       { role: 'assistant', content: reply, timestamp: new Date().toISOString() },
     ];
 
-    if (conversationId) {
+    if (conversationId && ownsConversation) {
       await this.supabase
         .from('ai_conversations')
         .update({ messages: updatedMessages })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .eq('user_id', userId);
     } else {
       const { data: newConv } = await this.supabase
         .from('ai_conversations')

@@ -14,16 +14,32 @@ function showOverlay(title: string, detail: string) {
     'background:#070B14','display:flex','align-items:center',
     'justify-content:center','padding:24px','font-family:sans-serif',
   ].join(';');
-  div.innerHTML = `
-    <div style="background:#0F172A;border:1px solid #EF4444;border-radius:20px;padding:28px;max-width:420px;width:100%;text-align:center">
-      <div style="font-size:48px;margin-bottom:12px">⚠️</div>
-      <div style="color:#F8FAFC;font-size:18px;font-weight:700;margin-bottom:8px">${title}</div>
-      <div style="color:#94A3B8;font-size:12px;margin-bottom:20px;background:#070B14;padding:12px;border-radius:10px;text-align:left;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow:auto">${detail}</div>
-      <button onclick="this.closest('#nexo-error-overlay').remove();location.reload()"
-        style="padding:12px 24px;border-radius:12px;border:none;background:linear-gradient(135deg,#22C55E,#16A34A);color:#fff;font-size:14px;font-weight:700;cursor:pointer">
-        Recargar
-      </button>
-    </div>`;
+
+  // Static chrome only — never interpolate dynamic strings into innerHTML.
+  // `title`/`detail` can contain attacker-influenced text (parsed email
+  // content, server error bodies), so they are inserted via textContent.
+  const card = document.createElement('div');
+  card.style.cssText = 'background:#0F172A;border:1px solid #EF4444;border-radius:20px;padding:28px;max-width:420px;width:100%;text-align:center';
+
+  const emoji = document.createElement('div');
+  emoji.style.cssText = 'font-size:48px;margin-bottom:12px';
+  emoji.textContent = '⚠️';
+
+  const titleEl = document.createElement('div');
+  titleEl.style.cssText = 'color:#F8FAFC;font-size:18px;font-weight:700;margin-bottom:8px';
+  titleEl.textContent = title;
+
+  const detailEl = document.createElement('div');
+  detailEl.style.cssText = 'color:#94A3B8;font-size:12px;margin-bottom:20px;background:#070B14;padding:12px;border-radius:10px;text-align:left;word-break:break-all;white-space:pre-wrap;max-height:200px;overflow:auto';
+  detailEl.textContent = detail;
+
+  const btn = document.createElement('button');
+  btn.style.cssText = 'padding:12px 24px;border-radius:12px;border:none;background:linear-gradient(135deg,#22C55E,#16A34A);color:#fff;font-size:14px;font-weight:700;cursor:pointer';
+  btn.textContent = 'Recargar';
+  btn.addEventListener('click', () => { div.remove(); location.reload(); });
+
+  card.append(emoji, titleEl, detailEl, btn);
+  div.appendChild(card);
   document.body.appendChild(div);
 }
 
