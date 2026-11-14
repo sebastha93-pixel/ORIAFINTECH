@@ -57,6 +57,7 @@ interface GmailFullMessage {
 }
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
 const GMAIL_API_BASE = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const BANK_QUERY =
   '(from:notificacionesbancolombia.com OR from:bancolombia.com OR from:bancolombia.com.co OR from:davivienda.com OR from:davivienda.com.co OR from:nequi.com) newer_than:30d';
@@ -299,6 +300,54 @@ export class EmailSyncService {
       .eq('user_id', connection.user_id);
 
     return tokens.access_token;
+  }
+
+  // ─── Revocar el acceso en Google ──────────────────────────────────────────
+
+  /**
+   * Revoca en Google el permiso de leer el Gmail de esta persona (auditoría de
+   * seguridad 2026-11, informe 14 #26d).
+   *
+   * Borrar la cuenta solo borraba las filas: el refresh token seguía valiendo
+   * en Google, y quien tuviera una copia (un respaldo, un log viejo) podía
+   * seguir leyendo ese correo. Revocar el refresh token revoca el permiso
+   * entero, access tokens incluidos.
+   *
+   * Es de mejor esfuerzo: nunca impide borrar la cuenta. Devuelve qué pasó para
+   * dejarlo en el log (sin el token, por supuesto).
+   */
+  async revocarAccesoGoogle(userId: string): Promise<'revocado' | 'ya_invalido' | 'sin_conexion' | 'fallo'> {
+    const { data: conn } = await this.supabase
+      .from('email_connections')
+      .select('refresh_token, access_token')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!conn) return 'sin_conexion';
+
+    let token = '';
+    try {
+      token = this.decryptToken(conn.refresh_token) || this.decryptToken(conn.access_token);
+    } catch {
+      this.logger.warn('revocarAccesoGoogle: no se pudo descifrar el token');
+      return 'fallo';
+    }
+    if (!token) return 'sin_conexion';
+
+    try {
+      const res = await fetch(GOOGLE_REVOKE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ token }),
+      });
+      if (res.ok) return 'revocado';
+      // 400 invalid_token: ya estaba revocado o vencido. No queda acceso que quitar.
+      if (res.status === 400) return 'ya_invalido';
+      this.logger.warn(`revocarAccesoGoogle: Google respondió HTTP ${res.status}`);
+      return 'fallo';
+    } catch (e) {
+      this.logger.warn(`revocarAccesoGoogle: ${e instanceof Error ? e.message : 'error de red'}`);
+      return 'fallo';
+    }
   }
 
   // ─── Status ───────────────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import { Injectable, Inject, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_CLIENT } from '../common/supabase/supabase.module';
+import { EmailSyncService } from '../email-sync/email-sync.service';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -30,6 +31,7 @@ export class UsersService {
 
   constructor(
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
+    private readonly emailSync: EmailSyncService,
   ) {}
 
   async getProfile(userId: string) {
@@ -63,6 +65,12 @@ export class UsersService {
    */
   async deleteAccount(userId: string) {
     if (!UUID_RE.test(userId)) throw new BadRequestException('Invalid user id');
+
+    // Primero se le quita a Google el permiso sobre su Gmail: después de
+    // borrar email_connections ya no queda el token para revocarlo
+    // (auditoría 2026-11, #26d). Nunca bloquea el borrado.
+    const google = await this.emailSync.revocarAccesoGoogle(userId).catch(() => 'fallo' as const);
+    if (google !== 'sin_conexion') this.logger.log(`deleteAccount: acceso de Google → ${google}`);
 
     // Best-effort explicit erasure of all user-owned rows. For `categories`
     // only the user's own (non-system) rows are removed.
