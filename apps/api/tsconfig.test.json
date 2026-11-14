@@ -11,7 +11,11 @@
     "test/**/*.ts",
     "src/auth/auth.service.ts",
     "src/common/supabase/supabase.module.ts",
-    "src/auth/dto/*.ts"
+    "src/auth/dto/*.ts",
+    "src/email-sync/email-sync.service.ts",
+    "src/email-sync/parsers/**/*.ts",
+    "src/users/users.service.ts",
+    "src/users/dto/*.ts"
   ],
   "exclude": [
     "node_modules",

@@ -11,7 +11,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:sesion": "tsc -p tsconfig.test.json && node --test dist-test/test/sesion-efimera.test.js"
+    "test:sesion": "tsc -p tsconfig.test.json && node --test dist-test/test/"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.102.0",
