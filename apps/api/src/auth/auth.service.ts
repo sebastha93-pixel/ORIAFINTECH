@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException, Inject, BadRequestException, Logger } from '@nestjs/common';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { SUPABASE_CLIENT } from '../common/supabase/supabase.module';
+import { SUPABASE_CLIENT, SUPABASE_SESION, type FabricaSesion } from '../common/supabase/supabase.module';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
@@ -10,6 +10,10 @@ export class AuthService {
 
   constructor(
     @Inject(SUPABASE_CLIENT) private readonly supabase: SupabaseClient,
+    // Iniciar, renovar y recuperar sesión van SIEMPRE en un cliente nuevo:
+    // hacerlo sobre `this.supabase` le pegaba la sesión del usuario al cliente
+    // global de service-role (auditoría 2026-11, #26b).
+    @Inject(SUPABASE_SESION) private readonly nuevaSesion: FabricaSesion,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -28,7 +32,7 @@ export class AuthService {
     }
 
     // Sign in to get session token
-    const { data: session, error: signInError } = await this.supabase.auth.signInWithPassword({
+    const { data: session, error: signInError } = await this.nuevaSesion().auth.signInWithPassword({
       email: dto.email,
       password: dto.password,
     });
@@ -46,7 +50,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const { data, error } = await this.supabase.auth.signInWithPassword({
+    const { data, error } = await this.nuevaSesion().auth.signInWithPassword({
       email: dto.email,
       password: dto.password,
     });
@@ -60,7 +64,7 @@ export class AuthService {
   }
 
   async refreshToken(refresh_token: string) {
-    const { data, error } = await this.supabase.auth.refreshSession({ refresh_token });
+    const { data, error } = await this.nuevaSesion().auth.refreshSession({ refresh_token });
     if (error) throw new UnauthorizedException('Invalid refresh token');
     return { session: data.session };
   }
@@ -71,7 +75,7 @@ export class AuthService {
   }
 
   async resetPassword(email: string) {
-    const { error } = await this.supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await this.nuevaSesion().auth.resetPasswordForEmail(email, {
       redirectTo: process.env.RESET_PASSWORD_URL,
     });
     // Always return the same response whether or not the email exists, to
